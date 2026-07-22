@@ -1,0 +1,2 @@
+# Put one public company website per line.
+https://example.com

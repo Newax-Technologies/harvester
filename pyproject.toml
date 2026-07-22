@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lead-harvester"
+version = "0.1.0"
+description = "Compliant web and social lead discovery, extraction, scoring, deduplication, and export."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "NEWAX"}]
+dependencies = [
+  "beautifulsoup4>=4.14,<5",
+  "httpx>=0.28,<1",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9",
+  "pytest-asyncio>=0.25,<1",
+  "ruff>=0.9,<1",
+]
+
+[project.scripts]
+lead-harvester = "lead_harvester.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lead_harvester"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
