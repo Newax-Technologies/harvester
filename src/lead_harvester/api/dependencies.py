@@ -45,5 +45,5 @@ def require_roles(*roles: str):
 
 async def get_db_session() -> AsyncSession:
     """Dependency to get the database session"""
-    async for session in get_session():
+    async with get_session() as session:
         yield session

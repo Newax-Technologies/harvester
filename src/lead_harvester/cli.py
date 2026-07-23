@@ -1,27 +1,412 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import sys
+from pathlib import Path
 
 from .config import Settings
 from .pipeline import LeadPipeline
+from .database import engine
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _env(key: str, default: str = "") -> str:
+    import os
+    return os.getenv(key, default)
+
+
+# ---------------------------------------------------------------------------
+# Command implementations
+# ---------------------------------------------------------------------------
+
+def run_command(args: argparse.Namespace) -> int:
+    settings = Settings(job_config_path=args.config)
+    settings.load_job_config()
+
+    if "seeds" not in settings.job_config and not settings.google_places_api_key:
+        print(
+            "Error: job.yaml must contain 'seeds' OR GOOGLE_PLACES_API_KEY must be set.",
+            file=sys.stderr,
+        )
+        return 2
+
+    pipeline = LeadPipeline(settings)
+    asyncio.run(pipeline.run())
+    print(f"Finished pipeline execution using config {args.config}.")
+    return 0
+
+
+async def check_db_health() -> int:
+    from sqlalchemy import text
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        print("Database connection healthy.")
+        return 0
+    except Exception as e:
+        print(f"Database connection failed: {e}", file=sys.stderr)
+        return 1
+
+
+# ---------------------------------------------------------------------------
+# LinkedIn commands
+# ---------------------------------------------------------------------------
+
+async def linkedin_login(args: argparse.Namespace) -> int:
+    """
+    Open a real (visible) Camoufox browser, navigate to linkedin.com/login,
+    and wait for the user to log in manually. Then saves the session cookies.
+    """
+    try:
+        from camoufox.async_api import AsyncCamoufox
+    except ImportError:
+        print("camoufox not installed. Run: pip install 'camoufox[geoip]'", file=sys.stderr)
+        return 1
+
+    from .sources.session_manager import SessionManager
+
+    account_id = args.account
+    sm = SessionManager("sessions")
+
+    print(f"\n{'='*60}")
+    print(f"  LinkedIn Login — Account: {account_id}")
+    print(f"{'='*60}")
+    print("A browser will open. Log in to LinkedIn manually.")
+    print("Once you are on the LinkedIn feed page, come back here")
+    print("and press ENTER to save your session.\n")
+
+    async with AsyncCamoufox(headless=False, humanize=True, addons=[]) as browser:
+        context = await browser.new_context(
+            locale="en-US",
+            timezone_id="Asia/Karachi",
+        )
+        page = await context.new_page()
+        await page.goto("https://www.linkedin.com/login", wait_until="networkidle")
+
+        input(">>> Press ENTER after you have logged in successfully...")
+
+        cookies = await context.cookies()
+        sm.save_cookies(account_id, cookies, first_login=True)
+        await context.close()
+
+    print(f"\n✓ Session saved for account '{account_id}'. You can now run linkedin-run.\n")
+    return 0
+
+
+async def linkedin_run(args: argparse.Namespace) -> int:
+    """
+    Crawl a list of LinkedIn profile URLs using the stealth crawler.
+    Profile URLs are read from a plain-text file (one URL per line).
+    """
+    from .sources.linkedin_stealth import LinkedInStealthCrawler
+    from .database import get_session
+    from .models import RawSourceRecord
+    from .models.source import SourceType
+    import dataclasses
+
+    account_id = args.account
+    proxy      = args.proxy or _env("LINKEDIN_PROXY")
+    captcha_key= args.captcha_key or _env("TWOCAPTCHA_API_KEY")
+
+    try:
+        with open(args.urls_file) as f:
+            urls = [line.strip() for line in f if line.strip().startswith("http")]
+    except FileNotFoundError:
+        print(f"URLs file not found: {args.urls_file}", file=sys.stderr)
+        return 1
+
+    if not urls:
+        print("No valid URLs found in file.", file=sys.stderr)
+        return 1
+
+    print(f"[LinkedIn] Starting stealth crawl of {len(urls)} profile(s)...")
+    crawler = LinkedInStealthCrawler(
+        account_id=account_id,
+        target_urls=urls,
+        captcha_api_key=captcha_key or None,
+        proxy=proxy or None,
+        addons=[],
+    )
+    profiles = await crawler.run()
+
+    # Persist raw profiles to database
+    async with get_session() as session:
+        from .models.source import SourceRun, RunStatus
+        run = SourceRun(
+            source_type=SourceType.LINKEDIN,
+            run_metadata={"profiles_found": len(profiles), "urls_attempted": len(urls)},
+            status=RunStatus.STARTED,
+        )
+        session.add(run)
+        await session.flush()
+
+        for profile in profiles:
+            record = RawSourceRecord(
+                source_run_id=run.id,
+                source_type=SourceType.LINKEDIN,
+                source_id=profile.profile_url,
+                raw_payload=dataclasses.asdict(profile),
+                normalized_name=profile.full_name or profile.company,
+                normalized_phone=None,
+                normalized_domain=None,
+                location=None,
+            )
+            session.add(record)
+
+        from .models.source import RunStatus
+        import datetime as dt
+        run.status = RunStatus.COMPLETED
+        run.completed_at = dt.datetime.now(dt.timezone.utc)
+
+    print(f"\n✓ Saved {len(profiles)} profiles to database.")
+    print("  Run `linkedin-research` next to analyse them with AI.\n")
+    return 0
+
+
+async def linkedin_research(args: argparse.Namespace) -> int:
+    """
+    Run the AI Research Brain on all unprocessed LinkedIn profiles.
+    """
+    from .intelligence.researcher import ResearchBrain
+
+    api_key = args.openai_key or _env("OPENAI_API_KEY")
+    if not api_key:
+        print("Error: OPENAI_API_KEY is required. Set it in .env or pass --openai-key.", file=sys.stderr)
+        return 1
+
+    brain = ResearchBrain(api_key=api_key, model=args.model)
+    print("[Research] Processing pending LinkedIn profiles...")
+    await brain.process_all_pending()
+    print("\n✓ Research complete. Check your dashboard for AccountBrief records.\n")
+    return 0
+
+
+async def linkedin_send(args: argparse.Namespace) -> int:
+    """
+    Send all approved OutreachDraft records (LinkedIn messages or emails).
+    """
+    from .outreach.automator import OutreachAutomator
+
+    automator = OutreachAutomator(
+        account_id=args.account,
+        smtp_host=args.smtp_host or _env("SMTP_HOST"),
+        smtp_port=int(args.smtp_port or _env("SMTP_PORT", "587")),
+        smtp_user=args.smtp_user or _env("SMTP_USER"),
+        smtp_password=_env("SMTP_PASSWORD"),
+        smtp_from_name=args.from_name or _env("SMTP_FROM_NAME", "NEWAX Sales"),
+        captcha_api_key=_env("TWOCAPTCHA_API_KEY") or None,
+        proxy=args.proxy or _env("LINKEDIN_PROXY") or None,
+        dry_run=args.dry_run,
+    )
+
+    mode = "DRY RUN" if args.dry_run else "LIVE"
+    print(f"[Outreach] Starting automator ({mode})...")
+    await automator.run()
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Parser
+# ---------------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="lead-harvester",
-        description="Education Infrastructure Opportunity Engine (Phase 1)",
+        description="Education Infrastructure Opportunity Engine",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run = subparsers.add_parser("run", help="Run discovery and extraction via YAML config")
-    run.add_argument("--config", required=True, help="Path to the YAML job configuration file")
-    run.add_argument("--database", default="leads_v2.sqlite3")
+    # -- run (web / Google Places) ----------------------------------------
+    run = subparsers.add_parser("run", help="Run discovery via YAML config (web / Google Places)")
+    run.add_argument("--config", required=True, help="Path to the YAML job config file")
+
+    # -- db-health ----------------------------------------------------------
+    subparsers.add_parser("db-health", help="Check PostgreSQL connection health")
+
+    # -- migrate-phase1 -----------------------------------------------------
+    migrate = subparsers.add_parser("migrate-phase1", help="Migrate Phase 1 SQLite data to PostgreSQL")
+    migrate.add_argument("--database", default="leads_v2.sqlite3")
+
+    # -- seed-demo-data -----------------------------------------------------
+    seed = subparsers.add_parser("seed-demo-data", help="Seed realistic dev records")
+    seed.add_argument("--reset", action="store_true")
+    seed.add_argument("--scenario", default="full")
+    seed.add_argument("--seed", type=int, default=42)
+
+    # -- linkedin-login -----------------------------------------------------
+    li_login = subparsers.add_parser(
+        "linkedin-login",
+        help="Open browser, log in to LinkedIn manually, save session cookies",
+    )
+    li_login.add_argument("--account", required=True, help="Burner account identifier (e.g. burner_01)")
+
+    # -- linkedin-run -------------------------------------------------------
+    li_run = subparsers.add_parser(
+        "linkedin-run",
+        help="Stealthily crawl LinkedIn profiles (reads URLs from a text file)",
+    )
+    li_run.add_argument("--account", required=True, help="Burner account identifier")
+    li_run.add_argument("--urls-file", required=True, help="Text file with one LinkedIn profile URL per line")
+    li_run.add_argument("--proxy", default="", help="Residential proxy (http://user:pass@host:port)")
+    li_run.add_argument("--captcha-key", default="", help="2Captcha API key")
+
+    # -- linkedin-research --------------------------------------------------
+    li_research = subparsers.add_parser(
+        "linkedin-research",
+        help="Run AI Research Brain on extracted LinkedIn profiles",
+    )
+    li_research.add_argument("--openai-key", default="", help="OpenAI API key (or set OPENAI_API_KEY)")
+    li_research.add_argument("--model", default="gpt-4o-mini", help="OpenAI model name")
+
+    # -- linkedin-send ------------------------------------------------------
+    li_send = subparsers.add_parser(
+        "linkedin-send",
+        help="Send approved outreach drafts via LinkedIn message and/or email",
+    )
+    li_send.add_argument("--account", required=True, help="Burner account identifier")
+    li_send.add_argument("--smtp-host", default="", help="SMTP host (or set SMTP_HOST)")
+    li_send.add_argument("--smtp-port", default="587")
+    li_send.add_argument("--smtp-user", default="", help="SMTP username / email")
+    li_send.add_argument("--from-name", default="", help="Display name in From header")
+    li_send.add_argument("--proxy", default="")
+    li_send.add_argument("--dry-run", action="store_true", help="Type messages but do NOT click Send")
+
+    # -- linkedin-status ----------------------------------------------------
+    li_status = subparsers.add_parser(
+        "linkedin-status",
+        help="Show warmup phase, account age, and today's action limits",
+    )
+    li_status.add_argument("--account", required=True, help="Burner account identifier")
+
+    # -- linkedin-farm-run -------------------------------------------------
+    li_farm = subparsers.add_parser(
+        "linkedin-farm-run",
+        help="Distribute URLs across multiple accounts (each in its own browser process)",
+    )
+    li_farm.add_argument(
+        "--accounts", required=True,
+        help="Comma-separated list of account IDs (e.g. burner_01,burner_02,burner_03)"
+    )
+    li_farm.add_argument("--urls-file", required=True, help="Text file with one LinkedIn profile URL per line")
+    li_farm.add_argument(
+        "--proxies-file", default="",
+        help="Text file with one proxy per line (format: account_id=http://user:pass@host:port)"
+    )
+    li_farm.add_argument("--captcha-key", default="", help="2Captcha API key")
+
+    # -- linkedin-farm-status ----------------------------------------------
+    li_farm_status = subparsers.add_parser(
+        "linkedin-farm-status",
+        help="Show warmup phase and identity summary for all farm accounts",
+    )
+    li_farm_status.add_argument(
+        "--accounts", required=True,
+        help="Comma-separated list of account IDs"
+    )
 
     return parser
 
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    parser = build_parser()
+    args = parser.parse_args()
+
+    dispatch = {
+        "run":                lambda: sys.exit(run_command(args)),
+        "db-health":          lambda: sys.exit(asyncio.run(check_db_health())),
+        "migrate-phase1":     lambda: sys.exit(asyncio.run(_migrate(args))),
+        "seed-demo-data":     lambda: sys.exit(asyncio.run(_seed(args))),
+        "linkedin-login":     lambda: sys.exit(asyncio.run(linkedin_login(args))),
+        "linkedin-run":       lambda: sys.exit(asyncio.run(linkedin_run(args))),
+        "linkedin-research":  lambda: sys.exit(asyncio.run(linkedin_research(args))),
+        "linkedin-send":      lambda: sys.exit(asyncio.run(linkedin_send(args))),
+        "linkedin-status":    lambda: _linkedin_status(args),
+        "linkedin-farm-run":  lambda: sys.exit(asyncio.run(_linkedin_farm_run(args))),
+        "linkedin-farm-status": lambda: _linkedin_farm_status(args),
+    }
+
+    handler = dispatch.get(args.command)
+    if handler:
+        handler()
+    else:
+        sys.exit(2)
+
+
+def _linkedin_status(args: argparse.Namespace) -> None:
+    from .sources.session_manager import SessionManager
+    sm = SessionManager("sessions")
+    if not sm.has_session(args.account):
+        print(f"No session found for '{args.account}'. Run linkedin-login first.")
+        return
+    sm.print_status(args.account)
+
+
+async def _linkedin_farm_run(args: argparse.Namespace) -> int:
+    from .sources.account_farm import AccountFarm
+
+    accounts = [a.strip() for a in args.accounts.split(",") if a.strip()]
+    captcha_key = args.captcha_key or _env("TWOCAPTCHA_API_KEY") or None
+
+    # Load proxy map from file (format: burner_01=http://user:pass@host:port)
+    proxies: dict[str, str] = {}
+    if args.proxies_file:
+        try:
+            for line in Path(args.proxies_file).read_text().splitlines():
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    acc, proxy = line.split("=", 1)
+                    proxies[acc.strip()] = proxy.strip()
+        except FileNotFoundError:
+            print(f"Proxies file not found: {args.proxies_file}", file=sys.stderr)
+
+    # Load URLs
+    try:
+        urls = [l.strip() for l in Path(args.urls_file).read_text().splitlines()
+                if l.strip().startswith("http")]
+    except FileNotFoundError:
+        print(f"URLs file not found: {args.urls_file}", file=sys.stderr)
+        return 1
+
+    if not urls:
+        print("No valid URLs found in file.", file=sys.stderr)
+        return 1
+
+    farm = AccountFarm(accounts=accounts, proxies=proxies, captcha_key=captcha_key)
+    await farm.run(urls)
+    return 0
+
+
+def _linkedin_farm_status(args: argparse.Namespace) -> None:
+    from .sources.account_farm import AccountFarm
+    accounts = [a.strip() for a in args.accounts.split(",") if a.strip()]
+    farm = AccountFarm(accounts=accounts)
+    farm.print_farm_status()
+
+
+async def _migrate(args: argparse.Namespace) -> int:
+    from .migration.phase1 import migrate_phase1_data
+    return await migrate_phase1_data(args.database)
+
+
+async def _seed(args: argparse.Namespace) -> int:
+    from .seed import run_seed
+    return await run_seed(args)
+
+
+if __name__ == "__main__":
+    main()
+
+
 def run_command(args: argparse.Namespace) -> int:
     settings = Settings(
-        database_path=args.database,
         job_config_path=args.config
     )
     settings.load_job_config()

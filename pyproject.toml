@@ -23,6 +23,12 @@ dependencies = [
   "phonenumbers>=9,<10",
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.34,<1",
+  # LinkedIn Stealth Engine
+  "camoufox[geoip]>=0.4",
+  "playwright>=1.40",
+  "openai>=1.0",
+  "twocaptcha>=0.0.1",
+  "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]

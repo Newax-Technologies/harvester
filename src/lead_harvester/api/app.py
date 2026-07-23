@@ -5,13 +5,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from lead_harvester.api.errors import BaseAPIException
 from lead_harvester.api.dependencies import get_current_user
-from lead_harvester.api.routes import dashboard, institutions, drafts, resolution_reviews
+from lead_harvester.api.routes import dashboard, institutions, drafts, resolution_reviews, manual_leads
 
 app = FastAPI(
     title="Lead Harvester API",
     description="Backend API for the Lead Harvester Dashboard",
     version="1.0.0",
 )
+
+from fastapi.responses import RedirectResponse
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/docs")
 
 # CORS Configuration
 app.add_middleware(
@@ -64,5 +70,6 @@ api_router.include_router(dashboard.router)
 api_router.include_router(institutions.router)
 api_router.include_router(drafts.router)
 api_router.include_router(resolution_reviews.router)
+api_router.include_router(manual_leads.router)
 
 app.include_router(api_router)

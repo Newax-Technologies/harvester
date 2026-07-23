@@ -1,0 +1,246 @@
+"""
+Session Manager — persists LinkedIn cookies per burner account so we never
+have to automate the login flow (which reliably triggers 2FA / identity checks).
+
+Also manages the account WARMUP SCHEDULE:
+  LinkedIn's AI tracks velocity changes. A brand-new account that suddenly
+  starts visiting 20 profiles/day will be flagged immediately.
+  The warmup schedule ramps up activity gradually over 4 weeks, just like
+  a real human getting more comfortable with the platform.
+
+Warmup schedule (profile views per day):
+  Day 1–3   : 0  — feed browsing only, NO profile visits
+  Day 4–7   : 1  — 1 profile per day (Monday–Friday only)
+  Week 2    : 3  — 3 profiles/day
+  Week 3    : 8  — 8 profiles/day
+  Week 4+   : 20 — full speed (our permanent safe limit)
+
+Usage:
+    manager = SessionManager("sessions")
+
+    # First login
+    manager.save_cookies("burner_01", cookies)
+
+    # Every subsequent run — get today's allowed limits
+    limits = manager.get_today_limits("burner_01")
+    print(limits)  # {"profile_view": 3, "connect": 1, "message": 2, ...}
+    cookies = manager.load_cookies("burner_01")
+"""
+from __future__ import annotations
+
+import json
+from datetime import date, datetime, timezone
+from pathlib import Path
+from typing import Any
+
+
+SESSIONS_DIR = Path("sessions")
+
+
+# ---------------------------------------------------------------------------
+# Warmup schedule — (profile_views, connects, messages, searches) per day
+# ---------------------------------------------------------------------------
+
+def _warmup_limits(account_age_days: int) -> dict[str, int]:
+    """
+    Return safe daily action limits based on how old the account session is.
+    """
+    if account_age_days <= 3:
+        # Feed-only phase — absolutely no profile visits
+        return {
+            "profile_view": 0,
+            "connect":      0,
+            "message":      0,
+            "search":       0,
+            "feed_scroll":  5,   # Just scroll the feed to look active
+            "phase":        1,
+            "phase_label":  "Feed Warmup (Days 1–3): Browse feed only. No profile visits.",
+        }
+    elif account_age_days <= 7:
+        # Gentle introduction
+        return {
+            "profile_view": 1,
+            "connect":      0,   # No connects yet — too aggressive for a new account
+            "message":      0,
+            "search":       2,
+            "feed_scroll":  5,
+            "phase":        2,
+            "phase_label":  "Gentle Start (Days 4–7): 1 profile view/day. No connections yet.",
+        }
+    elif account_age_days <= 14:
+        # Week 2
+        return {
+            "profile_view": 3,
+            "connect":      1,
+            "message":      0,
+            "search":       5,
+            "feed_scroll":  5,
+            "phase":        3,
+            "phase_label":  "Week 2: 3 profile views/day. 1 connection request/day.",
+        }
+    elif account_age_days <= 21:
+        # Week 3
+        return {
+            "profile_view": 8,
+            "connect":      3,
+            "message":      2,
+            "search":       10,
+            "feed_scroll":  5,
+            "phase":        4,
+            "phase_label":  "Week 3: 8 profile views/day. 3 connections. 2 messages.",
+        }
+    else:
+        # Week 4+ — full operating speed
+        return {
+            "profile_view": 20,
+            "connect":      10,
+            "message":      15,
+            "search":       20,
+            "feed_scroll":  5,
+            "phase":        5,
+            "phase_label":  "Full Speed (Week 4+): 20 profiles/day. 10 connections. 15 messages.",
+        }
+
+
+class SessionManager:
+    def __init__(self, base_dir: str | Path = SESSIONS_DIR) -> None:
+        self.base_dir = Path(base_dir)
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+
+    def _path(self, account_id: str) -> Path:
+        return self.base_dir / f"{account_id}.json"
+
+    # ------------------------------------------------------------------
+    # Cookie persistence
+    # ------------------------------------------------------------------
+
+    def save_cookies(
+        self,
+        account_id: str,
+        cookies: list[dict[str, Any]],
+        first_login: bool = False,
+    ) -> None:
+        """
+        Persist cookies to disk after a manual login.
+        If first_login=True, stamps the warmup start date.
+        """
+        path = self._path(account_id)
+
+        # Preserve existing metadata (warmup_started_at, run_log) if present
+        existing: dict[str, Any] = {}
+        if path.exists():
+            try:
+                existing = json.loads(path.read_text())
+            except Exception:
+                pass
+
+        payload = {
+            "account_id":       account_id,
+            "saved_at":         datetime.now(timezone.utc).isoformat(),
+            "warmup_started_at": existing.get(
+                "warmup_started_at",
+                date.today().isoformat() if first_login else None
+            ),
+            "run_log":          existing.get("run_log", []),
+            "cookies":          cookies,
+        }
+
+        path.write_text(json.dumps(payload, indent=2))
+        print(f"[SessionManager] Saved {len(cookies)} cookies for '{account_id}'.")
+
+    def load_cookies(self, account_id: str) -> list[dict[str, Any]]:
+        """Load cookies. Raises FileNotFoundError if session not saved."""
+        path = self._path(account_id)
+        if not path.exists():
+            raise FileNotFoundError(
+                f"No saved session for '{account_id}'. "
+                f"Run: lead-harvester linkedin-login --account {account_id}"
+            )
+        payload = json.loads(path.read_text())
+        print(
+            f"[SessionManager] Loaded {len(payload['cookies'])} cookies "
+            f"for '{account_id}' (saved {payload['saved_at']})."
+        )
+        return payload["cookies"]
+
+    # ------------------------------------------------------------------
+    # Warmup schedule
+    # ------------------------------------------------------------------
+
+    def get_today_limits(self, account_id: str) -> dict[str, Any]:
+        """
+        Return today's allowed action limits for this account based on
+        how many days it has been since first login.
+        """
+        path = self._path(account_id)
+        if not path.exists():
+            raise FileNotFoundError(f"No session for '{account_id}'.")
+
+        payload = json.loads(path.read_text())
+        warmup_str = payload.get("warmup_started_at")
+
+        if not warmup_str:
+            # Session exists but warmup date was never set — treat as day 0
+            account_age_days = 0
+        else:
+            warmup_start = date.fromisoformat(warmup_str)
+            account_age_days = (date.today() - warmup_start).days
+
+        limits = _warmup_limits(account_age_days)
+        limits["account_age_days"] = account_age_days
+        return limits
+
+    def log_run(self, account_id: str, actions: dict[str, int]) -> None:
+        """
+        Record what actions were taken today into the session log.
+        Useful for auditing how many actions have been taken over time.
+        """
+        path = self._path(account_id)
+        if not path.exists():
+            return
+        payload = json.loads(path.read_text())
+        payload.setdefault("run_log", []).append({
+            "date":    date.today().isoformat(),
+            "actions": actions,
+        })
+        path.write_text(json.dumps(payload, indent=2))
+
+    def print_status(self, account_id: str) -> None:
+        """Print a human-readable warmup status report."""
+        limits = self.get_today_limits(account_id)
+        age    = limits["account_age_days"]
+
+        path = self._path(account_id)
+        payload = json.loads(path.read_text())
+        runs = payload.get("run_log", [])
+        today_runs = [r for r in runs if r.get("date") == date.today().isoformat()]
+
+        print(f"\n{'='*60}")
+        print(f"  Account:    {account_id}")
+        print(f"  Age:        {age} day(s) since first login")
+        print(f"  Phase:      {limits['phase_label']}")
+        print(f"\n  Today's limits:")
+        for k, v in limits.items():
+            if k not in ("phase", "phase_label", "account_age_days"):
+                print(f"    {k:<16}: {v}")
+        if today_runs:
+            print(f"\n  Actions taken today: {today_runs[-1].get('actions', {})}")
+        print(f"{'='*60}\n")
+
+    # ------------------------------------------------------------------
+    # Misc helpers
+    # ------------------------------------------------------------------
+
+    def has_session(self, account_id: str) -> bool:
+        return self._path(account_id).exists()
+
+    def list_accounts(self) -> list[str]:
+        return [p.stem for p in self.base_dir.glob("*.json")]
+
+    def invalidate(self, account_id: str) -> None:
+        """Delete a session (e.g. after a ban or cookie expiry)."""
+        path = self._path(account_id)
+        if path.exists():
+            path.unlink()
+            print(f"[SessionManager] Invalidated session for '{account_id}'.")
+

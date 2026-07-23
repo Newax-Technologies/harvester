@@ -1,0 +1,13 @@
+seeds:
+  - https://www.lums.edu.pk/
+  - https://nust.edu.pk/
+  - https://www.fast.edu.pk/
+  
+# Google Places Configuration (requires valid API key)
+# cities:
+#   Islamabad:
+#     - F-11
+#     - Blue Area
+# categories:
+#   - FORMAL_EDUCATION
+#   - ACADEMIC_SUPPORT

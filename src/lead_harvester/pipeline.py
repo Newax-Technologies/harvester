@@ -15,6 +15,59 @@ class LeadPipeline:
         self.places_connector = GooglePlacesConnector(api_key=settings.google_places_api_key)
 
     async def run(self) -> None:
+        if "seeds" in self.settings.job_config:
+            await self._run_web_crawler()
+        else:
+            await self._run_google_places()
+
+    async def _run_web_crawler(self) -> None:
+        from .sources.web import WebCrawler
+        import dataclasses
+        
+        seeds = self.settings.job_config.get("seeds", [])
+        if not seeds:
+            print("No seeds provided.")
+            return
+
+        print(f"Starting WebCrawler with {len(seeds)} seeds...")
+        crawler = WebCrawler(self.settings)
+        leads = await crawler.crawl(seeds)
+        
+        async with get_session() as session:
+            run = SourceRun(
+                source_type=SourceType.WEBSITE,
+                run_metadata={"seeds_count": len(seeds), "leads_found": len(leads)},
+                status=RunStatus.STARTED
+            )
+            session.add(run)
+            await session.flush()
+            
+            try:
+                for lead in leads:
+                    record = RawSourceRecord(
+                        source_run_id=run.id,
+                        source_type=SourceType.WEBSITE,
+                        source_id=lead.website,
+                        raw_payload=dataclasses.asdict(lead),
+                        normalized_name=lead.organization or lead.name,
+                        normalized_phone=lead.phone,
+                        normalized_domain=lead.website,
+                        location=None
+                    )
+                    session.add(record)
+                    
+                run.status = RunStatus.COMPLETED
+                run.completed_at = datetime.datetime.now(datetime.timezone.utc)
+            except Exception as e:
+                run.status = RunStatus.FAILED
+                run.completed_at = datetime.datetime.now(datetime.timezone.utc)
+                run.run_metadata["error"] = str(e)
+                raise
+            finally:
+                await session.commit()
+        print(f"WebCrawler finished. Found {len(leads)} leads.")
+
+    async def _run_google_places(self) -> None:
         tiles = generate_tiles(self.settings.job_config)
         categories = self.settings.job_config.get("categories", ["FORMAL_EDUCATION"])
         

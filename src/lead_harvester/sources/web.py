@@ -4,6 +4,7 @@ import asyncio
 from collections import defaultdict, deque
 from dataclasses import dataclass
 import time
+from typing import Any
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
@@ -20,7 +21,21 @@ from ..extractors import (
     extract_social_profiles,
     visible_text,
 )
-from ..models import Lead
+@dataclass
+class Lead:
+    source: str
+    source_url: str
+    name: str
+    organization: str
+    title: str
+    email: str
+    phone: str
+    website: str
+    location: str
+    social_profiles: list[str]
+    evidence: str
+    raw: dict[str, Any]
+
 
 
 @dataclass(slots=True)

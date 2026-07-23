@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Outlet, Link } from 'react-router'
-import { LayoutDashboard, Building2, Merge, CheckCircle2, AlertCircle } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
+import { LayoutDashboard, Building2, Merge, CheckCircle2, AlertCircle, Plus } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { dashboardQueries } from './api/queries'
 import { InstitutionsExplorer } from './pages/InstitutionsExplorer'
 import { EntityDossier } from './pages/EntityDossier'
@@ -8,18 +9,29 @@ import { ReadinessGate } from './pages/ReadinessGate'
 import { ReadinessGateDetail } from './pages/ReadinessGateDetail'
 import { ResolutionQueue } from './pages/ResolutionQueue'
 import { ResolutionDetail } from './pages/ResolutionDetail'
+import { ManualLeadDrawer } from './components/ManualLeadDrawer'
 
 // Layout Component
 function Layout() {
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [successBanner, setSuccessBanner] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
+  const handleSuccess = (name: string) => {
+    setSuccessBanner(`"${name}" added to database`)
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    setTimeout(() => setSuccessBanner(null), 5000)
+  }
+
   return (
     <div className="flex h-screen bg-background text-foreground">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-border bg-card">
+      <aside className="w-64 border-r border-border bg-card flex flex-col">
         <div className="p-4 border-b border-border">
           <h1 className="text-xl font-semibold text-primary">Lead Harvester</h1>
           <p className="text-xs text-muted-foreground mt-1">v0.1.0 · Dashboard</p>
         </div>
-        <nav className="p-4 space-y-2">
+        <nav className="p-4 space-y-2 flex-1">
           <Link to="/" className="flex items-center space-x-3 px-3 py-2 rounded-md hover:bg-secondary transition-colors">
             <LayoutDashboard size={18} />
             <span>Command Center</span>
@@ -37,20 +49,64 @@ function Layout() {
             <span>Readiness Gate</span>
           </Link>
         </nav>
+
+        {/* Add Lead button pinned to bottom of sidebar */}
+        <div className="p-4 border-t border-border">
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold
+              text-white bg-gradient-to-r from-blue-600 to-violet-600
+              hover:from-blue-500 hover:to-violet-500
+              shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30
+              hover:-translate-y-px active:translate-y-0
+              transition-all duration-150"
+          >
+            <Plus size={16} />
+            Add Lead Manually
+          </button>
+        </div>
       </aside>
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 border-b border-border bg-card/50 backdrop-blur-sm flex items-center px-6 shrink-0">
-          <div className="ml-auto text-sm text-muted-foreground">Logged in as Dev Admin</div>
+        <header className="h-14 border-b border-border bg-card/50 backdrop-blur-sm flex items-center px-6 shrink-0 gap-3">
+          {/* Success banner in header */}
+          {successBanner && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/30
+              text-green-400 text-xs font-medium animate-in slide-in-from-top-1 duration-200">
+              <CheckCircle2 size={13} />
+              {successBanner}
+            </div>
+          )}
+          <div className="ml-auto flex items-center gap-3">
+            {/* Header quick-add button */}
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold
+                text-blue-400 border border-blue-500/30 bg-blue-500/10
+                hover:bg-blue-500/20 hover:border-blue-500/50 transition-all"
+            >
+              <Plus size={13} />
+              Add Lead
+            </button>
+            <span className="text-sm text-muted-foreground">Logged in as Dev Admin</span>
+          </div>
         </header>
         <div className="flex-1 overflow-auto p-6">
           <Outlet />
         </div>
       </main>
+
+      {/* Drawer */}
+      <ManualLeadDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onSuccess={handleSuccess}
+      />
     </div>
   )
 }
+
 
 // Temporary Placeholder Views
 function CommandCenter() {

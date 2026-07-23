@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Add Lead — Lead Harvester</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f14;
+      --surface:   #141720;
+      --surface2:  #1c2030;
+      --border:    #262c40;
+      --border-hi: #3a4460;
+      --accent:    #4f8ef7;
+      --accent2:   #7c5cfc;
+      --success:   #22c55e;
+      --danger:    #ef4444;
+      --warn:      #f59e0b;
+      --text:      #e8ecf4;
+      --text-dim:  #8892a8;
+      --text-muted:#5a6278;
+      --radius:    12px;
+      --radius-sm: 8px;
+    }
+
+    html { font-family: 'Inter', system-ui, sans-serif; font-size: 15px; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px 80px;
+    }
+
+    /* ── Header ── */
+    .header {
+      max-width: 780px;
+      margin: 0 auto 40px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .logo {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 12px;
+      display: grid; place-items: center;
+      font-size: 22px; flex-shrink: 0;
+      box-shadow: 0 0 24px rgba(79,142,247,.35);
+    }
+    .header-text h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; }
+    .header-text p  { font-size: .85rem; color: var(--text-dim); margin-top: 3px; }
+
+    /* ── Card ── */
+    .card {
+      max-width: 780px;
+      margin: 0 auto 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      transition: border-color .2s;
+    }
+    .card:focus-within { border-color: var(--border-hi); }
+
+    .section-title {
+      font-size: .7rem;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Grid ── */
+    .grid { display: grid; gap: 18px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    @media (max-width: 580px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .card { padding: 20px; }
+    }
+
+    /* ── Field ── */
+    .field { display: flex; flex-direction: column; gap: 7px; }
+    label {
+      font-size: .8rem;
+      font-weight: 500;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    label .req { color: var(--accent); font-size: .75rem; }
+
+    input, select, textarea {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: inherit;
+      font-size: .9rem;
+      padding: 10px 13px;
+      outline: none;
+      transition: border-color .18s, box-shadow .18s;
+      width: 100%;
+    }
+    input::placeholder, textarea::placeholder { color: var(--text-muted); }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(79,142,247,.12);
+    }
+    select { cursor: pointer; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238892a8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 13px center;
+      padding-right: 36px;
+    }
+    textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
+
+    /* ── Contacts Section ── */
+    .contacts-list { display: flex; flex-direction: column; gap: 14px; }
+
+    .contact-row {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 140px 1fr 1fr 1fr auto;
+      gap: 12px;
+      align-items: end;
+      transition: border-color .18s;
+      animation: slideIn .2s ease;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .contact-row:focus-within { border-color: var(--border-hi); }
+
+    @media (max-width: 680px) {
+      .contact-row { grid-template-columns: 1fr 1fr; }
+    }
+
+    .btn-remove {
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 9px 10px;
+      font-size: 1rem;
+      line-height: 1;
+      transition: all .18s;
+      flex-shrink: 0;
+      height: 38px;
+      align-self: end;
+    }
+    .btn-remove:hover { border-color: var(--danger); color: var(--danger); background: rgba(239,68,68,.08); }
+
+    .btn-add-contact {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: none;
+      border: 1.5px dashed var(--border-hi);
+      border-radius: var(--radius-sm);
+      color: var(--accent);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: .85rem;
+      font-weight: 500;
+      padding: 11px 16px;
+      transition: all .18s;
+      width: 100%;
+      margin-top: 4px;
+    }
+    .btn-add-contact:hover { background: rgba(79,142,247,.07); border-color: var(--accent); }
+
+    /* ── Status chips ── */
+    .status-chips {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .chip {
+      border: 1.5px solid var(--border);
+      border-radius: 100px;
+      cursor: pointer;
+      font-size: .78rem;
+      font-weight: 500;
+      padding: 6px 16px;
+      transition: all .18s;
+      user-select: none;
+    }
+    .chip.active-op  { border-color: var(--success); color: var(--success); background: rgba(34,197,94,.1); }
+    .chip.active-cl  { border-color: var(--danger);  color: var(--danger);  background: rgba(239,68,68,.1); }
+    .chip.active-tmp { border-color: var(--warn);    color: var(--warn);    background: rgba(245,158,11,.1); }
+    .chip.active-unk { border-color: var(--text-dim);color: var(--text-dim);background: rgba(136,146,168,.08); }
+    .chip:not([class*="active"]):hover { border-color: var(--border-hi); color: var(--text); }
+
+    /* ── Submit ── */
+    .submit-row {
+      max-width: 780px;
+      margin: 0 auto;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .btn-submit {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #fff;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: .95rem;
+      font-weight: 600;
+      padding: 13px 32px;
+      transition: opacity .18s, transform .12s;
+      box-shadow: 0 4px 20px rgba(79,142,247,.3);
+    }
+    .btn-submit:hover   { opacity: .9; transform: translateY(-1px); }
+    .btn-submit:active  { transform: translateY(0); }
+    .btn-submit:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    .btn-reset {
+      background: none;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text-dim);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: .9rem;
+      padding: 12px 22px;
+      transition: all .18s;
+    }
+    .btn-reset:hover { border-color: var(--border-hi); color: var(--text); }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 28px; right: 28px;
+      padding: 14px 22px;
+      border-radius: var(--radius-sm);
+      font-size: .9rem;
+      font-weight: 500;
+      max-width: 360px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.4);
+      transform: translateY(80px); opacity: 0;
+      transition: all .3s cubic-bezier(.34,1.56,.64,1);
+      z-index: 999;
+      pointer-events: none;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { background: #0f2318; border: 1px solid var(--success); color: var(--success); }
+    #toast.error   { background: #1f0f0f; border: 1px solid var(--danger);  color: var(--danger);  }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Badge (source indicator) ── */
+    .source-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(79,142,247,.12);
+      border: 1px solid rgba(79,142,247,.25);
+      border-radius: 100px;
+      color: var(--accent);
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: .05em;
+      padding: 4px 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">🎯</div>
+    <div class="header-text">
+      <h1>Add Lead Manually</h1>
+      <p>Records directly into the same pipeline as LinkedIn &amp; web scrapers</p>
+    </div>
+    <div style="margin-left:auto">
+      <span class="source-badge">⚡ MANUAL SOURCE</span>
+    </div>
+  </div>
+
+  <form id="leadForm" novalidate>
+
+    <!-- Institution -->
+    <div class="card">
+      <div class="section-title">Institution</div>
+      <div class="grid grid-2" style="margin-bottom:18px">
+        <div class="field">
+          <label for="name">Institution Name <span class="req">*</span></label>
+          <input id="name" name="name" type="text" placeholder="e.g. Beacon House School" required />
+        </div>
+        <div class="field">
+          <label for="type">Type <span class="req">*</span></label>
+          <select id="type" name="type">
+            <option value="school">School</option>
+            <option value="college">College</option>
+            <option value="university">University</option>
+            <option value="academy">Academy</option>
+            <option value="clinic">Clinic</option>
+            <option value="hospital">Hospital</option>
+            <option value="ngo">NGO / Non-Profit</option>
+            <option value="company">Company</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-2" style="margin-bottom:18px">
+        <div class="field">
+          <label for="website">Website</label>
+          <input id="website" name="website" type="url" placeholder="https://example.com" />
+        </div>
+        <div class="field">
+          <label>Operating Status</label>
+          <div class="status-chips" id="statusChips">
+            <div class="chip active-op" data-value="operational">✓ Operational</div>
+            <div class="chip" data-value="closed_temporarily">⏸ Temp. Closed</div>
+            <div class="chip" data-value="closed_permanently">✕ Closed</div>
+            <div class="chip" data-value="unknown">? Unknown</div>
+          </div>
+          <input type="hidden" id="status" name="status" value="operational" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Location -->
+    <div class="card">
+      <div class="section-title">Location</div>
+      <div class="grid grid-3">
+        <div class="field" style="grid-column: span 2">
+          <label for="address">Street Address</label>
+          <input id="address" name="address" type="text" placeholder="e.g. Plot 12, Block B, Gulshan-e-Iqbal" />
+        </div>
+        <div class="field">
+          <label for="city">City</label>
+          <input id="city" name="city" type="text" placeholder="Karachi" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Contacts -->
+    <div class="card">
+      <div class="section-title">Contacts <span style="color:var(--accent);font-size:.65rem;font-weight:500;margin-left:6px">AT LEAST ONE REQUIRED</span></div>
+      <div class="contacts-list" id="contactsList"></div>
+      <button type="button" class="btn-add-contact" id="addContact">
+        <span>＋</span> Add Another Contact
+      </button>
+    </div>
+
+    <!-- Notes -->
+    <div class="card">
+      <div class="section-title">Additional Info</div>
+      <div class="grid" style="gap:14px">
+        <div class="field">
+          <label for="sourceNote">How did you find this lead?</label>
+          <input id="sourceNote" name="sourceNote" type="text"
+            placeholder="e.g. Cold call, Referral from Ahmed, Google Maps, Field visit" />
+        </div>
+        <div class="field">
+          <label for="notes">Notes</label>
+          <textarea id="notes" name="notes"
+            placeholder="Any additional context — decision-maker info, budget signals, pain points, next steps..."></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="submit-row">
+      <button type="submit" class="btn-submit" id="submitBtn">
+        <span id="submitLabel">💾 Save Lead to Database</span>
+        <div class="spinner" id="spinner"></div>
+      </button>
+      <button type="button" class="btn-reset" id="resetBtn">Clear Form</button>
+      <span id="statusMsg" style="font-size:.82rem;color:var(--text-dim)"></span>
+    </div>
+
+  </form>
+
+  <div id="toast"></div>
+
+  <script>
+    // ── Config ──────────────────────────────────────────────────────────
+    const API_URL = 'http://localhost:8000/api/v1/leads/manual';
+
+    // ── Status chip toggle ───────────────────────────────────────────────
+    const statusClasses = {
+      operational:         'active-op',
+      closed_temporarily:  'active-tmp',
+      closed_permanently:  'active-cl',
+      unknown:             'active-unk',
+    };
+    document.querySelectorAll('#statusChips .chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('#statusChips .chip').forEach(c =>
+          c.className = 'chip');
+        const val = chip.dataset.value;
+        chip.classList.add(statusClasses[val] || '');
+        document.getElementById('status').value = val;
+      });
+    });
+
+    // ── Contact rows ─────────────────────────────────────────────────────
+    const CONTACT_TYPES = [
+      ['phone',    '📞 Phone'],
+      ['email',    '📧 Email'],
+      ['whatsapp', '💬 WhatsApp'],
+      ['linkedin', '🔗 LinkedIn'],
+      ['other',    '🔗 Other'],
+    ];
+
+    let contactCount = 0;
+
+    function addContactRow(defaults = {}) {
+      contactCount++;
+      const id  = contactCount;
+      const row = document.createElement('div');
+      row.className = 'contact-row';
+      row.dataset.cid = id;
+
+      const typeOpts = CONTACT_TYPES.map(([v, l]) =>
+        `<option value="${v}" ${defaults.type === v ? 'selected' : ''}>${l}</option>`
+      ).join('');
+
+      row.innerHTML = `
+        <div class="field">
+          <label>Type</label>
+          <select class="c-type" data-cid="${id}">
+            ${typeOpts}
+          </select>
+        </div>
+        <div class="field">
+          <label>Value <span class="req">*</span></label>
+          <input class="c-value" type="text" placeholder="+92 300 1234567"
+            value="${defaults.value || ''}" required />
+        </div>
+        <div class="field">
+          <label>Person Name</label>
+          <input class="c-name" type="text" placeholder="e.g. Mr. Bilal"
+            value="${defaults.name || ''}" />
+        </div>
+        <div class="field">
+          <label>Role / Title</label>
+          <input class="c-role" type="text" placeholder="e.g. Principal"
+            value="${defaults.role || ''}" />
+        </div>
+        <button type="button" class="btn-remove" title="Remove">✕</button>
+      `;
+
+      row.querySelector('.btn-remove').addEventListener('click', () => {
+        if (document.querySelectorAll('.contact-row').length > 1) {
+          row.style.animation = 'none';
+          row.style.opacity = '0';
+          row.style.transform = 'translateY(-6px)';
+          row.style.transition = 'all .18s';
+          setTimeout(() => row.remove(), 180);
+        } else {
+          showToast('At least one contact is required.', 'error');
+        }
+      });
+
+      document.getElementById('contactsList').appendChild(row);
+    }
+
+    // Start with one row
+    addContactRow({ type: 'phone' });
+
+    document.getElementById('addContact').addEventListener('click', () => {
+      addContactRow();
+    });
+
+    // ── Collect contacts ─────────────────────────────────────────────────
+    function collectContacts() {
+      return Array.from(document.querySelectorAll('.contact-row')).map(row => ({
+        contact_type:  row.querySelector('.c-type').value,
+        contact_value: row.querySelector('.c-value').value.trim(),
+        person_name:   row.querySelector('.c-name').value.trim() || null,
+        role:          row.querySelector('.c-role').value.trim() || null,
+      })).filter(c => c.contact_value);
+    }
+
+    // ── Toast ─────────────────────────────────────────────────────────────
+    let toastTimer;
+    function showToast(msg, type = 'success') {
+      const t = document.getElementById('toast');
+      t.textContent = type === 'success' ? '✓  ' + msg : '✕  ' + msg;
+      t.className   = `show ${type}`;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.className = '', 4000);
+    }
+
+    // ── Submit ────────────────────────────────────────────────────────────
+    document.getElementById('leadForm').addEventListener('submit', async e => {
+      e.preventDefault();
+
+      const contacts = collectContacts();
+      if (!contacts.length) {
+        showToast('Add at least one contact with a value.', 'error');
+        return;
+      }
+
+      const name = document.getElementById('name').value.trim();
+      if (!name) {
+        document.getElementById('name').focus();
+        showToast('Institution name is required.', 'error');
+        return;
+      }
+
+      const payload = {
+        institution_name:  name,
+        institution_type:  document.getElementById('type').value,
+        website:           document.getElementById('website').value.trim() || null,
+        operating_status:  document.getElementById('status').value,
+        address:           document.getElementById('address').value.trim(),
+        city:              document.getElementById('city').value.trim(),
+        country:           'Pakistan',
+        contacts,
+        notes:             document.getElementById('notes').value.trim() || null,
+        lead_source_note:  document.getElementById('sourceNote').value.trim() || null,
+      };
+
+      // Loading state
+      const btn = document.getElementById('submitBtn');
+      const lbl = document.getElementById('submitLabel');
+      const spn = document.getElementById('spinner');
+      btn.disabled = true;
+      lbl.textContent = 'Saving…';
+      spn.style.display = 'block';
+
+      try {
+        const res  = await fetch(API_URL, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(payload),
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          showToast(`${data.institution_name} saved! ${data.contacts_saved} contact(s) recorded.`, 'success');
+          document.getElementById('statusMsg').textContent =
+            `✓ Saved at ${new Date().toLocaleTimeString()}`;
+
+          // Soft reset
+          document.getElementById('name').value    = '';
+          document.getElementById('website').value = '';
+          document.getElementById('address').value = '';
+          document.getElementById('city').value    = '';
+          document.getElementById('notes').value   = '';
+          document.getElementById('sourceNote').value = '';
+          document.getElementById('contactsList').innerHTML = '';
+          contactCount = 0;
+          addContactRow({ type: 'phone' });
+        } else {
+          const msg = data?.detail || data?.error?.message || 'Server error. Check API logs.';
+          showToast(msg, 'error');
+        }
+      } catch (err) {
+        showToast(`Network error: ${err.message}. Is the API running?`, 'error');
+      } finally {
+        btn.disabled = false;
+        lbl.textContent = '💾 Save Lead to Database';
+        spn.style.display = 'none';
+      }
+    });
+
+    // ── Reset ─────────────────────────────────────────────────────────────
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      if (!confirm('Clear the form?')) return;
+      document.getElementById('leadForm').reset();
+      document.getElementById('status').value = 'operational';
+      document.querySelectorAll('#statusChips .chip').forEach(c => c.className = 'chip');
+      document.querySelector('[data-value="operational"]').classList.add('active-op');
+      document.getElementById('contactsList').innerHTML = '';
+      contactCount = 0;
+      addContactRow({ type: 'phone' });
+      document.getElementById('statusMsg').textContent = '';
+    });
+  </script>
+</body>
+</html>

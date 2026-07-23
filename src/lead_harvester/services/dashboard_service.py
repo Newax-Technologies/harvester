@@ -9,17 +9,14 @@ class DashboardService:
     async def get_summary(session: AsyncSession) -> dict:
         total_institutions = await session.scalar(select(func.count(CanonicalInstitution.id)))
         pending_drafts = await session.scalar(
-            select(func.count(OutreachDraft.id)).where(OutreachDraft.status == DraftStatus.READY_FOR_REVIEW)
+            select(func.count(OutreachDraft.id)).where(OutreachDraft.status == DraftStatus.GENERATED)
         )
         pending_resolutions = await session.scalar(select(func.count(ResolutionCandidate.id)))
         
         return {
-            "canonical_institutions": total_institutions or 0,
-            "qualified_candidates": total_institutions or 0, # MOCK
-            "pending_resolution_reviews": pending_resolutions or 0,
+            "total_canonical_institutions": total_institutions or 0,
+            "pending_resolution_candidates": pending_resolutions or 0,
             "pending_outreach_drafts": pending_drafts or 0,
-            "approved_drafts": 0,
-            "rejected_drafts": 0,
-            "meetings_booked": 0,
+            "total_target_accounts": total_institutions or 0,
             "recent_pipeline_activity": []
         }

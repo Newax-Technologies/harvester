@@ -1,0 +1,320 @@
+"""
+Account Farm Orchestrator
+=========================
+Distributes LinkedIn profile URLs across a pool of burner accounts,
+each running as a completely isolated identity:
+
+  ✓ Separate Camoufox browser process per account
+  ✓ Separate session cookies (separate LinkedIn login)
+  ✓ Separate device fingerprint (screen, CPU, memory, User-Agent)
+  ✓ Separate geolocation (different Pakistani city per account)
+  ✓ Separate timing patterns (different preferred start hours)
+  ✓ Separate proxy (if configured)
+  ✓ Separate warmup schedule tracked independently
+
+Architecture:
+  Each account runs in its own subprocess (not just an async task),
+  so even the Python process, memory space, and OS-level fingerprints
+  are fully isolated. LinkedIn cannot correlate them.
+
+Usage (CLI):
+  lead-harvester linkedin-farm-run \\
+      --accounts burner_01,burner_02,burner_03 \\
+      --urls-file targets.txt \\
+      --proxies proxies.txt         # optional, one proxy per line
+
+Usage (Python):
+  farm = AccountFarm(accounts=["burner_01", "burner_02"])
+  await farm.run(urls)
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import multiprocessing
+import os
+import random
+import sys
+import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+from .device_profile import DeviceProfileManager
+from .session_manager import SessionManager
+from .human_emulator import is_weekday, within_working_hours
+from .breadth_tracker import BreadthTracker
+
+
+# ---------------------------------------------------------------------------
+# Per-account job result
+# ---------------------------------------------------------------------------
+
+@dataclass
+class AccountResult:
+    account_id: str
+    profiles_scraped: int = 0
+    errors: list[str]     = field(default_factory=list)
+    city: str             = ""
+    warmup_phase: int     = 0
+
+
+# ---------------------------------------------------------------------------
+# Day-of-week scheduling — accounts operate on staggered days
+# so they never all appear active simultaneously
+# ---------------------------------------------------------------------------
+
+# Map account index -> list of weekday numbers (0=Mon, 4=Fri) it should run on
+# e.g. account 0 -> Mon+Tue, account 1 -> Wed+Thu, account 2 -> Fri
+_WEEKDAY_SCHEDULES = [
+    [0, 1],       # Mon, Tue
+    [2, 3],       # Wed, Thu
+    [4],          # Fri
+    [0, 2, 4],    # Mon, Wed, Fri  (for 4th account onward, spread it)
+    [1, 3],       # Tue, Thu
+]
+
+
+def account_scheduled_today(account_id: str, accounts: list[str]) -> bool:
+    """
+    Return True if this account is scheduled to operate today.
+    Accounts are staggered across weekdays so they don't all
+    appear simultaneously active (coordinated schedule = bot signal).
+    """
+    today_weekday = __import__('datetime').date.today().weekday()
+    try:
+        idx = accounts.index(account_id)
+    except ValueError:
+        return True  # Unknown account — let it run
+    schedule = _WEEKDAY_SCHEDULES[idx % len(_WEEKDAY_SCHEDULES)]
+    return today_weekday in schedule
+
+
+# ---------------------------------------------------------------------------
+# Worker — runs in a subprocess per account
+# ---------------------------------------------------------------------------
+
+def _run_account_worker(
+    account_id: str,
+    urls: list[str],
+    proxy: str | None,
+    captcha_key: str | None,
+    result_queue: "multiprocessing.Queue[dict]",
+) -> None:
+    """
+    Subprocess entry point. Each account worker is a completely isolated
+    Python process with its own event loop and browser instance.
+    """
+    import asyncio as _asyncio
+
+    async def _inner() -> dict:
+        # Local imports inside subprocess — completely isolated import state
+        from lead_harvester.sources.linkedin_stealth import LinkedInStealthCrawler
+        from lead_harvester.sources.device_profile import DeviceProfileManager
+        from lead_harvester.sources.session_manager import SessionManager
+
+        sm  = SessionManager("sessions")
+        dpm = DeviceProfileManager("sessions")
+
+        if not sm.has_session(account_id):
+            return {
+                "account_id": account_id,
+                "profiles_scraped": 0,
+                "errors": [f"No session saved for {account_id}. Run linkedin-login first."],
+                "city": "",
+                "warmup_phase": 0,
+            }
+
+        device  = dpm.get(account_id)
+        limits  = sm.get_today_limits(account_id)
+
+        print(f"\n{'='*55}")
+        print(f"  [{account_id}] City: {device.city_name}")
+        print(f"  [{account_id}] Phase: {limits['phase_label']}")
+        print(f"  [{account_id}] URLs to scrape: {len(urls)}")
+        print(f"{'='*55}\n")
+
+        crawler = LinkedInStealthCrawler(
+            account_id=account_id,
+            target_urls=urls,
+            captcha_api_key=captcha_key,
+            proxy=proxy,
+        )
+        try:
+            profiles = await crawler.run()
+            return {
+                "account_id":       account_id,
+                "profiles_scraped": len(profiles),
+                "errors":           [],
+                "city":             device.city_name,
+                "warmup_phase":     limits.get("phase", 0),
+            }
+        except Exception as e:
+            return {
+                "account_id":       account_id,
+                "profiles_scraped": 0,
+                "errors":           [str(e)],
+                "city":             device.city_name,
+                "warmup_phase":     limits.get("phase", 0),
+            }
+
+    result = _asyncio.run(_inner())
+    result_queue.put(result)
+
+
+# ---------------------------------------------------------------------------
+# Main orchestrator
+# ---------------------------------------------------------------------------
+
+class AccountFarm:
+    """
+    Manages a pool of burner accounts, distributes work, and runs
+    each account in its own isolated subprocess.
+
+    Parameters
+    ----------
+    accounts : list[str]
+        List of burner account IDs (e.g. ["burner_01", "burner_02"]).
+    proxies : dict[str, str] | None
+        Optional mapping of account_id → proxy string.
+        e.g. {"burner_01": "http://user:pass@proxy1:8080"}
+    captcha_key : str | None
+        2Captcha API key (shared across all accounts).
+    """
+
+    def __init__(
+        self,
+        accounts: list[str],
+        proxies: dict[str, str] | None = None,
+        captcha_key: str | None = None,
+    ) -> None:
+        self.accounts    = accounts
+        self.proxies     = proxies or {}
+        self.captcha_key = captcha_key
+        self.sm          = SessionManager("sessions")
+        self.dpm         = DeviceProfileManager("sessions")
+
+    def print_farm_status(self) -> None:
+        """Print a summary table of all accounts in the farm."""
+        print(f"\n{'='*70}")
+        print(f"  ACCOUNT FARM STATUS  ({len(self.accounts)} accounts)")
+        print(f"{'='*70}")
+        print(f"  {'Account':<16} {'City':<14} {'Age':>5} {'Phase':<50}")
+        print(f"  {'-'*66}")
+
+        for acc in self.accounts:
+            if not self.sm.has_session(acc):
+                print(f"  {acc:<16} {'NO SESSION':<14}  —    Run linkedin-login first")
+                continue
+            try:
+                limits = self.sm.get_today_limits(acc)
+                device = self.dpm.get(acc)
+                age    = limits.get("account_age_days", 0)
+                phase  = limits.get("phase_label", "")[:48]
+                print(f"  {acc:<16} {device.city_name:<14} {age:>4}d  {phase}")
+            except Exception as e:
+                print(f"  {acc:<16} ERROR: {e}")
+
+        print(f"{'='*70}\n")
+
+    async def run(self, urls: list[str]) -> list[AccountResult]:
+        """
+        Distribute URLs across accounts and run each in its own subprocess.
+        Uses BreadthTracker for zero-overlap URL partitioning and
+        day-of-week scheduling to stagger accounts across the week.
+        """
+        if not within_working_hours():
+            print("[Farm] Outside working hours. Aborting.")
+            return []
+
+        if not is_weekday():
+            print("[Farm] Weekend — no LinkedIn activity today. Aborting.")
+            return []
+
+        bt = BreadthTracker()
+
+        # Build today's limits for every account
+        today_limits: dict[str, dict] = {}
+        per_account_limits: dict[str, int] = {}
+        for acc in self.accounts:
+            if self.sm.has_session(acc):
+                limits = self.sm.get_today_limits(acc)
+                today_limits[acc] = limits
+                per_account_limits[acc] = limits.get("profile_view", 0)
+
+        # Apply day-of-week scheduling — not all accounts run every day
+        scheduled_today: list[str] = []
+        skipped_today: list[str] = []
+        for acc in self.accounts:
+            if account_scheduled_today(acc, self.accounts):
+                scheduled_today.append(acc)
+            else:
+                skipped_today.append(acc)
+                print(f"[Farm] {acc} — not scheduled today (staggered schedule).")
+
+        # Zero out limits for accounts not scheduled today
+        for acc in skipped_today:
+            per_account_limits[acc] = 0
+
+        # Use BreadthTracker for zero-overlap URL partitioning
+        assignment = bt.assign_partitions(urls, scheduled_today, per_account_limits)
+
+        # For Phase-1 or unscheduled accounts, assign empty list (feed warmup only)
+        for acc in self.accounts:
+            if acc not in assignment and self.sm.has_session(acc) and acc in scheduled_today:
+                assignment[acc] = []
+
+        self.print_farm_status()
+        bt.print_status()
+
+        # Launch each account as a separate subprocess
+        result_queue: multiprocessing.Queue = multiprocessing.Queue()
+        processes: list[multiprocessing.Process] = []
+
+        for account_id, account_urls in assignment.items():
+            proxy = self.proxies.get(account_id)
+            p = multiprocessing.Process(
+                target=_run_account_worker,
+                args=(account_id, account_urls, proxy, self.captcha_key, result_queue),
+                name=f"linkedin-{account_id}",
+                daemon=True,
+            )
+            processes.append(p)
+
+        # Stagger launches 30–120s — all accounts opening at the same second
+        # is a coordination signal (cross-account schedule correlation)
+        for p in processes:
+            p.start()
+            stagger_secs = random.uniform(30, 120)
+            print(f"[Farm] Started {p.name}. Waiting {stagger_secs:.0f}s before next...")
+            await asyncio.sleep(stagger_secs)
+
+        # Wait for all subprocesses to finish
+        for p in processes:
+            p.join(timeout=7200)
+            if p.is_alive():
+                print(f"[Farm] {p.name} timed out. Terminating.")
+                p.terminate()
+
+        # Collect results
+        results: list[AccountResult] = []
+        while not result_queue.empty():
+            data = result_queue.get_nowait()
+            results.append(AccountResult(**data))
+
+        # Print summary
+        print(f"\n{'='*55}")
+        print("  FARM RUN COMPLETE")
+        print(f"{'='*55}")
+        total = sum(r.profiles_scraped for r in results)
+        for r in results:
+            status = "✓" if not r.errors else "✗"
+            print(f"  {status} {r.account_id:<16} [{r.city:<12}]  "
+                  f"{r.profiles_scraped} profiles scraped")
+            for err in r.errors:
+                print(f"      Error: {err}")
+        print(f"\n  Total profiles scraped today: {total}")
+        print(f"{'='*55}\n")
+
+        return results
+
