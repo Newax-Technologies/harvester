@@ -1,17 +1,25 @@
-from __future__ import annotations
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Optional
 
-import os
-import yaml
-from dataclasses import dataclass, field
-
-@dataclass(slots=True)
-class Settings:
-    database_path: str = "leads_v2.sqlite3"
-    google_places_api_key: str = field(default_factory=lambda: os.getenv("GOOGLE_PLACES_API_KEY", ""))
+class Settings(BaseSettings):
+    database_url: str = "postgresql+asyncpg://postgres:development-only@localhost:5432/opportunity_engine"
+    test_database_url: Optional[str] = "postgresql+asyncpg://opportunity_test:TEST_PASSWORD@127.0.0.1:5432/lead_harvester_test"
+    google_places_api_key: str = ""
     job_config_path: str = ""
-    job_config: dict = field(default_factory=dict)
+    app_env: str = "development"
+    allow_demo_seed: bool = False
     
-    def load_job_config(self):
-        if self.job_config_path and os.path.exists(self.job_config_path):
-            with open(self.job_config_path, "r", encoding="utf-8") as f:
-                self.job_config = yaml.safe_load(f)
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+def validate_test_database_url(test_url: str, production_url: str) -> None:
+    if test_url == production_url:
+        raise RuntimeError(
+            "TEST_DATABASE_URL must not match DATABASE_URL."
+        )
+
+    if "test" not in test_url.lower():
+        raise RuntimeError(
+            "Test database name must contain 'test'."
+        )
+
+settings = Settings()

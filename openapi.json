@@ -1,0 +1,1145 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Lead Harvester API",
+    "description": "Backend API for the Lead Harvester Dashboard",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/summary": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Get Dashboard Summary",
+        "description": "Returns key metrics for the Command Center.",
+        "operationId": "get_dashboard_summary_api_v1_dashboard_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Dashboard Summary Api V1 Dashboard Summary Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/dashboard/activity": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Get Dashboard Activity",
+        "description": "Returns a timeline of recent pipeline activity.",
+        "operationId": "get_dashboard_activity_api_v1_dashboard_activity_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/institutions": {
+      "get": {
+        "tags": [
+          "Institutions"
+        ],
+        "summary": "List Institutions",
+        "description": "List institutions with pagination and filtering.",
+        "operationId": "list_institutions_api_v1_institutions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedInstitutions"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/institutions/{institution_id}": {
+      "get": {
+        "tags": [
+          "Institutions"
+        ],
+        "summary": "Get Institution",
+        "description": "Get the full dossier for a specific institution.",
+        "operationId": "get_institution_api_v1_institutions__institution_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Institution Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drafts": {
+      "get": {
+        "tags": [
+          "Drafts"
+        ],
+        "summary": "List Drafts",
+        "operationId": "list_drafts_api_v1_drafts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response List Drafts Api V1 Drafts Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/drafts/{draft_id}": {
+      "get": {
+        "tags": [
+          "Drafts"
+        ],
+        "summary": "Get Draft",
+        "operationId": "get_draft_api_v1_drafts__draft_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachDraftSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Drafts"
+        ],
+        "summary": "Edit Draft",
+        "operationId": "edit_draft_api_v1_drafts__draft_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftEditRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachDraftSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drafts/{draft_id}/decision": {
+      "post": {
+        "tags": [
+          "Drafts"
+        ],
+        "summary": "Make Draft Decision",
+        "operationId": "make_draft_decision_api_v1_drafts__draft_id__decision_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "draft_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Draft Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutreachDraftSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resolution-reviews": {
+      "get": {
+        "tags": [
+          "Resolution Reviews"
+        ],
+        "summary": "List Reviews",
+        "operationId": "list_reviews_api_v1_resolution_reviews_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response List Reviews Api V1 Resolution Reviews Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/resolution-reviews/{review_id}": {
+      "get": {
+        "tags": [
+          "Resolution Reviews"
+        ],
+        "summary": "Get Review",
+        "operationId": "get_review_api_v1_resolution_reviews__review_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Review Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionCandidateSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/resolution-reviews/{review_id}/decision": {
+      "post": {
+        "tags": [
+          "Resolution Reviews"
+        ],
+        "summary": "Make Review Decision",
+        "operationId": "make_review_decision_api_v1_resolution_reviews__review_id__decision_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "review_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Review Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolutionDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionCandidateSchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BranchSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "branch_name": {
+            "type": "string",
+            "title": "Branch Name"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address"
+          },
+          "provider_ids": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Provider Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "branch_name",
+          "address",
+          "provider_ids"
+        ],
+        "title": "BranchSchema"
+      },
+      "ContactPointSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "contact_type": {
+            "type": "string",
+            "title": "Contact Type"
+          },
+          "contact_value": {
+            "type": "string",
+            "title": "Contact Value"
+          },
+          "person_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Person Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "contact_type",
+          "contact_value"
+        ],
+        "title": "ContactPointSchema"
+      },
+      "DraftDecisionRequest": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "title": "Decision"
+          },
+          "feedback": {
+            "type": "string",
+            "title": "Feedback"
+          },
+          "expected_version": {
+            "type": "integer",
+            "title": "Expected Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision",
+          "feedback",
+          "expected_version"
+        ],
+        "title": "DraftDecisionRequest"
+      },
+      "DraftEditRequest": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "expected_version": {
+            "type": "integer",
+            "title": "Expected Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "expected_version"
+        ],
+        "title": "DraftEditRequest"
+      },
+      "DraftStatus": {
+        "type": "string",
+        "enum": [
+          "pending_generation",
+          "generated",
+          "needs_revision",
+          "approved",
+          "sent"
+        ],
+        "title": "DraftStatus"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InstitutionDetailResponse": {
+        "properties": {
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "institution_type": {
+            "type": "string",
+            "title": "Institution Type"
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OperatingStatus"
+          },
+          "confidence_score": {
+            "type": "number",
+            "title": "Confidence Score"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "branches": {
+            "items": {
+              "$ref": "#/components/schemas/BranchSchema"
+            },
+            "type": "array",
+            "title": "Branches",
+            "default": []
+          },
+          "contact_points": {
+            "items": {
+              "$ref": "#/components/schemas/ContactPointSchema"
+            },
+            "type": "array",
+            "title": "Contact Points",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "canonical_name",
+          "institution_type",
+          "status",
+          "confidence_score",
+          "id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "InstitutionDetailResponse"
+      },
+      "InstitutionListResponse": {
+        "properties": {
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          },
+          "institution_type": {
+            "type": "string",
+            "title": "Institution Type"
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OperatingStatus"
+          },
+          "confidence_score": {
+            "type": "number",
+            "title": "Confidence Score"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "canonical_name",
+          "institution_type",
+          "status",
+          "confidence_score",
+          "id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "InstitutionListResponse"
+      },
+      "MatchAssessmentSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name_similarity": {
+            "type": "number",
+            "title": "Name Similarity"
+          },
+          "distance_meters": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Meters"
+          },
+          "phone_match": {
+            "type": "boolean",
+            "title": "Phone Match"
+          },
+          "domain_match": {
+            "type": "boolean",
+            "title": "Domain Match"
+          },
+          "total_score": {
+            "type": "number",
+            "title": "Total Score"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/MatchDecision"
+          },
+          "assessed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Assessed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name_similarity",
+          "phone_match",
+          "domain_match",
+          "total_score",
+          "decision",
+          "assessed_at"
+        ],
+        "title": "MatchAssessmentSchema"
+      },
+      "MatchDecision": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "merge",
+          "link_only",
+          "reject"
+        ],
+        "title": "MatchDecision"
+      },
+      "OperatingStatus": {
+        "type": "string",
+        "enum": [
+          "operational",
+          "closed_temporarily",
+          "closed_permanently",
+          "unknown"
+        ],
+        "title": "OperatingStatus"
+      },
+      "OutreachDraftSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "brief_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Brief Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DraftStatus"
+          },
+          "target_name": {
+            "type": "string",
+            "title": "Target Name"
+          },
+          "target_role": {
+            "type": "string",
+            "title": "Target Role"
+          },
+          "target_contact_value": {
+            "type": "string",
+            "title": "Target Contact Value"
+          },
+          "subject_line": {
+            "type": "string",
+            "title": "Subject Line"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "human_feedback": {
+            "type": "string",
+            "title": "Human Feedback"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "brief_id",
+          "status",
+          "target_name",
+          "target_role",
+          "target_contact_value",
+          "subject_line",
+          "body",
+          "human_feedback",
+          "version",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OutreachDraftSchema"
+      },
+      "PaginatedInstitutions": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InstitutionListResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "size"
+        ],
+        "title": "PaginatedInstitutions"
+      },
+      "ResolutionCandidateSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "raw_record_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Raw Record Id"
+          },
+          "target_canonical_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Canonical Id"
+          },
+          "target_raw_record_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Raw Record Id"
+          },
+          "blocking_strategy": {
+            "type": "string",
+            "title": "Blocking Strategy"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "assessments": {
+            "items": {
+              "$ref": "#/components/schemas/MatchAssessmentSchema"
+            },
+            "type": "array",
+            "title": "Assessments",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "raw_record_id",
+          "blocking_strategy",
+          "version",
+          "created_at"
+        ],
+        "title": "ResolutionCandidateSchema"
+      },
+      "ResolutionDecisionRequest": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "title": "Decision"
+          },
+          "feedback": {
+            "type": "string",
+            "title": "Feedback"
+          },
+          "expected_version": {
+            "type": "integer",
+            "title": "Expected Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decision",
+          "feedback",
+          "expected_version"
+        ],
+        "title": "ResolutionDecisionRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
