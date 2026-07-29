@@ -79,6 +79,21 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
     }
 
 
+def _provider_ids_list(provider_ids: dict, source_type: str) -> list[str]:
+    """
+    Reads a provider_ids entry as a list regardless of whether it was
+    written in the current list-per-source_type shape or the legacy
+    scalar-per-source_type shape (a single source_id string, predating
+    _provider_ids_for). `list("some-id-string")` would silently shatter a
+    legacy scalar into one list entry per character -- guard against that
+    by wrapping a bare str as a single-element list instead of iterating it.
+    """
+    value = provider_ids.get(source_type, [])
+    if isinstance(value, str):
+        return [value]
+    return list(value)
+
+
 def _provider_ids_for(records: list[RawSourceRecord]) -> dict[str, list[str]]:
     # Keyed by source_type, valued as a LIST of source_ids -- two records of
     # the same source_type folded into one branch (e.g. two Google Places
@@ -292,7 +307,7 @@ async def find_branch_for_raw_record(
     stmt = select(Branch).where(Branch.institution_id == institution_id)
     result = await session.execute(stmt)
     for branch in result.scalars():
-        if record.source_id in branch.provider_ids.get(record.source_type.value, []):
+        if record.source_id in _provider_ids_list(branch.provider_ids, record.source_type.value):
             return branch
     return None
 
@@ -324,9 +339,12 @@ async def attach_record_to_institution(
         # source_type) so the attribute-set event actually marks the branch
         # dirty. Appending to the list (not overwriting the key) so this
         # doesn't lose a previously-recorded source_id for the same
-        # source_type -- see _provider_ids_for's docstring.
+        # source_type -- see _provider_ids_for's docstring. Read via
+        # _provider_ids_list rather than a bare list(...) coercion so a
+        # legacy scalar value under this key doesn't get shattered into one
+        # list entry per character.
         source_type = record.source_type.value
-        existing_ids = list(target_branch.provider_ids.get(source_type, []))
+        existing_ids = _provider_ids_list(target_branch.provider_ids, source_type)
         if record.source_id not in existing_ids:
             existing_ids.append(record.source_id)
         target_branch.provider_ids = {**target_branch.provider_ids, source_type: existing_ids}

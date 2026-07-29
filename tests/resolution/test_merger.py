@@ -150,6 +150,43 @@ async def test_attach_record_to_institution_enriches_existing_branch(db_session,
 
 
 @pytest.mark.asyncio
+async def test_attach_record_to_institution_handles_legacy_scalar_provider_id(
+    db_session, source_run
+):
+    # Branches written before provider_ids became list-valued stored a bare
+    # source_id string under the source_type key. list("some-id-string")
+    # would shatter that string into one list entry per character --
+    # confirm enrichment instead treats the legacy scalar as a single-
+    # element list, and that the original record stays findable afterward.
+    a = google_places_record(source_run.id, name="Legacy School", phone="+923003333333")
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+
+    branch = await find_branch_for_raw_record(db_session, institution.id, a)
+    assert branch is not None
+    branch.provider_ids = {"google_places": a.source_id}  # simulate legacy scalar shape
+    await db_session.flush()
+
+    # The legacy scalar must still be findable by its original record.
+    assert (await find_branch_for_raw_record(db_session, institution.id, a)) is not None
+
+    b = google_places_record(source_run.id, name="Legacy School", phone="+923004444444")
+    db_session.add(b)
+    await db_session.flush()
+
+    result_branch = await attach_record_to_institution(
+        db_session, b, institution, target_branch=branch
+    )
+    await db_session.flush()
+
+    assert result_branch.provider_ids["google_places"] == [a.source_id, b.source_id]
+    assert await find_branch_for_raw_record(db_session, institution.id, a) is not None
+    assert await find_branch_for_raw_record(db_session, institution.id, b) is not None
+
+
+@pytest.mark.asyncio
 async def test_attach_record_to_institution_creates_new_branch_when_no_target(
     db_session, source_run
 ):

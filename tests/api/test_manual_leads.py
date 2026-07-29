@@ -1,3 +1,4 @@
+import uuid
 from unittest.mock import AsyncMock
 
 import pytest
@@ -12,10 +13,13 @@ from lead_harvester.api.dependencies import (
     get_db_session,
     get_lead_sync_emitter,
 )
-from lead_harvester.canonical.merger import find_canonical_for_raw_record
+from lead_harvester.canonical.merger import (
+    find_branch_for_raw_record,
+    find_canonical_for_raw_record,
+)
 from lead_harvester.database import engine as manual_leads_engine
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
-from lead_harvester.models.canonical import ContactPoint
+from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.source import RawSourceRecord
 from lead_harvester.resolution.normalize import normalize_domain, normalize_phone
 
@@ -232,6 +236,41 @@ async def test_create_manual_lead_writes_branch_membership_provenance(
 
     canonical_id = await find_canonical_for_raw_record(db_session, record.id)
     assert str(canonical_id) == institution_id
+
+
+@pytest.mark.asyncio
+async def test_create_manual_lead_stores_provider_ids_in_resolver_canonical_shape(
+    manual_leads_client, db_session
+):
+    # provider_ids must be keyed by source_type with a list of source_ids --
+    # the shape canonical/merger.py's find_branch_for_raw_record actually
+    # reads. A different key (e.g. "manual_record_id") or a bare scalar
+    # would mean a later reviewer decision that targets this manual record
+    # could never find this branch, creating an erroneous "Additional
+    # Campus" instead of enriching it.
+    response = await manual_leads_client.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
+    assert response.status_code == 201
+    institution_id = response.json()["id"]
+
+    record = (
+        await db_session.execute(
+            select(RawSourceRecord).where(
+                RawSourceRecord.normalized_name == VALID_PAYLOAD["institution_name"].lower()
+            )
+        )
+    ).scalar_one()
+
+    branch = (
+        await db_session.execute(
+            select(Branch).where(Branch.institution_id == uuid.UUID(institution_id))
+        )
+    ).scalar_one()
+    assert branch.provider_ids == {"manual": [record.source_id]}
+
+    institution = await db_session.get(CanonicalInstitution, uuid.UUID(institution_id))
+    found = await find_branch_for_raw_record(db_session, institution.id, record)
+    assert found is not None
+    assert found.id == branch.id
 
 
 @pytest.mark.asyncio

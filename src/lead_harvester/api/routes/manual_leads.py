@@ -242,7 +242,14 @@ async def create_manual_lead(
         address=full_address,
         city=payload.city.strip(),
         country_code=payload.country_code,
-        provider_ids={"manual_record_id": source_id},
+        # Keyed by source_type with a list of source_ids -- the same shape
+        # canonical/merger.py's _provider_ids_for/find_branch_for_raw_record
+        # use. A different key ("manual_record_id") or a bare scalar here
+        # would mean find_branch_for_raw_record could never locate this
+        # branch for a later reviewer decision that targets this manual
+        # record, creating an erroneous "Additional Campus" instead of
+        # enriching this one.
+        provider_ids={SourceType.MANUAL.value: [source_id]},
     )
     session.add(branch)
 

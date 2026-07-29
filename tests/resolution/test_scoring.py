@@ -92,6 +92,49 @@ async def test_exact_domain_and_strong_name_match_is_pending_not_link_only(db_se
 
 
 @pytest.mark.asyncio
+async def test_exact_phone_and_strong_name_match_is_pending_not_link_only(db_session, source_run):
+    # Manual entries always have location=None, and many have a phone but no
+    # website -- so a later record sharing that phone and an identical name
+    # can never reach the MERGE branch (no distance) or the domain-match
+    # PENDING branch (no domain), and before this fix fell straight through
+    # to LINK_ONLY, the same bucket used for two genuinely distinct
+    # franchise locations that merely share a phone number. A strong name
+    # match on top of the phone match is too confident for that to be right.
+    a = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone="+923001234567",
+        website=None,
+        lat=None,
+        lng=None,
+    )
+    b = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone="+923001234567",
+        website=None,
+        lat=None,
+        lng=None,
+    )
+    db_session.add_all([a, b])
+    await db_session.flush()
+
+    candidate = ResolutionCandidate(
+        raw_record_id=a.id,
+        target_raw_record_id=b.id,
+        blocking_strategy="phone",
+        version=1,
+    )
+    db_session.add(candidate)
+    await db_session.flush()
+
+    assessment = await score_candidate(db_session, candidate)
+
+    assert assessment.phone_match is True
+    assert assessment.decision == MatchDecision.PENDING
+
+
+@pytest.mark.asyncio
 async def test_domain_match_alone_with_weak_name_stays_link_only(db_session, source_run):
     # Domain match without a strong name match is still LINK_ONLY -- e.g. a
     # shared website domain that doesn't otherwise look like the same
