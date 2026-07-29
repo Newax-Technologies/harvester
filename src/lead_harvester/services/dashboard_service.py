@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.canonical import CanonicalInstitution
 from lead_harvester.models.outreach import DraftStatus, OutreachDraft
+from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.resolution import MatchAssessment, MatchDecision, ResolutionCandidate
 
 
@@ -20,12 +21,23 @@ class DashboardService:
         # (including automated MERGE/LINK_ONLY/REJECT ones and already
         # human-reviewed ones), so the badge only ever grew and disagreed
         # with what the review queue actually shows.
+        already_canonicalized = (
+            select(FieldProvenance.raw_record_id)
+            .where(FieldProvenance.raw_record_id == ResolutionCandidate.raw_record_id)
+            .exists()
+        )
         pending_resolutions = await session.scalar(
             select(func.count(ResolutionCandidate.id))
             .join(MatchAssessment, MatchAssessment.candidate_id == ResolutionCandidate.id)
             .where(
                 MatchAssessment.decision == MatchDecision.PENDING,
                 ResolutionCandidate.review_outcome.is_(None),
+                # A sibling candidate for the same raw record may already
+                # have been decided (or automated resolution already
+                # canonicalized it entirely) -- without this exclusion the
+                # badge kept counting a candidate that list_pending had
+                # already dropped from the actual queue.
+                ~already_canonicalized,
             )
         )
 

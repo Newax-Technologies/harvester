@@ -43,9 +43,12 @@ async def test_merge_records_same_location_collapses_to_one_branch(db_session, s
     result = await db_session.execute(select(Branch).where(Branch.institution_id == institution.id))
     branches = result.scalars().all()
     assert len(branches) == 1
-    # Same source_type for both records -> provider_ids collapses to one key
-    # (last record wins), a documented v1 fragility of the provider_ids dict.
-    assert set(branches[0].provider_ids) == {"google_places"}
+    # Same source_type for both records -> provider_ids keeps BOTH source_ids
+    # under the shared "google_places" key (a list), so a later run
+    # rediscovering either original Place can still find this branch.
+    assert branches[0].provider_ids == {"google_places": [a.source_id, b.source_id]}
+    assert await find_branch_for_raw_record(db_session, institution.id, a) is not None
+    assert await find_branch_for_raw_record(db_session, institution.id, b) is not None
 
 
 @pytest.mark.asyncio
@@ -135,7 +138,7 @@ async def test_attach_record_to_institution_enriches_existing_branch(db_session,
     await db_session.flush()
 
     assert result_branch.id == branch.id
-    assert result_branch.provider_ids["google_places"] == b.source_id
+    assert result_branch.provider_ids["google_places"] == [a.source_id, b.source_id]
 
     result = await db_session.execute(select(Branch).where(Branch.institution_id == institution.id))
     assert len(result.scalars().all()) == 1

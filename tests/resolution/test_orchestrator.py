@@ -85,7 +85,8 @@ async def test_merge_with_already_resolved_target_attaches_to_existing(db_sessio
         .all()
     )
     assert len(branches) == 1
-    assert branches[0].provider_ids.get("google_places") == b.source_id
+    assert b.source_id in branches[0].provider_ids.get("google_places", [])
+    assert a.source_id in branches[0].provider_ids.get("google_places", [])
 
 
 @pytest.mark.asyncio

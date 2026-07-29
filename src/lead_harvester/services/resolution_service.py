@@ -139,6 +139,24 @@ class ResolutionService:
             if candidate.review_outcome is not None:
                 raise AlreadyReviewedError(str(review_id), candidate.review_outcome.value)
 
+            # Locking only this candidate row isn't enough to serialize
+            # against a SIBLING candidate (a different ResolutionCandidate
+            # row for the same raw_record_id, matched against a different
+            # target) -- two concurrent make_decision calls for two
+            # different siblings could each pass the
+            # find_canonical_for_raw_record check below before either
+            # commits, and both proceed to canonicalize the same raw
+            # record. Locking the shared RawSourceRecord row itself makes
+            # the second transaction block here until the first commits, so
+            # its own find_canonical_for_raw_record re-check (run after
+            # acquiring this lock) correctly observes the just-committed
+            # canonicalization.
+            await session.execute(
+                select(RawSourceRecord)
+                .where(RawSourceRecord.id == candidate.raw_record_id)
+                .with_for_update()
+            )
+
             # The candidate itself may be unreviewed, but its raw record can
             # already be canonicalized -- via a sibling candidate (the same
             # record matched against a different target through a different

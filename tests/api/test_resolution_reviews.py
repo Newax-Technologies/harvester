@@ -320,6 +320,184 @@ async def test_resolved_candidate_disappears_from_pending_list(client_a, db_sess
 
 
 @pytest.mark.asyncio
+async def test_concurrent_sibling_decisions_serialize_via_raw_record_lock(async_engine):
+    # The db_session fixture wraps every test in one shared connection/
+    # transaction, so it can only ever prove sequential behavior -- it can't
+    # catch a lock that's scoped too narrowly (e.g. locking only the
+    # ResolutionCandidate row being decided, not the raw record the two
+    # sibling candidates both point at). This test opens two genuinely
+    # independent connections and decides two different candidates for the
+    # SAME raw_record_id truly concurrently, to prove make_decision's lock
+    # on the shared RawSourceRecord row actually serializes them -- without
+    # it, both transactions could pass the "already canonicalized?" check
+    # before either commits, and both would canonicalize the same record.
+    import asyncio
+
+    from sqlalchemy import delete
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from lead_harvester.api.errors import RecordAlreadyCanonicalizedError
+    from lead_harvester.models.audit import AuditLog
+    from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
+    from lead_harvester.models.provenance import FieldProvenance
+    from lead_harvester.models.source import RawSourceRecord
+    from lead_harvester.schemas.resolution import ResolutionDecisionRequest
+    from lead_harvester.services.resolution_service import ResolutionService
+
+    setup_conn = await async_engine.connect()
+    setup_session = AsyncSession(bind=setup_conn, expire_on_commit=False)
+    run = SourceRun(source_type=SourceType.GOOGLE_PLACES, run_metadata={}, status=RunStatus.STARTED)
+    setup_session.add(run)
+    await setup_session.flush()
+
+    record = _record(run.id, "Race Condition School", "+923005551111", "gp-race-record")
+    target_1 = _record(run.id, "Race Target One", "+923005551111", "gp-race-target-1")
+    target_2 = _record(run.id, "Race Target Two", "+923005552222", "gp-race-target-2")
+    setup_session.add_all([record, target_1, target_2])
+    await setup_session.flush()
+
+    candidate_1 = ResolutionCandidate(
+        raw_record_id=record.id,
+        target_raw_record_id=target_1.id,
+        blocking_strategy="phone",
+        version=1,
+    )
+    candidate_2 = ResolutionCandidate(
+        raw_record_id=record.id,
+        target_raw_record_id=target_2.id,
+        blocking_strategy="geo_name",
+        version=1,
+    )
+    setup_session.add_all([candidate_1, candidate_2])
+    await setup_session.flush()
+
+    setup_session.add_all(
+        [
+            MatchAssessment(
+                candidate_id=candidate_1.id,
+                name_similarity=0.5,
+                distance_meters=None,
+                phone_match=True,
+                domain_match=False,
+                total_score=65.0,
+                decision=MatchDecision.PENDING,
+            ),
+            MatchAssessment(
+                candidate_id=candidate_2.id,
+                name_similarity=0.5,
+                distance_meters=None,
+                phone_match=False,
+                domain_match=False,
+                total_score=65.0,
+                decision=MatchDecision.PENDING,
+            ),
+        ]
+    )
+    await setup_session.commit()
+    candidate_1_id, candidate_2_id, record_id = candidate_1.id, candidate_2.id, record.id
+    await setup_session.close()
+    await setup_conn.close()
+
+    conn1 = await async_engine.connect()
+    session1 = AsyncSession(bind=conn1, expire_on_commit=False)
+    conn2 = await async_engine.connect()
+    session2 = AsyncSession(bind=conn2, expire_on_commit=False)
+
+    req = ResolutionDecisionRequest(decision="separate", feedback="race", expected_version=1)
+
+    try:
+        results = await asyncio.gather(
+            ResolutionService.make_decision(session1, candidate_1_id, req, "tester-1"),
+            ResolutionService.make_decision(session2, candidate_2_id, req, "tester-2"),
+            return_exceptions=True,
+        )
+    finally:
+        await session1.close()
+        await conn1.close()
+        await session2.close()
+        await conn2.close()
+
+    successes = [r for r in results if not isinstance(r, Exception)]
+    errors = [r for r in results if isinstance(r, Exception)]
+    assert len(successes) == 1, results
+    assert len(errors) == 1, results
+    assert isinstance(errors[0], RecordAlreadyCanonicalizedError)
+
+    # Exactly one CanonicalInstitution was created for this raw record, not
+    # two -- the actual data-integrity invariant this lock protects.
+    cleanup_conn = await async_engine.connect()
+    cleanup_session = AsyncSession(bind=cleanup_conn, expire_on_commit=False)
+    try:
+        provenance = (
+            (
+                await cleanup_session.execute(
+                    select(FieldProvenance).where(FieldProvenance.raw_record_id == record_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        canonical_ids = {p.canonical_id for p in provenance}
+        assert len(canonical_ids) == 1
+
+        institutions = (
+            (
+                await cleanup_session.execute(
+                    select(CanonicalInstitution).where(CanonicalInstitution.id.in_(canonical_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        branch_ids = [
+            b.id
+            for b in (
+                await cleanup_session.execute(
+                    select(Branch).where(Branch.institution_id.in_([i.id for i in institutions]))
+                )
+            )
+            .scalars()
+            .all()
+        ]
+
+        await cleanup_session.execute(
+            delete(AuditLog).where(
+                AuditLog.entity_id.in_([str(candidate_1_id), str(candidate_2_id)])
+            )
+        )
+        await cleanup_session.execute(
+            delete(FieldProvenance).where(FieldProvenance.canonical_id.in_(canonical_ids))
+        )
+        await cleanup_session.execute(
+            delete(ContactPoint).where(ContactPoint.institution_id.in_(canonical_ids))
+        )
+        await cleanup_session.execute(delete(Branch).where(Branch.id.in_(branch_ids)))
+        await cleanup_session.execute(
+            delete(CanonicalInstitution).where(CanonicalInstitution.id.in_(canonical_ids))
+        )
+        await cleanup_session.execute(
+            delete(MatchAssessment).where(
+                MatchAssessment.candidate_id.in_([candidate_1_id, candidate_2_id])
+            )
+        )
+        await cleanup_session.execute(
+            delete(ResolutionCandidate).where(
+                ResolutionCandidate.id.in_([candidate_1_id, candidate_2_id])
+            )
+        )
+        await cleanup_session.execute(
+            delete(RawSourceRecord).where(
+                RawSourceRecord.id.in_([record_id, target_1.id, target_2.id])
+            )
+        )
+        await cleanup_session.execute(delete(SourceRun).where(SourceRun.id == run.id))
+        await cleanup_session.commit()
+    finally:
+        await cleanup_session.close()
+        await cleanup_conn.close()
+
+
+@pytest.mark.asyncio
 async def test_invalid_decision_value_returns_422(client_a, db_session):
     candidate, _record, _target = await _seed_pending_pair(db_session)
 

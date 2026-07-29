@@ -79,15 +79,25 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
     }
 
 
+def _provider_ids_for(records: list[RawSourceRecord]) -> dict[str, list[str]]:
+    # Keyed by source_type, valued as a LIST of source_ids -- two records of
+    # the same source_type folded into one branch (e.g. two Google Places
+    # hits confirmed to be the same physical location) must each keep their
+    # own source_id. A bare str value would let the second overwrite the
+    # first, and a later run rediscovering the overwritten place could never
+    # find this branch via find_branch_for_raw_record, silently splitting
+    # one physical location into two Branch rows.
+    provider_ids: dict[str, list[str]] = {}
+    for r in records:
+        provider_ids.setdefault(r.source_type.value, []).append(r.source_id)
+    return provider_ids
+
+
 def _build_branch(
     records: list[RawSourceRecord], institution_id: uuid.UUID, *, branch_name: str
 ) -> Branch:
     primary = records[0]
     fields = display_fields(primary)
-    # Keyed by source_type, so two records of the same source_type folded
-    # into one branch would collide (last one wins) -- acceptable for v1
-    # since a given source only ever contributes one record per branch today.
-    provider_ids = {r.source_type.value: r.source_id for r in records}
     return Branch(
         institution_id=institution_id,
         branch_name=branch_name,
@@ -95,7 +105,7 @@ def _build_branch(
         city=_UNKNOWN_CITY,
         country_code=_UNKNOWN_COUNTRY_CODE,
         location=primary.location,
-        provider_ids=provider_ids,
+        provider_ids=_provider_ids_for(records),
     )
 
 
@@ -273,17 +283,16 @@ async def find_branch_for_raw_record(
     """
     Finds the specific Branch a raw record belongs to. Branch has no direct
     FK to the raw records that produced it -- only provider_ids, keyed by
-    source_type -- so this loads the institution's (typically small) branch
-    set and matches in Python rather than relying on a JSONB operator.
-    Returns None if no match is found (e.g. the branch's provider_ids entry
-    for this source_type was overwritten by a different record sharing the
-    same branch) -- callers should treat that as "create a new branch"
-    rather than guessing which existing one to enrich.
+    source_type with a list of every contributing source_id -- so this loads
+    the institution's (typically small) branch set and matches in Python
+    rather than relying on a JSONB operator. Returns None if no match is
+    found -- callers should treat that as "create a new branch" rather than
+    guessing which existing one to enrich.
     """
     stmt = select(Branch).where(Branch.institution_id == institution_id)
     result = await session.execute(stmt)
     for branch in result.scalars():
-        if branch.provider_ids.get(record.source_type.value) == record.source_id:
+        if record.source_id in branch.provider_ids.get(record.source_type.value, []):
             return branch
     return None
 
@@ -310,13 +319,17 @@ async def attach_record_to_institution(
         if not target_branch.address and fields["address"]:
             target_branch.address = fields["address"]
         # provider_ids is a plain JSONB column (no MutableDict tracking), so
-        # mutating the existing dict in place would never be detected as a
-        # change -- reassign a new dict so the attribute-set event actually
-        # marks the branch dirty.
-        target_branch.provider_ids = {
-            **target_branch.provider_ids,
-            record.source_type.value: record.source_id,
-        }
+        # mutating the existing dict/list in place would never be detected
+        # as a change -- reassign a new dict (with a new list for this
+        # source_type) so the attribute-set event actually marks the branch
+        # dirty. Appending to the list (not overwriting the key) so this
+        # doesn't lose a previously-recorded source_id for the same
+        # source_type -- see _provider_ids_for's docstring.
+        source_type = record.source_type.value
+        existing_ids = list(target_branch.provider_ids.get(source_type, []))
+        if record.source_id not in existing_ids:
+            existing_ids.append(record.source_id)
+        target_branch.provider_ids = {**target_branch.provider_ids, source_type: existing_ids}
         branch = target_branch
     else:
         branch = _build_branch([record], institution.id, branch_name="Additional Campus")
