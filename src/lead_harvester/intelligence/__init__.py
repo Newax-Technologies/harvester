@@ -1,12 +1,12 @@
-from .taxonomy import identify_institution_type, get_synonyms
+from .pain_detection import classify_opportunity, detect_pain_points, generate_reason_to_contact
 from .scoring import score_opportunity
-from .pain_detection import detect_pain_points, classify_opportunity, generate_reason_to_contact
+from .taxonomy import get_synonyms, identify_institution_type
 
 __all__ = [
-    "identify_institution_type",
-    "get_synonyms",
-    "score_opportunity",
-    "detect_pain_points",
     "classify_opportunity",
-    "generate_reason_to_contact"
+    "detect_pain_points",
+    "generate_reason_to_contact",
+    "get_synonyms",
+    "identify_institution_type",
+    "score_opportunity",
 ]

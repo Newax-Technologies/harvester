@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Iterable
+from typing import Self
 
-from ..entities.institution import Institution
 from ..entities.branch import Branch
 from ..entities.contact import ContactPoint
+from ..entities.institution import Institution
 from ..entities.signal import OpportunitySignal
 
 SCHEMA = """
@@ -76,10 +76,61 @@ CREATE INDEX IF NOT EXISTS idx_contact_inst ON contact_points(institution_id);
 CREATE INDEX IF NOT EXISTS idx_signal_inst ON opportunity_signals(institution_id);
 """
 
-INST_COLS = ["id", "canonical_name", "institution_type", "ownership_type", "website", "domain", "primary_phone", "primary_email", "status", "estimated_size", "estimated_value_tier", "confidence", "discovered_at", "raw_data"]
-BRANCH_COLS = ["id", "institution_id", "branch_name", "address", "city", "area", "latitude", "longitude", "map_provider_ids", "phones", "opening_hours"]
-CONTACT_COLS = ["id", "institution_id", "person_name", "role", "email", "phone", "whatsapp", "contact_form_url", "telegram_username", "source", "publicly_listed", "verified_at"]
-SIGNAL_COLS = ["id", "institution_id", "signal_type", "signal_text", "source_url", "detected_at", "confidence", "freshness", "commercial_relevance"]
+INST_COLS = [
+    "id",
+    "canonical_name",
+    "institution_type",
+    "ownership_type",
+    "website",
+    "domain",
+    "primary_phone",
+    "primary_email",
+    "status",
+    "estimated_size",
+    "estimated_value_tier",
+    "confidence",
+    "discovered_at",
+    "raw_data",
+]
+BRANCH_COLS = [
+    "id",
+    "institution_id",
+    "branch_name",
+    "address",
+    "city",
+    "area",
+    "latitude",
+    "longitude",
+    "map_provider_ids",
+    "phones",
+    "opening_hours",
+]
+CONTACT_COLS = [
+    "id",
+    "institution_id",
+    "person_name",
+    "role",
+    "email",
+    "phone",
+    "whatsapp",
+    "contact_form_url",
+    "telegram_username",
+    "source",
+    "publicly_listed",
+    "verified_at",
+]
+SIGNAL_COLS = [
+    "id",
+    "institution_id",
+    "signal_type",
+    "signal_text",
+    "source_url",
+    "detected_at",
+    "confidence",
+    "freshness",
+    "commercial_relevance",
+]
+
 
 class SQLiteStore:
     def __init__(self, path: str):
@@ -92,7 +143,7 @@ class SQLiteStore:
     def close(self) -> None:
         self.connection.close()
 
-    def __enter__(self) -> "SQLiteStore":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, exc_type, exc, traceback) -> None:  # type: ignore
@@ -102,7 +153,7 @@ class SQLiteStore:
         placeholders = ", ".join("?" for _ in columns)
         updates = ", ".join(f"{col}=excluded.{col}" for col in columns if col != "id")
         query = f"""
-            INSERT INTO {table} ({', '.join(columns)})
+            INSERT INTO {table} ({", ".join(columns)})
             VALUES ({placeholders})
             ON CONFLICT(id) DO UPDATE SET {updates}
         """

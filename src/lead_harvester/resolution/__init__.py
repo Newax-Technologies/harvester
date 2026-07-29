@@ -1,11 +1,11 @@
-from .normalization import normalize_phone, normalize_url, normalize_institution_name
-from .deduplication import Deduplicator, haversine_distance, calculate_similarity
+from .deduplication import Deduplicator, calculate_similarity, haversine_distance
+from .normalization import normalize_institution_name, normalize_phone, normalize_url
 
 __all__ = [
-    "normalize_phone", 
-    "normalize_url", 
-    "normalize_institution_name", 
     "Deduplicator",
+    "calculate_similarity",
     "haversine_distance",
-    "calculate_similarity"
+    "normalize_institution_name",
+    "normalize_phone",
+    "normalize_url",
 ]

@@ -12,29 +12,29 @@ and produce structured intelligence:
 
 Results are saved to the database as ResearchFinding + AccountBrief records.
 """
+
 from __future__ import annotations
 
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.database import get_session
 from lead_harvester.models import (
-    CanonicalInstitution,
-    ResearchJob,
-    ResearchFinding,
-    JobStatus,
-    FindingType,
     AccountBrief,
     BriefStatus,
+    CanonicalInstitution,
+    FindingType,
+    JobStatus,
     OperatingStatus,
+    ResearchFinding,
+    ResearchJob,
 )
 from lead_harvester.models.source import RawSourceRecord, SourceType
-
 
 SYSTEM_PROMPT = """You are an elite B2B sales intelligence analyst.
 You receive raw LinkedIn profile data and return a structured JSON analysis.
@@ -199,7 +199,6 @@ class ResearchBrain:
         profile: dict[str, Any],
         analysis: dict[str, Any],
     ) -> None:
-        from sqlalchemy import select
 
         # Create a ResearchJob record
         job = ResearchJob(
@@ -208,24 +207,24 @@ class ResearchBrain:
             objectives=["linkedin_profile_analysis"],
             execution_logs=[f"Analysed profile: {profile.get('profile_url', '')}"],
         )
-        job.completed_at = datetime.now(timezone.utc)
+        job.completed_at = datetime.now(UTC)
         session.add(job)
         await session.flush()
 
         # Key findings
         findings_to_save = {
-            "lead_score":       (analysis.get("lead_score", 0), FindingType.INFERENCE),
-            "decision_maker":   (analysis.get("decision_maker", False), FindingType.INFERENCE),
-            "pain_points":      (analysis.get("pain_points", []), FindingType.INFERENCE),
-            "buying_signals":   (analysis.get("buying_signals", []), FindingType.INFERENCE),
-            "best_angle":       (analysis.get("best_angle", ""), FindingType.INFERENCE),
-            "email_draft":      (analysis.get("email_draft", ""), FindingType.INFERENCE),
-            "linkedin_note":    (analysis.get("linkedin_note", ""), FindingType.INFERENCE),
-            "summary":          (analysis.get("summary", ""), FindingType.INFERENCE),
-            "full_name":        (profile.get("full_name", ""), FindingType.FACT),
-            "headline":         (profile.get("headline", ""), FindingType.FACT),
-            "company":          (profile.get("company", ""), FindingType.FACT),
-            "profile_url":      (profile.get("profile_url", ""), FindingType.FACT),
+            "lead_score": (analysis.get("lead_score", 0), FindingType.INFERENCE),
+            "decision_maker": (analysis.get("decision_maker", False), FindingType.INFERENCE),
+            "pain_points": (analysis.get("pain_points", []), FindingType.INFERENCE),
+            "buying_signals": (analysis.get("buying_signals", []), FindingType.INFERENCE),
+            "best_angle": (analysis.get("best_angle", ""), FindingType.INFERENCE),
+            "email_draft": (analysis.get("email_draft", ""), FindingType.INFERENCE),
+            "linkedin_note": (analysis.get("linkedin_note", ""), FindingType.INFERENCE),
+            "summary": (analysis.get("summary", ""), FindingType.INFERENCE),
+            "full_name": (profile.get("full_name", ""), FindingType.FACT),
+            "headline": (profile.get("headline", ""), FindingType.FACT),
+            "company": (profile.get("company", ""), FindingType.FACT),
+            "profile_url": (profile.get("profile_url", ""), FindingType.FACT),
         }
 
         for key, (value, ftype) in findings_to_save.items():
@@ -246,16 +245,20 @@ class ResearchBrain:
             status=BriefStatus.READY_FOR_REVIEW,
             executive_summary=analysis.get("summary", ""),
             value_hypotheses=analysis.get("pain_points", []),
-            stakeholder_ranking=[{
-                "name": profile.get("full_name", ""),
-                "role": profile.get("headline", ""),
-                "score": analysis.get("lead_score", 0),
-            }],
+            stakeholder_ranking=[
+                {
+                    "name": profile.get("full_name", ""),
+                    "role": profile.get("headline", ""),
+                    "score": analysis.get("lead_score", 0),
+                }
+            ],
         )
         session.add(brief)
 
-        print(f"[ResearchBrain] ✓ Saved findings for {profile.get('full_name', '?')} "
-              f"(score: {analysis.get('lead_score', 0)}/10)")
+        print(
+            f"[ResearchBrain] ✓ Saved findings for {profile.get('full_name', '?')} "
+            f"(score: {analysis.get('lead_score', 0)}/10)"
+        )
 
     async def _research_record(
         self,

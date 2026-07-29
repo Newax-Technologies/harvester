@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
-import time
 from typing import Any
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
@@ -21,6 +21,8 @@ from ..extractors import (
     extract_social_profiles,
     visible_text,
 )
+
+
 @dataclass
 class Lead:
     source: str
@@ -35,7 +37,6 @@ class Lead:
     social_profiles: list[str]
     evidence: str
     raw: dict[str, Any]
-
 
 
 @dataclass(slots=True)
@@ -166,7 +167,10 @@ class WebCrawler:
                 async with client.stream("GET", item.url) as response:
                     response.raise_for_status()
                     content_type = response.headers.get("content-type", "").lower()
-                    if "text/html" not in content_type and "application/xhtml+xml" not in content_type:
+                    if (
+                        "text/html" not in content_type
+                        and "application/xhtml+xml" not in content_type
+                    ):
                         return None
                     chunks: list[bytes] = []
                     size = 0

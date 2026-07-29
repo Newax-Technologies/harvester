@@ -8,9 +8,7 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 
 EMAIL_RE = re.compile(r"\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b", re.IGNORECASE)
-PHONE_RE = re.compile(
-    r"(?<!\d)(?:\+?\d{1,3}[\s.\-()]*)?(?:\d[\s.\-()]*){7,14}\d(?!\d)"
-)
+PHONE_RE = re.compile(r"(?<!\d)(?:\+?\d{1,3}[\s.\-()]*)?(?:\d[\s.\-()]*){7,14}\d(?!\d)")
 SOCIAL_HOSTS = {
     "linkedin.com",
     "instagram.com",
@@ -140,7 +138,13 @@ def extract_page_identity(html: str, url: str) -> dict[str, str]:
         item_type = item.get("@type", "")
         types = {item_type} if isinstance(item_type, str) else set(item_type or [])
         if not organization and types.intersection(
-            {"Organization", "LocalBusiness", "Corporation", "MedicalBusiness", "ProfessionalService"}
+            {
+                "Organization",
+                "LocalBusiness",
+                "Corporation",
+                "MedicalBusiness",
+                "ProfessionalService",
+            }
         ):
             organization = normalize_space(str(item.get("name", "")))
         if not name and "Person" in types:
@@ -173,7 +177,9 @@ def best_evidence(text: str, needles: list[str], max_length: int = 320) -> str:
     if not text:
         return ""
     lowered = text.lower()
-    positions = [lowered.find(needle.lower()) for needle in needles if needle and needle.lower() in lowered]
+    positions = [
+        lowered.find(needle.lower()) for needle in needles if needle and needle.lower() in lowered
+    ]
     center = min((position for position in positions if position >= 0), default=0)
     start = max(0, center - max_length // 3)
     excerpt = text[start : start + max_length]

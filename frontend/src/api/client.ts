@@ -33,7 +33,7 @@ export async function handleApiResponse<T>(response: {
       throw new ApiError(
         response.error.error.message,
         response.error.error.code,
-        response.error.error.details
+        response.error.error.details,
       );
     }
     throw new Error("An unexpected error occurred");

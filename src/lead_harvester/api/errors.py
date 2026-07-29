@@ -1,13 +1,10 @@
-from typing import Any, Dict, Optional
 import uuid
+from typing import Any
+
 
 class BaseAPIException(Exception):
     def __init__(
-        self,
-        status_code: int,
-        code: str,
-        message: str,
-        details: Optional[Dict[str, Any]] = None
+        self, status_code: int, code: str, message: str, details: dict[str, Any] | None = None
     ):
         self.status_code = status_code
         self.code = code
@@ -26,7 +23,7 @@ class StaleDataError(BaseAPIException):
                 "resource_id": str(resource_id),
                 "expected_version": expected_version,
                 "current_version": current_version,
-            }
+            },
         )
 
 
@@ -36,7 +33,7 @@ class ResourceNotFoundError(BaseAPIException):
             status_code=404,
             code="resource_not_found",
             message="The requested resource was not found.",
-            details={"resource_id": str(resource_id)}
+            details={"resource_id": str(resource_id)},
         )
 
 
@@ -45,7 +42,7 @@ class AuthorizationError(BaseAPIException):
         super().__init__(
             status_code=403,
             code="permission_denied",
-            message="You do not have permission to perform this action."
+            message="You do not have permission to perform this action.",
         )
 
 
@@ -54,5 +51,5 @@ class AuthenticationError(BaseAPIException):
         super().__init__(
             status_code=401,
             code="not_authenticated",
-            message="Valid authentication credentials are required."
+            message="Valid authentication credentials are required.",
         )

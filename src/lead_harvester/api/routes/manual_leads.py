@@ -221,7 +221,7 @@ async def create_manual_lead(
     # trusting that implementation detail -- belt and suspenders.
     try:
         await lead_sync_emitter.emit_institution_upserted(institution, [branch], contact_points)
-    except Exception as e:  # noqa: BLE001 -- intentional: a webhook problem must never fail this endpoint
+    except Exception as e:
         print(f"lead_sync emitter raised unexpectedly for institution {institution.id}: {e}")
 
     return ManualLeadOut(

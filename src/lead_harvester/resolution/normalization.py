@@ -1,5 +1,6 @@
 import re
 
+
 def normalize_phone(phone: str) -> str:
     # Remove all non-numeric characters except +
     cleaned = re.sub(r"[^\d+]", "", phone)
@@ -8,17 +9,17 @@ def normalize_phone(phone: str) -> str:
     # Basic normalization, ideally should use phonenumbers library
     return cleaned
 
+
 def normalize_url(url: str) -> str:
     url = url.strip().lower()
-    if url.endswith("/"):
-        url = url[:-1]
+    url = url.removesuffix("/")
     if url.startswith("http://"):
         url = url[7:]
     elif url.startswith("https://"):
         url = url[8:]
-    if url.startswith("www."):
-        url = url[4:]
+    url = url.removeprefix("www.")
     return url
+
 
 def normalize_institution_name(name: str) -> str:
     name = name.lower()

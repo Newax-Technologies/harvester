@@ -1,8 +1,10 @@
 import pytest
 from sqlalchemy import select
-from lead_harvester.models.audit import AuditLog
+
 from lead_harvester.api.app import app
-from lead_harvester.api.dependencies import get_current_user, User
+from lead_harvester.api.dependencies import User, get_current_user
+from lead_harvester.models.audit import AuditLog
+
 
 @pytest.mark.asyncio
 async def test_second_reviewer_receives_409(client_a, client_b, seeded_draft, db_session):
@@ -13,7 +15,9 @@ async def test_second_reviewer_receives_409(client_a, client_b, seeded_draft, db
     assert draft_b.json()["version"] == version
 
     # Reviewer A approves
-    app.dependency_overrides[get_current_user] = lambda: User(id="reviewer_A", username="Alice", role="reviewer")
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id="reviewer_A", username="Alice", role="reviewer"
+    )
     approved = await client_a.post(
         f"/api/v1/drafts/{seeded_draft.id}/decision",
         json={
@@ -25,7 +29,9 @@ async def test_second_reviewer_receives_409(client_a, client_b, seeded_draft, db
     assert approved.status_code == 200
 
     # Reviewer B attempts rejection using the stale version
-    app.dependency_overrides[get_current_user] = lambda: User(id="reviewer_B", username="Bob", role="reviewer")
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id="reviewer_B", username="Bob", role="reviewer"
+    )
     rejected = await client_b.post(
         f"/api/v1/drafts/{seeded_draft.id}/decision",
         json={
@@ -37,14 +43,16 @@ async def test_second_reviewer_receives_409(client_a, client_b, seeded_draft, db
 
     assert rejected.status_code == 409
     assert rejected.json()["error"]["code"] == "stale_resource"
-    
+
     # Assert state remains unchanged from Reviewer A
     await db_session.refresh(seeded_draft)
     assert seeded_draft.status.value == "approved"
     assert seeded_draft.version == version + 1
-    
+
     # Assert Audit Logs
-    result = await db_session.execute(select(AuditLog).where(AuditLog.entity_id == str(seeded_draft.id)))
+    result = await db_session.execute(
+        select(AuditLog).where(AuditLog.entity_id == str(seeded_draft.id))
+    )
     audits = result.scalars().all()
     assert len(audits) == 1
     assert audits[0].actor == "reviewer_A"

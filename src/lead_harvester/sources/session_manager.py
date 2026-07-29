@@ -26,13 +26,13 @@ Usage:
     print(limits)  # {"profile_view": 3, "connect": 1, "message": 2, ...}
     cookies = manager.load_cookies("burner_01")
 """
+
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
-
 
 SESSIONS_DIR = Path("sessions")
 
@@ -40,6 +40,7 @@ SESSIONS_DIR = Path("sessions")
 # ---------------------------------------------------------------------------
 # Warmup schedule — (profile_views, connects, messages, searches) per day
 # ---------------------------------------------------------------------------
+
 
 def _warmup_limits(account_age_days: int) -> dict[str, int]:
     """
@@ -49,56 +50,56 @@ def _warmup_limits(account_age_days: int) -> dict[str, int]:
         # Feed-only phase — absolutely no profile visits
         return {
             "profile_view": 0,
-            "connect":      0,
-            "message":      0,
-            "search":       0,
-            "feed_scroll":  5,   # Just scroll the feed to look active
-            "phase":        1,
-            "phase_label":  "Feed Warmup (Days 1–3): Browse feed only. No profile visits.",
+            "connect": 0,
+            "message": 0,
+            "search": 0,
+            "feed_scroll": 5,  # Just scroll the feed to look active
+            "phase": 1,
+            "phase_label": "Feed Warmup (Days 1–3): Browse feed only. No profile visits.",
         }
     elif account_age_days <= 7:
         # Gentle introduction
         return {
             "profile_view": 1,
-            "connect":      0,   # No connects yet — too aggressive for a new account
-            "message":      0,
-            "search":       2,
-            "feed_scroll":  5,
-            "phase":        2,
-            "phase_label":  "Gentle Start (Days 4–7): 1 profile view/day. No connections yet.",
+            "connect": 0,  # No connects yet — too aggressive for a new account
+            "message": 0,
+            "search": 2,
+            "feed_scroll": 5,
+            "phase": 2,
+            "phase_label": "Gentle Start (Days 4–7): 1 profile view/day. No connections yet.",
         }
     elif account_age_days <= 14:
         # Week 2
         return {
             "profile_view": 3,
-            "connect":      1,
-            "message":      0,
-            "search":       5,
-            "feed_scroll":  5,
-            "phase":        3,
-            "phase_label":  "Week 2: 3 profile views/day. 1 connection request/day.",
+            "connect": 1,
+            "message": 0,
+            "search": 5,
+            "feed_scroll": 5,
+            "phase": 3,
+            "phase_label": "Week 2: 3 profile views/day. 1 connection request/day.",
         }
     elif account_age_days <= 21:
         # Week 3
         return {
             "profile_view": 8,
-            "connect":      3,
-            "message":      2,
-            "search":       10,
-            "feed_scroll":  5,
-            "phase":        4,
-            "phase_label":  "Week 3: 8 profile views/day. 3 connections. 2 messages.",
+            "connect": 3,
+            "message": 2,
+            "search": 10,
+            "feed_scroll": 5,
+            "phase": 4,
+            "phase_label": "Week 3: 8 profile views/day. 3 connections. 2 messages.",
         }
     else:
         # Week 4+ — full operating speed
         return {
             "profile_view": 20,
-            "connect":      10,
-            "message":      15,
-            "search":       20,
-            "feed_scroll":  5,
-            "phase":        5,
-            "phase_label":  "Full Speed (Week 4+): 20 profiles/day. 10 connections. 15 messages.",
+            "connect": 10,
+            "message": 15,
+            "search": 20,
+            "feed_scroll": 5,
+            "phase": 5,
+            "phase_label": "Full Speed (Week 4+): 20 profiles/day. 10 connections. 15 messages.",
         }
 
 
@@ -131,18 +132,17 @@ class SessionManager:
         if path.exists():
             try:
                 existing = json.loads(path.read_text())
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"session file for {account_id} is unreadable, overwriting: {e}")
 
         payload = {
-            "account_id":       account_id,
-            "saved_at":         datetime.now(timezone.utc).isoformat(),
+            "account_id": account_id,
+            "saved_at": datetime.now(UTC).isoformat(),
             "warmup_started_at": existing.get(
-                "warmup_started_at",
-                date.today().isoformat() if first_login else None
+                "warmup_started_at", datetime.now(UTC).date().isoformat() if first_login else None
             ),
-            "run_log":          existing.get("run_log", []),
-            "cookies":          cookies,
+            "run_log": existing.get("run_log", []),
+            "cookies": cookies,
         }
 
         path.write_text(json.dumps(payload, indent=2))
@@ -184,7 +184,7 @@ class SessionManager:
             account_age_days = 0
         else:
             warmup_start = date.fromisoformat(warmup_str)
-            account_age_days = (date.today() - warmup_start).days
+            account_age_days = (datetime.now(UTC).date() - warmup_start).days
 
         limits = _warmup_limits(account_age_days)
         limits["account_age_days"] = account_age_days
@@ -199,33 +199,35 @@ class SessionManager:
         if not path.exists():
             return
         payload = json.loads(path.read_text())
-        payload.setdefault("run_log", []).append({
-            "date":    date.today().isoformat(),
-            "actions": actions,
-        })
+        payload.setdefault("run_log", []).append(
+            {
+                "date": datetime.now(UTC).date().isoformat(),
+                "actions": actions,
+            }
+        )
         path.write_text(json.dumps(payload, indent=2))
 
     def print_status(self, account_id: str) -> None:
         """Print a human-readable warmup status report."""
         limits = self.get_today_limits(account_id)
-        age    = limits["account_age_days"]
+        age = limits["account_age_days"]
 
         path = self._path(account_id)
         payload = json.loads(path.read_text())
         runs = payload.get("run_log", [])
-        today_runs = [r for r in runs if r.get("date") == date.today().isoformat()]
+        today_runs = [r for r in runs if r.get("date") == datetime.now(UTC).date().isoformat()]
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"  Account:    {account_id}")
         print(f"  Age:        {age} day(s) since first login")
         print(f"  Phase:      {limits['phase_label']}")
-        print(f"\n  Today's limits:")
+        print("\n  Today's limits:")
         for k, v in limits.items():
             if k not in ("phase", "phase_label", "account_age_days"):
                 print(f"    {k:<16}: {v}")
         if today_runs:
             print(f"\n  Actions taken today: {today_runs[-1].get('actions', {})}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")
 
     # ------------------------------------------------------------------
     # Misc helpers
@@ -243,4 +245,3 @@ class SessionManager:
         if path.exists():
             path.unlink()
             print(f"[SessionManager] Invalidated session for '{account_id}'.")
-

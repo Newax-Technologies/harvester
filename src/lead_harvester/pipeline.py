@@ -1,6 +1,5 @@
-import asyncio
 import datetime
-from typing import Any, Dict
+from typing import Any
 
 from .config import Settings
 from .database import get_session
@@ -21,9 +20,10 @@ class LeadPipeline:
             await self._run_google_places()
 
     async def _run_web_crawler(self) -> None:
-        from .sources.web import WebCrawler
         import dataclasses
-        
+
+        from .sources.web import WebCrawler
+
         seeds = self.settings.job_config.get("seeds", [])
         if not seeds:
             print("No seeds provided.")
@@ -32,16 +32,16 @@ class LeadPipeline:
         print(f"Starting WebCrawler with {len(seeds)} seeds...")
         crawler = WebCrawler(self.settings)
         leads = await crawler.crawl(seeds)
-        
+
         async with get_session() as session:
             run = SourceRun(
                 source_type=SourceType.WEBSITE,
                 run_metadata={"seeds_count": len(seeds), "leads_found": len(leads)},
-                status=RunStatus.STARTED
+                status=RunStatus.STARTED,
             )
             session.add(run)
             await session.flush()
-            
+
             try:
                 for lead in leads:
                     record = RawSourceRecord(
@@ -52,15 +52,15 @@ class LeadPipeline:
                         normalized_name=lead.organization or lead.name,
                         normalized_phone=lead.phone,
                         normalized_domain=lead.website,
-                        location=None
+                        location=None,
                     )
                     session.add(record)
-                    
+
                 run.status = RunStatus.COMPLETED
-                run.completed_at = datetime.datetime.now(datetime.timezone.utc)
+                run.completed_at = datetime.datetime.now(datetime.UTC)
             except Exception as e:
                 run.status = RunStatus.FAILED
-                run.completed_at = datetime.datetime.now(datetime.timezone.utc)
+                run.completed_at = datetime.datetime.now(datetime.UTC)
                 run.run_metadata["error"] = str(e)
                 raise
             finally:
@@ -70,16 +70,16 @@ class LeadPipeline:
     async def _run_google_places(self) -> None:
         tiles = generate_tiles(self.settings.job_config)
         categories = self.settings.job_config.get("categories", ["FORMAL_EDUCATION"])
-        
+
         async with get_session() as session:
             run = SourceRun(
                 source_type=SourceType.GOOGLE_PLACES,
                 run_metadata={"categories": categories, "tiles": len(tiles)},
-                status=RunStatus.STARTED
+                status=RunStatus.STARTED,
             )
             session.add(run)
             await session.flush()
-            
+
             try:
                 for tile in tiles:
                     queries = build_queries_for_tile(tile, categories)
@@ -87,39 +87,39 @@ class LeadPipeline:
                         print(f"Executing Google Places query: {query}")
                         # In a real app this would be async, but keeping sync for now if connector is sync
                         places = self.places_connector.search(query)
-                        
+
                         for place in places:
                             await self.process_place(session, run.id, place)
-                            
+
                 run.status = RunStatus.COMPLETED
-                run.completed_at = datetime.datetime.now(datetime.timezone.utc)
+                run.completed_at = datetime.datetime.now(datetime.UTC)
             except Exception as e:
                 run.status = RunStatus.FAILED
-                run.completed_at = datetime.datetime.now(datetime.timezone.utc)
+                run.completed_at = datetime.datetime.now(datetime.UTC)
                 run.run_metadata["error"] = str(e)
                 raise
             finally:
                 await session.commit()
 
-    async def process_place(self, session, run_id, place: Dict[str, Any]) -> None:
+    async def process_place(self, session, run_id, place: dict[str, Any]) -> None:
         source_id = place.get("id")
         if not source_id:
             return
-            
-        from .resolution.normalize import normalize_name, normalize_phone, normalize_domain
-        
+
+        from .resolution.normalize import normalize_domain, normalize_name, normalize_phone
+
         name = place.get("displayName", {}).get("text", "")
         phone = place.get("nationalPhoneNumber", "")
         website = place.get("websiteUri", "")
-        
+
         loc_dict = place.get("location", {})
         lat = loc_dict.get("latitude")
         lng = loc_dict.get("longitude")
-        
+
         location_wkt = None
         if lat is not None and lng is not None:
             location_wkt = f"SRID=4326;POINT({lng} {lat})"
-            
+
         record = RawSourceRecord(
             source_run_id=run_id,
             source_type=SourceType.GOOGLE_PLACES,
@@ -128,6 +128,6 @@ class LeadPipeline:
             normalized_name=normalize_name(name),
             normalized_phone=normalize_phone(phone),
             normalized_domain=normalize_domain(website),
-            location=location_wkt
+            location=location_wkt,
         )
         session.add(record)

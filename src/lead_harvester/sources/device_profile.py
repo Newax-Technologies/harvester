@@ -18,15 +18,13 @@ Covers:
   ✓ Canvas/WebGL      — seeded noise values to stay consistent per account
   ✓ Session start jitter — randomised start time within working hours
 """
+
 from __future__ import annotations
 
 import json
 import random
-import string
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
-
 
 PROFILES_DIR = Path("sessions")
 
@@ -36,7 +34,7 @@ PROFILES_DIR = Path("sessions")
 
 _SCREEN_RESOLUTIONS = [
     (1920, 1080),
-    (1920, 1080),   # weighted higher — most common
+    (1920, 1080),  # weighted higher — most common
     (1920, 1080),
     (1440, 900),
     (1366, 768),
@@ -47,16 +45,16 @@ _SCREEN_RESOLUTIONS = [
 # Each account gets a distinct Pakistani city identity
 # (lat, lon, city_name, timezone)
 _PAKISTAN_CITIES = [
-    (33.6844,  73.0479, "Islamabad",   "Asia/Karachi"),
-    (31.5204,  74.3587, "Lahore",      "Asia/Karachi"),
-    (24.8607,  67.0011, "Karachi",     "Asia/Karachi"),
-    (33.7215,  73.0433, "Rawalpindi",  "Asia/Karachi"),
-    (30.1798,  66.9750, "Quetta",      "Asia/Karachi"),
-    (34.0151,  71.5249, "Peshawar",    "Asia/Karachi"),
-    (32.0836,  72.6711, "Sargodha",    "Asia/Karachi"),
-    (31.4504,  73.1350, "Faisalabad",  "Asia/Karachi"),
-    (30.1956,  71.4753, "Multan",      "Asia/Karachi"),
-    (25.3960,  68.3578, "Hyderabad",   "Asia/Karachi"),
+    (33.6844, 73.0479, "Islamabad", "Asia/Karachi"),
+    (31.5204, 74.3587, "Lahore", "Asia/Karachi"),
+    (24.8607, 67.0011, "Karachi", "Asia/Karachi"),
+    (33.7215, 73.0433, "Rawalpindi", "Asia/Karachi"),
+    (30.1798, 66.9750, "Quetta", "Asia/Karachi"),
+    (34.0151, 71.5249, "Peshawar", "Asia/Karachi"),
+    (32.0836, 72.6711, "Sargodha", "Asia/Karachi"),
+    (31.4504, 73.1350, "Faisalabad", "Asia/Karachi"),
+    (30.1956, 71.4753, "Multan", "Asia/Karachi"),
+    (25.3960, 68.3578, "Hyderabad", "Asia/Karachi"),
 ]
 
 _USER_AGENTS = [
@@ -68,12 +66,12 @@ _USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
 ]
 
-_CPU_COUNTS    = [4, 4, 4, 8, 8, 8, 12, 16]   # weighted toward common values
-_DEVICE_MEMORY = [4, 8, 8, 8, 16, 16]          # GB — weighted toward 8GB laptops
+_CPU_COUNTS = [4, 4, 4, 8, 8, 8, 12, 16]  # weighted toward common values
+_DEVICE_MEMORY = [4, 8, 8, 8, 16, 16]  # GB — weighted toward 8GB laptops
 
 _ACCEPT_LANGUAGES = [
     "en-US,en;q=0.9",
-    "en-US,en;q=0.9,ur;q=0.8",          # Pakistan-based user
+    "en-US,en;q=0.9,ur;q=0.8",  # Pakistan-based user
     "en-GB,en;q=0.9",
     "en-US,en;q=0.9,ar;q=0.8",
 ]
@@ -85,40 +83,41 @@ class DeviceProfile:
     A persistent, internally-consistent fake device fingerprint.
     All fields are generated once and reused every session for the same account.
     """
+
     account_id: str
 
     # --- Browser identity ---
-    user_agent: str         = ""
-    viewport_width: int     = 1280
-    viewport_height: int    = 720
-    screen_width: int       = 1920
-    screen_height: int      = 1080
-    color_depth: int        = 24
-    pixel_ratio: float      = 1.0
-    accept_language: str    = "en-US,en;q=0.9"
+    user_agent: str = ""
+    viewport_width: int = 1280
+    viewport_height: int = 720
+    screen_width: int = 1920
+    screen_height: int = 1080
+    color_depth: int = 24
+    pixel_ratio: float = 1.0
+    accept_language: str = "en-US,en;q=0.9"
 
     # --- Hardware characteristics ---
-    hardware_concurrency: int  = 8
-    device_memory: int         = 8
-    platform: str              = "Win32"
-    architecture: str          = "x86_64"
+    hardware_concurrency: int = 8
+    device_memory: int = 8
+    platform: str = "Win32"
+    architecture: str = "x86_64"
 
     # --- Locale & timezone (matched to assigned city) ---
-    timezone_id: str   = "Asia/Karachi"
-    locale: str        = "en-US"
-    city_name: str     = "Islamabad"
+    timezone_id: str = "Asia/Karachi"
+    locale: str = "en-US"
+    city_name: str = "Islamabad"
 
     # --- Geolocation (consistent per account, unique city) ---
-    geo_latitude: float   = 33.6844
-    geo_longitude: float  = 73.0479
+    geo_latitude: float = 33.6844
+    geo_longitude: float = 73.0479
 
     # --- Canvas noise seed (stable fingerprint) ---
     canvas_noise_seed: int = 0
 
     # --- Session timing ---
     # Preferred start hour (randomised within working hours, fixed per account)
-    preferred_start_hour: int   = 10   # e.g. this account "usually" starts at 10 AM
-    preferred_start_jitter: int = 30   # ±30 min variance around preferred hour
+    preferred_start_hour: int = 10  # e.g. this account "usually" starts at 10 AM
+    preferred_start_jitter: int = 30  # ±30 min variance around preferred hour
 
     # --- Misc ---
     fonts: list[str] = field(default_factory=list)
@@ -164,8 +163,14 @@ def generate_profile(account_id: str) -> DeviceProfile:
         preferred_start_hour=rng.randint(9, 12),
         preferred_start_jitter=rng.randint(10, 45),
         fonts=[
-            "Arial", "Calibri", "Times New Roman", "Verdana",
-            "Georgia", "Segoe UI", "Tahoma", "Trebuchet MS",
+            "Arial",
+            "Calibri",
+            "Times New Roman",
+            "Verdana",
+            "Georgia",
+            "Segoe UI",
+            "Tahoma",
+            "Trebuchet MS",
         ],
     )
 

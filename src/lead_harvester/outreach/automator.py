@@ -15,28 +15,25 @@ Workflow:
 All LinkedIn actions respect the same human-behaviour and budget rules
 as the crawler.
 """
+
 from __future__ import annotations
 
 import asyncio
-import os
 import smtplib
 import ssl
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from lead_harvester.database import get_session
 from lead_harvester.models import (
-    AccountBrief,
+    DraftStatus,
     OutreachDraft,
     OutreachOutcome,
-    DraftStatus,
 )
-from lead_harvester.sources.session_manager import SessionManager
 from lead_harvester.sources.human_emulator import ActionBudget, within_working_hours
+from lead_harvester.sources.session_manager import SessionManager
 
 
 class OutreachAutomator:
@@ -98,11 +95,13 @@ class OutreachAutomator:
             print("[Automator] DRY RUN MODE — messages will be typed but NOT sent.")
 
         async with get_session() as session:
-            drafts = list(await session.scalars(
-                select(OutreachDraft)
-                .where(OutreachDraft.status == DraftStatus.APPROVED)
-                .limit(10)
-            ))
+            drafts = list(
+                await session.scalars(
+                    select(OutreachDraft)
+                    .where(OutreachDraft.status == DraftStatus.APPROVED)
+                    .limit(10)
+                )
+            )
 
         if not drafts:
             print("[Automator] No approved drafts to send.")
@@ -150,7 +149,9 @@ class OutreachAutomator:
             page = await context.new_page()
 
             # Warm up feed first
-            await page.goto("https://www.linkedin.com/feed/", wait_until="networkidle", timeout=30_000)
+            await page.goto(
+                "https://www.linkedin.com/feed/", wait_until="networkidle", timeout=30_000
+            )
             await asyncio.sleep(15)
 
             for draft in drafts:
@@ -161,10 +162,12 @@ class OutreachAutomator:
             await context.close()
 
     async def _send_linkedin_message(self, page: Any, draft: OutreachDraft) -> None:
+
         from lead_harvester.sources.human_emulator import (
-            action_pause, human_click, human_type, post_connect_pause, short_pause
+            action_pause,
+            human_type,
+            post_connect_pause,
         )
-        from sqlalchemy import select
 
         profile_url = draft.target_contact_value
 
@@ -188,7 +191,9 @@ class OutreachAutomator:
 
             message_text = draft.body
             if self.dry_run:
-                print(f"[Automator] DRY RUN — would type to {draft.target_name}:\n{message_text[:100]}...")
+                print(
+                    f"[Automator] DRY RUN — would type to {draft.target_name}:\n{message_text[:100]}..."
+                )
                 await asyncio.sleep(3)
             else:
                 await human_type(page, ".msg-form__contenteditable", message_text)
@@ -219,15 +224,17 @@ class OutreachAutomator:
         recipient = draft.target_contact_value
 
         if self.dry_run:
-            print(f"[Automator] DRY RUN — would email {recipient}:\n"
-                  f"Subject: {draft.subject_line}\n{draft.body[:100]}...")
+            print(
+                f"[Automator] DRY RUN — would email {recipient}:\n"
+                f"Subject: {draft.subject_line}\n{draft.body[:100]}..."
+            )
             return
 
         try:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = draft.subject_line
-            msg["From"]    = f"{self.smtp_from_name} <{self.smtp_user}>"
-            msg["To"]      = recipient
+            msg["From"] = f"{self.smtp_from_name} <{self.smtp_user}>"
+            msg["To"] = recipient
 
             # Plain text body
             msg.attach(MIMEText(draft.body, "plain"))
@@ -259,6 +266,6 @@ class OutreachAutomator:
                     opened=False,
                     clicked=False,
                     replied=False,
-                    recorded_at=datetime.now(timezone.utc),
+                    recorded_at=datetime.now(UTC),
                 )
                 session.add(outcome)

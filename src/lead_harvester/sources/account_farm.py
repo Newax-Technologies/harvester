@@ -27,36 +27,31 @@ Usage (Python):
   farm = AccountFarm(accounts=["burner_01", "burner_02"])
   await farm.run(urls)
 """
+
 from __future__ import annotations
 
 import asyncio
-import json
 import multiprocessing
-import os
 import random
-import sys
-import time
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
 
-from .device_profile import DeviceProfileManager
-from .session_manager import SessionManager
-from .human_emulator import is_weekday, within_working_hours
 from .breadth_tracker import BreadthTracker
-
+from .device_profile import DeviceProfileManager
+from .human_emulator import is_weekday, within_working_hours
+from .session_manager import SessionManager
 
 # ---------------------------------------------------------------------------
 # Per-account job result
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class AccountResult:
     account_id: str
     profiles_scraped: int = 0
-    errors: list[str]     = field(default_factory=list)
-    city: str             = ""
-    warmup_phase: int     = 0
+    errors: list[str] = field(default_factory=list)
+    city: str = ""
+    warmup_phase: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -67,11 +62,11 @@ class AccountResult:
 # Map account index -> list of weekday numbers (0=Mon, 4=Fri) it should run on
 # e.g. account 0 -> Mon+Tue, account 1 -> Wed+Thu, account 2 -> Fri
 _WEEKDAY_SCHEDULES = [
-    [0, 1],       # Mon, Tue
-    [2, 3],       # Wed, Thu
-    [4],          # Fri
-    [0, 2, 4],    # Mon, Wed, Fri  (for 4th account onward, spread it)
-    [1, 3],       # Tue, Thu
+    [0, 1],  # Mon, Tue
+    [2, 3],  # Wed, Thu
+    [4],  # Fri
+    [0, 2, 4],  # Mon, Wed, Fri  (for 4th account onward, spread it)
+    [1, 3],  # Tue, Thu
 ]
 
 
@@ -81,7 +76,7 @@ def account_scheduled_today(account_id: str, accounts: list[str]) -> bool:
     Accounts are staggered across weekdays so they don't all
     appear simultaneously active (coordinated schedule = bot signal).
     """
-    today_weekday = __import__('datetime').date.today().weekday()
+    today_weekday = __import__("datetime").date.today().weekday()
     try:
         idx = accounts.index(account_id)
     except ValueError:
@@ -94,12 +89,13 @@ def account_scheduled_today(account_id: str, accounts: list[str]) -> bool:
 # Worker — runs in a subprocess per account
 # ---------------------------------------------------------------------------
 
+
 def _run_account_worker(
     account_id: str,
     urls: list[str],
     proxy: str | None,
     captcha_key: str | None,
-    result_queue: "multiprocessing.Queue[dict]",
+    result_queue: multiprocessing.Queue[dict],
 ) -> None:
     """
     Subprocess entry point. Each account worker is a completely isolated
@@ -109,11 +105,11 @@ def _run_account_worker(
 
     async def _inner() -> dict:
         # Local imports inside subprocess — completely isolated import state
-        from lead_harvester.sources.linkedin_stealth import LinkedInStealthCrawler
         from lead_harvester.sources.device_profile import DeviceProfileManager
+        from lead_harvester.sources.linkedin_stealth import LinkedInStealthCrawler
         from lead_harvester.sources.session_manager import SessionManager
 
-        sm  = SessionManager("sessions")
+        sm = SessionManager("sessions")
         dpm = DeviceProfileManager("sessions")
 
         if not sm.has_session(account_id):
@@ -125,14 +121,14 @@ def _run_account_worker(
                 "warmup_phase": 0,
             }
 
-        device  = dpm.get(account_id)
-        limits  = sm.get_today_limits(account_id)
+        device = dpm.get(account_id)
+        limits = sm.get_today_limits(account_id)
 
-        print(f"\n{'='*55}")
+        print(f"\n{'=' * 55}")
         print(f"  [{account_id}] City: {device.city_name}")
         print(f"  [{account_id}] Phase: {limits['phase_label']}")
         print(f"  [{account_id}] URLs to scrape: {len(urls)}")
-        print(f"{'='*55}\n")
+        print(f"{'=' * 55}\n")
 
         crawler = LinkedInStealthCrawler(
             account_id=account_id,
@@ -143,19 +139,19 @@ def _run_account_worker(
         try:
             profiles = await crawler.run()
             return {
-                "account_id":       account_id,
+                "account_id": account_id,
                 "profiles_scraped": len(profiles),
-                "errors":           [],
-                "city":             device.city_name,
-                "warmup_phase":     limits.get("phase", 0),
+                "errors": [],
+                "city": device.city_name,
+                "warmup_phase": limits.get("phase", 0),
             }
         except Exception as e:
             return {
-                "account_id":       account_id,
+                "account_id": account_id,
                 "profiles_scraped": 0,
-                "errors":           [str(e)],
-                "city":             device.city_name,
-                "warmup_phase":     limits.get("phase", 0),
+                "errors": [str(e)],
+                "city": device.city_name,
+                "warmup_phase": limits.get("phase", 0),
             }
 
     result = _asyncio.run(_inner())
@@ -165,6 +161,7 @@ def _run_account_worker(
 # ---------------------------------------------------------------------------
 # Main orchestrator
 # ---------------------------------------------------------------------------
+
 
 class AccountFarm:
     """
@@ -188,19 +185,19 @@ class AccountFarm:
         proxies: dict[str, str] | None = None,
         captcha_key: str | None = None,
     ) -> None:
-        self.accounts    = accounts
-        self.proxies     = proxies or {}
+        self.accounts = accounts
+        self.proxies = proxies or {}
         self.captcha_key = captcha_key
-        self.sm          = SessionManager("sessions")
-        self.dpm         = DeviceProfileManager("sessions")
+        self.sm = SessionManager("sessions")
+        self.dpm = DeviceProfileManager("sessions")
 
     def print_farm_status(self) -> None:
         """Print a summary table of all accounts in the farm."""
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"  ACCOUNT FARM STATUS  ({len(self.accounts)} accounts)")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print(f"  {'Account':<16} {'City':<14} {'Age':>5} {'Phase':<50}")
-        print(f"  {'-'*66}")
+        print(f"  {'-' * 66}")
 
         for acc in self.accounts:
             if not self.sm.has_session(acc):
@@ -209,13 +206,13 @@ class AccountFarm:
             try:
                 limits = self.sm.get_today_limits(acc)
                 device = self.dpm.get(acc)
-                age    = limits.get("account_age_days", 0)
-                phase  = limits.get("phase_label", "")[:48]
+                age = limits.get("account_age_days", 0)
+                phase = limits.get("phase_label", "")[:48]
                 print(f"  {acc:<16} {device.city_name:<14} {age:>4}d  {phase}")
             except Exception as e:
                 print(f"  {acc:<16} ERROR: {e}")
 
-        print(f"{'='*70}\n")
+        print(f"{'=' * 70}\n")
 
     async def run(self, urls: list[str]) -> list[AccountResult]:
         """
@@ -303,18 +300,19 @@ class AccountFarm:
             results.append(AccountResult(**data))
 
         # Print summary
-        print(f"\n{'='*55}")
+        print(f"\n{'=' * 55}")
         print("  FARM RUN COMPLETE")
-        print(f"{'='*55}")
+        print(f"{'=' * 55}")
         total = sum(r.profiles_scraped for r in results)
         for r in results:
             status = "✓" if not r.errors else "✗"
-            print(f"  {status} {r.account_id:<16} [{r.city:<12}]  "
-                  f"{r.profiles_scraped} profiles scraped")
+            print(
+                f"  {status} {r.account_id:<16} [{r.city:<12}]  "
+                f"{r.profiles_scraped} profiles scraped"
+            )
             for err in r.errors:
                 print(f"      Error: {err}")
         print(f"\n  Total profiles scraped today: {total}")
-        print(f"{'='*55}\n")
+        print(f"{'=' * 55}\n")
 
         return results
-

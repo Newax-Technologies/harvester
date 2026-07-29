@@ -17,16 +17,17 @@ Anti-detection layers:
   ✓ 2Captcha fallback for unexpected challenges
   ✓ Homepage / feed warm-up before first profile visit
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
 import random
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .device_profile import DeviceProfileManager
 from .human_emulator import (
     ActionBudget,
     action_pause,
@@ -47,12 +48,11 @@ from .human_emulator import (
     within_working_hours,
 )
 from .session_manager import SessionManager
-from .device_profile import DeviceProfileManager
-
 
 # ---------------------------------------------------------------------------
 # Data model for an extracted LinkedIn profile
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class LinkedInProfile:
@@ -62,7 +62,7 @@ class LinkedInProfile:
     company: str = ""
     location: str = ""
     about: str = ""
-    connection_degree: str = ""   # "1st", "2nd", "3rd+"
+    connection_degree: str = ""  # "1st", "2nd", "3rd+"
     has_email: bool = False
     email: str = ""
     skills: list[str] = field(default_factory=list)
@@ -76,20 +76,23 @@ class LinkedInProfile:
 # localStorage persistence helpers
 # ---------------------------------------------------------------------------
 
+
 def _storage_path(account_id: str) -> Path:
     return Path("sessions") / f"{account_id}_storage.json"
 
 
 def _save_storage_state(account_id: str, state: dict) -> None:
     import json as _json
+
     try:
         _storage_path(account_id).write_text(_json.dumps(state, indent=2))
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"failed to persist storage state for {account_id}: {e}")
 
 
 def _load_storage_state(account_id: str) -> dict | None:
     import json as _json
+
     path = _storage_path(account_id)
     if not path.exists():
         return None
@@ -102,6 +105,7 @@ def _load_storage_state(account_id: str) -> dict | None:
 # ---------------------------------------------------------------------------
 # Main crawler class
 # ---------------------------------------------------------------------------
+
 
 class LinkedInStealthCrawler:
     """
@@ -129,7 +133,7 @@ class LinkedInStealthCrawler:
         captcha_api_key: str | None = None,
         proxy: str | None = None,
         sessions_dir: str = "sessions",
-        tz_offset: int = 5,             # PKT = UTC+5
+        tz_offset: int = 5,  # PKT = UTC+5
     ) -> None:
         self.account_id = account_id
         self.target_urls = target_urls
@@ -151,16 +155,16 @@ class LinkedInStealthCrawler:
         try:
             from camoufox.async_api import AsyncCamoufox
         except ImportError:
-            raise ImportError(
-                "camoufox is not installed. Run: pip install 'camoufox[geoip]'"
-            )
+            raise ImportError("camoufox is not installed. Run: pip install 'camoufox[geoip]'")
 
         if not within_working_hours(self.tz_offset):
             print("[Crawler] Outside working hours (09:00–18:30). Exiting to avoid suspicion.")
             return []
 
         if not is_weekday():
-            print("[Crawler] It's the weekend. LinkedIn activity on weekends raises suspicion. Exiting.")
+            print(
+                "[Crawler] It's the weekend. LinkedIn activity on weekends raises suspicion. Exiting."
+            )
             return []
 
         if not self.session_manager.has_session(self.account_id):
@@ -172,18 +176,20 @@ class LinkedInStealthCrawler:
         # Apply warmup limits — override the default ActionBudget limits
         warmup = self.session_manager.get_today_limits(self.account_id)
         print(f"\n[Crawler] Warmup status: {warmup['phase_label']}")
-        print(f"[Crawler] Today's limits — "
-              f"profile_view: {warmup['profile_view']}, "
-              f"connect: {warmup['connect']}, "
-              f"message: {warmup['message']}\n")
+        print(
+            f"[Crawler] Today's limits — "
+            f"profile_view: {warmup['profile_view']}, "
+            f"connect: {warmup['connect']}, "
+            f"message: {warmup['message']}\n"
+        )
 
         if warmup["profile_view"] == 0:
             print("[Crawler] Phase 1 (Feed Warmup): No profile visits today.")
             print("[Crawler] Will browse the feed to build account history, then exit.")
             # Use the same device profile as regular runs for consistency
-            dpm_phase1   = DeviceProfileManager()
-            dev_phase1   = dpm_phase1.get(self.account_id)
-            cookies      = self.session_manager.load_cookies(self.account_id)
+            dpm_phase1 = DeviceProfileManager()
+            dev_phase1 = dpm_phase1.get(self.account_id)
+            cookies = self.session_manager.load_cookies(self.account_id)
             launch_kw: dict[str, Any] = {"humanize": True, "headless": False, "addons": []}
             if self.proxy:
                 launch_kw["proxy"] = {"server": self.proxy}
@@ -192,12 +198,15 @@ class LinkedInStealthCrawler:
                     locale=dev_phase1.locale,
                     timezone_id=dev_phase1.timezone_id,
                     geolocation={
-                        "latitude":  dev_phase1.geo_latitude,
+                        "latitude": dev_phase1.geo_latitude,
                         "longitude": dev_phase1.geo_longitude,
                     },
                     permissions=["geolocation"],
-                    viewport={"width": dev_phase1.viewport_width,  "height": dev_phase1.viewport_height},
-                    screen={"width":   dev_phase1.screen_width,    "height": dev_phase1.screen_height},
+                    viewport={
+                        "width": dev_phase1.viewport_width,
+                        "height": dev_phase1.viewport_height,
+                    },
+                    screen={"width": dev_phase1.screen_width, "height": dev_phase1.screen_height},
                     user_agent=dev_phase1.user_agent,
                 )
                 await context.add_cookies(cookies)
@@ -215,9 +224,9 @@ class LinkedInStealthCrawler:
         self.budget.DAILY_LIMITS = {
             **self.budget.DAILY_LIMITS,
             "profile_view": warmup["profile_view"],
-            "connect":      warmup["connect"],
-            "message":      warmup["message"],
-            "search":       warmup["search"],
+            "connect": warmup["connect"],
+            "message": warmup["message"],
+            "search": warmup["search"],
         }
 
         cookies = self.session_manager.load_cookies(self.account_id)
@@ -233,8 +242,10 @@ class LinkedInStealthCrawler:
             device.preferred_start_jitter,
         )
         if delay_secs > 60:
-            print(f"[Crawler] Waiting {delay_secs/60:.1f} min before starting "
-                  f"(preferred start: ~{device.preferred_start_hour}:00 PKT)...")
+            print(
+                f"[Crawler] Waiting {delay_secs / 60:.1f} min before starting "
+                f"(preferred start: ~{device.preferred_start_hour}:00 PKT)..."
+            )
             await asyncio.sleep(delay_secs)
 
         # Camoufox: Firefox-based, patches at engine level
@@ -248,7 +259,7 @@ class LinkedInStealthCrawler:
                 locale=device.locale,
                 timezone_id=device.timezone_id,
                 geolocation={
-                    "latitude":  device.geo_latitude,
+                    "latitude": device.geo_latitude,
                     "longitude": device.geo_longitude,
                 },
                 permissions=["geolocation"],
@@ -382,11 +393,14 @@ class LinkedInStealthCrawler:
                 """)
                 self.session_manager.save_cookies(self.account_id, updated_cookies)
                 _save_storage_state(self.account_id, {"localStorage": local_storage})
-                self.session_manager.log_run(self.account_id, {
-                    "profile_view": self.budget._counts.get("profile_view", 0),
-                    "connect":      self.budget._counts.get("connect", 0),
-                    "message":      self.budget._counts.get("message", 0),
-                })
+                self.session_manager.log_run(
+                    self.account_id,
+                    {
+                        "profile_view": self.budget._counts.get("profile_view", 0),
+                        "connect": self.budget._counts.get("connect", 0),
+                        "message": self.budget._counts.get("message", 0),
+                    },
+                )
                 await context.close()
 
         print(f"[Crawler] Done. Extracted {len(results)} profiles.")
@@ -396,7 +410,7 @@ class LinkedInStealthCrawler:
     # Feed warm-up — simulate a human checking their feed first
     # ------------------------------------------------------------------
 
-    async def _visit_via_search(self, page: "Any", target_url: str) -> "LinkedInProfile | None":
+    async def _visit_via_search(self, page: Any, target_url: str) -> LinkedInProfile | None:
         """
         Navigate to a profile via LinkedIn search instead of direct URL.
         This mimics how a real recruiter finds someone, making the navigation
@@ -441,8 +455,7 @@ class LinkedInStealthCrawler:
             print(f"[Crawler] Search-based visit failed ({e}), falling back to direct.")
             return await self._visit_profile(page, target_url)
 
-    async def _warm_up_feed(self, page: "Any") -> None:
-
+    async def _warm_up_feed(self, page: Any) -> None:
         """Visit the feed, scroll around, simulate reading before visiting profiles."""
         print("[Crawler] Warming up — reading the LinkedIn feed...")
         self.budget.charge("page_load")
@@ -460,7 +473,7 @@ class LinkedInStealthCrawler:
     # Visit a single profile
     # ------------------------------------------------------------------
 
-    async def _visit_profile(self, page: "Any", url: str) -> LinkedInProfile | None:
+    async def _visit_profile(self, page: Any, url: str) -> LinkedInProfile | None:
         try:
             self.budget.charge("page_load")
             await page.goto(url, wait_until="networkidle", timeout=30_000)
@@ -476,7 +489,7 @@ class LinkedInStealthCrawler:
             return await self._extract_profile(page, url)
 
         except RuntimeError:
-            raise   # Budget exhausted — propagate upward
+            raise  # Budget exhausted — propagate upward
         except Exception as e:
             print(f"[Crawler] ✗ Failed to visit {url}: {e}")
             return None
@@ -485,31 +498,30 @@ class LinkedInStealthCrawler:
     # Data extraction (DOM scraping)
     # ------------------------------------------------------------------
 
-    async def _extract_profile(self, page: "Any", url: str) -> LinkedInProfile:
+    async def _extract_profile(self, page: Any, url: str) -> LinkedInProfile:
         profile = LinkedInProfile(profile_url=url)
 
         try:
-            profile.full_name = await self._safe_text(
-                page, "h1.text-heading-xlarge"
-            )
-            profile.headline = await self._safe_text(
-                page, ".text-body-medium.break-words"
-            )
+            profile.full_name = await self._safe_text(page, "h1.text-heading-xlarge")
+            profile.headline = await self._safe_text(page, ".text-body-medium.break-words")
             profile.location = await self._safe_text(
                 page, ".text-body-small.inline.t-black--light.break-words"
             )
-            profile.connection_degree = await self._safe_text(
-                page, ".dist-value"
-            )
+            profile.connection_degree = await self._safe_text(page, ".dist-value")
 
             # About section (click "see more" if present)
             try:
-                see_more = await page.query_selector("#about ~ .pvs-list__outer-container .inline-show-more-text__button")
+                see_more = await page.query_selector(
+                    "#about ~ .pvs-list__outer-container .inline-show-more-text__button"
+                )
                 if see_more:
                     await see_more.click()
                     await short_pause()
-            except Exception:
-                pass
+            except Exception as e:
+                # Best-effort UI interaction -- the "see more" button may not
+                # be present or LinkedIn's DOM structure may have shifted;
+                # the About section is simply left as-is.
+                print(f"'see more' click skipped while scraping about section: {e}")
             profile.about = await self._safe_text(page, "#about ~ .pvs-list__outer-container")
 
             # Experience (top entry only to keep things light)
@@ -535,9 +547,7 @@ class LinkedInStealthCrawler:
                     profile.education.append({"school": school, "degree": degree})
 
             # Recent activity (post snippets)
-            activity_items = await page.query_selector_all(
-                ".feed-shared-update-v2__description"
-            )
+            activity_items = await page.query_selector_all(".feed-shared-update-v2__description")
             for item in activity_items[:3]:
                 text = (await item.inner_text()).strip()
                 if text:
@@ -559,7 +569,7 @@ class LinkedInStealthCrawler:
 
     async def send_connection_request(
         self,
-        page: "Any",
+        page: Any,
         profile_url: str,
         note: str = "",
     ) -> bool:
@@ -582,18 +592,14 @@ class LinkedInStealthCrawler:
             await asyncio.sleep(random.uniform(4, 12))
 
             # Find the Connect button
-            connect_btn = await page.query_selector(
-                "button[aria-label*='Connect']"
-            )
+            connect_btn = await page.query_selector("button[aria-label*='Connect']")
             if not connect_btn:
                 # Might be under "More" menu
                 more_btn = await page.query_selector("button[aria-label='More actions']")
                 if more_btn:
                     await human_click(page, "button[aria-label='More actions']")
                     await short_pause()
-                    connect_btn = await page.query_selector(
-                        "[aria-label*='Connect']"
-                    )
+                    connect_btn = await page.query_selector("[aria-label*='Connect']")
 
             if not connect_btn:
                 print(f"[Crawler] No Connect button found on {profile_url}")
@@ -612,8 +618,9 @@ class LinkedInStealthCrawler:
                     await action_pause()
 
             # Click Send
-            send_btn = await page.query_selector("button[aria-label='Send now']") or \
-                       await page.query_selector("button[aria-label='Send invitation']")
+            send_btn = await page.query_selector(
+                "button[aria-label='Send now']"
+            ) or await page.query_selector("button[aria-label='Send invitation']")
             if send_btn:
                 await send_btn.click()
                 print(f"[Crawler] ✓ Connection request sent to {profile_url}")
@@ -631,7 +638,7 @@ class LinkedInStealthCrawler:
 
     async def send_message(
         self,
-        page: "Any",
+        page: Any,
         profile_url: str,
         message: str,
     ) -> bool:
@@ -649,7 +656,9 @@ class LinkedInStealthCrawler:
 
             msg_btn = await page.query_selector("button[aria-label*='Message']")
             if not msg_btn:
-                print(f"[Crawler] No Message button — likely not a 1st-degree connection: {profile_url}")
+                print(
+                    f"[Crawler] No Message button — likely not a 1st-degree connection: {profile_url}"
+                )
                 return False
 
             await msg_btn.click()
@@ -676,7 +685,7 @@ class LinkedInStealthCrawler:
     # CAPTCHA handling
     # ------------------------------------------------------------------
 
-    async def _check_for_captcha(self, page: "Any") -> None:
+    async def _check_for_captcha(self, page: Any) -> None:
         """
         Detect a CAPTCHA and either solve it via 2Captcha or pause and alert.
 
@@ -712,14 +721,16 @@ class LinkedInStealthCrawler:
 
         except RuntimeError:
             raise  # Propagate the rest-enforcement signal upward
-        except Exception:
-            pass  # If detection itself fails, proceed cautiously
+        except Exception as e:
+            # If CAPTCHA/checkpoint detection itself fails, proceed cautiously
+            # rather than aborting the whole crawl over a detection-logic bug.
+            print(f"CAPTCHA/checkpoint detection failed, proceeding cautiously: {e}")
 
-
-    async def _solve_captcha_2captcha(self, page: "Any") -> None:
+    async def _solve_captcha_2captcha(self, page: Any) -> None:
         """Attempt to solve a CAPTCHA using the 2Captcha API."""
         try:
             from twocaptcha import TwoCaptcha
+
             solver = TwoCaptcha(self.captcha_api_key)
 
             page_url = page.url
@@ -735,7 +746,9 @@ class LinkedInStealthCrawler:
                     await page.evaluate(
                         f'document.getElementById("g-recaptcha-response").innerHTML = "{token}";'
                     )
-                    await page.evaluate("___grecaptcha_cfg.clients[0].aa.l.callback('" + token + "')")
+                    await page.evaluate(
+                        "___grecaptcha_cfg.clients[0].aa.l.callback('" + token + "')"
+                    )
                     await asyncio.sleep(3)
                     print("[2Captcha] ✓ reCAPTCHA solved.")
                     return
@@ -752,7 +765,7 @@ class LinkedInStealthCrawler:
     # ------------------------------------------------------------------
 
     @staticmethod
-    async def _safe_text(page: "Any", selector: str) -> str:
+    async def _safe_text(page: Any, selector: str) -> str:
         try:
             el = await page.query_selector(selector)
             return (await el.inner_text()).strip() if el else ""
@@ -760,7 +773,7 @@ class LinkedInStealthCrawler:
             return ""
 
     @staticmethod
-    async def _safe_text_el(element: "Any", selector: str) -> str:
+    async def _safe_text_el(element: Any, selector: str) -> str:
         try:
             el = await element.query_selector(selector)
             return (await el.inner_text()).strip() if el else ""

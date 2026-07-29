@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+
 @dataclass(slots=True)
 class ContactPoint:
     id: str
@@ -31,5 +32,5 @@ class ContactPoint:
             self.telegram_username,
             self.source,
             int(self.publicly_listed),
-            self.verified_at
+            self.verified_at,
         )
