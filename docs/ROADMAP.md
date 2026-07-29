@@ -13,6 +13,33 @@ Core / CRM          Owns canonical identity and the commercial relationship.
 This doc is the planned module list. Nothing here is scheduled — modules get built when
 explicitly requested, in whatever order is asked for. This is a reference, not a sprint plan.
 
+## Tracked follow-ups from the core-newax sync integration
+
+These are gaps identified while building the harvester → core-newax lead sync (`lead_sync_emitter.py`,
+`manual_leads.py`'s webhook hook). Each was deliberately scoped out of that work, not forgotten:
+
+1. **Outbox/retry durability.** `LeadSyncEmitter` is currently fire-and-forget: a failed webhook
+   delivery is logged and lost, with no retry. The fix is a persisted delivery ledger in
+   harvester (record every attempt, retry with backoff, dead-letter after a threshold) paired
+   with an `event_id`-keyed inbox on core-newax's side for idempotent replay. This is the
+   "Export and Integration" module's `event_outbox`/`delivery_status` pieces (see module 13
+   above) — not yet built.
+2. **Wire up the dormant auto-resolution pipeline.** `canonical/merger.py::merge_records()` (the
+   automated dedup/merge logic) is currently dead code; nothing in `pipeline.py` calls it.
+   Connecting it to the actual scraping pipeline is real, separate feature work, not a bug fix.
+   Currently only the manual-lead entry path produces live data. This is module 5 ("Entity
+   Resolution and Deduplication") above, already built but disconnected.
+3. **Broader contact-type support.** Contact points outside phone/email/whatsapp/telegram (e.g.
+   `linkedin`) are currently skipped-and-logged rather than synced, since core-newax's
+   `ContactType` only supports that set. Expanding it is a joint harvester+core-newax change.
+4. **Deletion/reconciliation.** The sync is currently append-and-update only; if a phone number
+   or branch disappears from harvester, the previously-synced core-newax record isn't removed
+   or expired. Full reconciliation is unbuilt.
+5. **Cross-record person deduplication.** The same real person named on two different
+   `contact_point` rows for the same institution currently becomes two separate `CorePerson`
+   records in core-newax. No identity resolution across contact points yet — relates to the
+   `person_candidate` entity in module 1 above, which doesn't exist yet either.
+
 ## Planned modules
 
 1. **Entity Registry** (`entities/`) — institution, branch, contact_point, person_candidate,
