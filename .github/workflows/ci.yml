@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (lint, format, tests, dependency audit)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:17-master
+        env:
+          POSTGRES_PASSWORD: development-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install package with dev extras
+        run: pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Provision test database (role, db, extensions)
+        run: python setup_db.py
+
+      - name: pytest
+        run: pytest -q
+
+      - name: pip-audit (dependency vulnerability scan)
+        run: pip-audit --skip-editable
+
+  frontend:
+    name: Frontend (lint, format, build, dependency audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: oxlint
+        run: npm run lint
+
+      - name: Prettier format check
+        run: npx prettier --check "src/**/*.{ts,tsx,css}"
+
+      - name: Build (tsc + vite)
+        run: npm run build
+
+      - name: npm audit (dependency vulnerability scan)
+        run: npm audit --audit-level=high
+
+  semgrep:
+    name: Semgrep (static analysis security scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: semgrep/semgrep-action@v1
+        with:
+          config: p/python
+        continue-on-error: true
+
+  snyk:
+    name: Snyk (dependency vulnerability scan)
+    runs-on: ubuntu-latest
+    if: ${{ false }} # flip to true once a SNYK_TOKEN secret is configured for this repo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: snyk/actions/python-3.11@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
