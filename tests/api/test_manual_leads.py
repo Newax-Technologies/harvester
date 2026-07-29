@@ -126,6 +126,24 @@ async def test_create_manual_lead_rejects_invalid_country_code(manual_leads_clie
 
 
 @pytest.mark.asyncio
+async def test_create_manual_lead_rejects_non_alpha_country_code(manual_leads_client):
+    payload = {**VALID_PAYLOAD, "country_code": "1!"}
+    response = await manual_leads_client.post("/api/v1/leads/manual", json=payload)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_manual_lead_rejects_country_code_that_expands_when_uppercased(
+    manual_leads_client,
+):
+    # "ß".upper() == "SS", so a naive length check on the raw 2-char value
+    # would let a 3-character result slip past validation.
+    payload = {**VALID_PAYLOAD, "country_code": "ßa"}
+    response = await manual_leads_client.post("/api/v1/leads/manual", json=payload)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_create_manual_lead_invokes_emitter_after_commit(manual_leads_client, fake_emitter):
     response = await manual_leads_client.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
     assert response.status_code == 201

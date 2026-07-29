@@ -69,7 +69,13 @@ class ManualLeadIn(BaseModel):
     @field_validator("country_code")
     @classmethod
     def _uppercase_country_code(cls, value: str) -> str:
-        return value.upper()
+        upper = value.upper()
+        # .upper() can expand a single character (e.g. "ß" -> "SS"), so
+        # re-check the length *after* uppercasing rather than trusting the
+        # field's raw min/max_length=2 constraint on the original value.
+        if len(upper) != 2 or not upper.isascii() or not upper.isalpha():
+            raise ValueError("country_code must be exactly two ASCII letters (ISO 3166-1 alpha-2).")
+        return upper
 
     @field_validator("city")
     @classmethod
