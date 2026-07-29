@@ -9,6 +9,13 @@ from lead_harvester.models.canonical import (
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord
 
+# Google Places' response (the only live raw-record source today) does not
+# request structured address components, only a free-text formattedAddress --
+# so city/country_code are genuinely unknown at merge time. Matches the same
+# sentinel values the city/country_code backfill migration used.
+_UNKNOWN_CITY = "Unknown"
+_UNKNOWN_COUNTRY_CODE = "XX"
+
 
 async def merge_records(
     session: AsyncSession, raw_records: list[RawSourceRecord]
@@ -64,6 +71,8 @@ async def merge_records(
             institution_id=institution.id,
             branch_name="Main Campus" if record == primary_record else "Additional Campus",
             address=address,
+            city=_UNKNOWN_CITY,
+            country_code=_UNKNOWN_COUNTRY_CODE,
             location=record.location,
             provider_ids={record.source_type.value: record.source_id},
         )

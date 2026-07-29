@@ -1,4 +1,7 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+MIN_LEAD_SYNC_WEBHOOK_SECRET_LENGTH = 32
 
 
 class Settings(BaseSettings):
@@ -33,6 +36,20 @@ class Settings(BaseSettings):
     lead_sync_default_country_code: str = "PK"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    @model_validator(mode="after")
+    def _require_strong_webhook_secret_when_enabled(self) -> "Settings":
+        if (
+            self.lead_sync_enabled
+            and len(self.lead_sync_webhook_secret) < MIN_LEAD_SYNC_WEBHOOK_SECRET_LENGTH
+        ):
+            raise ValueError(
+                "LEAD_SYNC_WEBHOOK_SECRET must be at least "
+                f"{MIN_LEAD_SYNC_WEBHOOK_SECRET_LENGTH} characters when LEAD_SYNC_ENABLED is true "
+                "-- a short or empty secret signs every event with effectively no authenticity, "
+                "and a correctly configured receiver will reject every delivery."
+            )
+        return self
 
     def load_job_config(self) -> None:
         if self.job_config_path:

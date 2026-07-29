@@ -27,6 +27,7 @@ interface ManualLeadPayload {
   address: string;
   city: string;
   country: string;
+  country_code: string;
   contacts: ContactEntry[];
   notes: string | null;
   lead_source_note: string | null;
@@ -169,6 +170,7 @@ export function ManualLeadDrawer({
       address: address.trim(),
       city: city.trim(),
       country: "Pakistan",
+      country_code: "PK",
       contacts: validContacts.map((c) => ({
         contact_type: c.contact_type,
         contact_value: c.contact_value.trim(),

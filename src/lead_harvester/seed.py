@@ -62,6 +62,8 @@ async def run_seed(args: argparse.Namespace) -> int:
                 institution_id=inst.id,
                 branch_name="Main Campus",
                 address=f"{random.randint(1, 100)} Main St",
+                city="Karachi",
+                country_code="PK",
                 provider_ids={"google_place_id": f"ChIJ{random.randint(1000, 9999)}"},
             )
             session.add(branch)
