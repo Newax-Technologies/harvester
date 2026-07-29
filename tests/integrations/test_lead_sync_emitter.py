@@ -164,3 +164,30 @@ async def test_swallows_non_2xx_responses_without_raising():
     error_response = httpx.Response(500, request=request)
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=error_response):
         await emitter.emit_institution_upserted(institution, [], [])  # must not raise
+
+
+@pytest.mark.asyncio
+async def test_filters_unsupported_contact_types_before_delivery():
+    settings = _settings()
+    emitter = LeadSyncEmitter(settings)
+    institution = _institution()
+    supported = _contact(institution.id)
+    unsupported = ContactPoint(
+        id=uuid.uuid4(),
+        institution_id=institution.id,
+        contact_type="linkedin",
+        contact_value="https://linkedin.com/in/example",
+        is_publicly_listed=True,
+    )
+
+    mock_response = httpx.Response(
+        200, request=httpx.Request("POST", settings.lead_sync_webhook_url)
+    )
+    with patch(
+        "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_response
+    ) as mock_post:
+        await emitter.emit_institution_upserted(institution, [], [supported, unsupported])
+
+    body = mock_post.call_args.kwargs["content"]
+    payload = json.loads(body)
+    assert [c["id"] for c in payload["contactPoints"]] == [str(supported.id)]

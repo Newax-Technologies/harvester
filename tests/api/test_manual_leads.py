@@ -112,6 +112,13 @@ async def test_create_manual_lead_rejects_missing_city(manual_leads_client):
 
 
 @pytest.mark.asyncio
+async def test_create_manual_lead_rejects_whitespace_only_city(manual_leads_client):
+    payload = {**VALID_PAYLOAD, "city": "   "}
+    response = await manual_leads_client.post("/api/v1/leads/manual", json=payload)
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_create_manual_lead_rejects_invalid_country_code(manual_leads_client):
     payload = {**VALID_PAYLOAD, "country_code": "PAK"}
     response = await manual_leads_client.post("/api/v1/leads/manual", json=payload)

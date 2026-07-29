@@ -30,6 +30,11 @@ from lead_harvester.models.canonical import Branch, CanonicalInstitution, Contac
 SCHEMA_VERSION = 1
 TIMESTAMP_HEADER = "X-Lead-Harvester-Timestamp"
 SIGNATURE_HEADER = "X-Lead-Harvester-Signature"
+# Must match core-newax's supported ContactType set. Filtered here (not just
+# left to the receiver) so an unsupported type (e.g. "linkedin") never rides
+# along in a fire-and-forget delivery that has no retry if the receiver
+# rejects it -- see docs/ROADMAP.md's "Broader contact-type support" note.
+SUPPORTED_CONTACT_TYPES = {"phone", "email", "whatsapp", "telegram"}
 
 
 class LeadSyncEmitter:
@@ -45,7 +50,17 @@ class LeadSyncEmitter:
         if not self.settings.lead_sync_enabled or not self.settings.lead_sync_webhook_url:
             return
 
-        payload = self._build_payload(institution, branches, contact_points)
+        supported_contacts = []
+        for contact in contact_points:
+            if contact.contact_type in SUPPORTED_CONTACT_TYPES:
+                supported_contacts.append(contact)
+            else:
+                print(
+                    f"lead_sync: skipping contact {contact.id} with unsupported "
+                    f"contact_type={contact.contact_type!r} for institution {institution.id}"
+                )
+
+        payload = self._build_payload(institution, branches, supported_contacts)
         body = json.dumps(payload, separators=(",", ":"))
         timestamp = str(int(time.time()))
         signature = self._sign(timestamp, body)

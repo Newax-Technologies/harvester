@@ -71,6 +71,14 @@ class ManualLeadIn(BaseModel):
     def _uppercase_country_code(cls, value: str) -> str:
         return value.upper()
 
+    @field_validator("city")
+    @classmethod
+    def _require_non_blank_city(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("city must not be blank.")
+        return stripped
+
     # Contacts (at least one required)
     contacts: list[ContactEntry] = Field(..., min_length=1)
 
