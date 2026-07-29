@@ -1,15 +1,19 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql+asyncpg://postgres:development-only@localhost:5432/opportunity_engine"
-    test_database_url: Optional[str] = "postgresql+asyncpg://opportunity_test:TEST_PASSWORD@127.0.0.1:5432/lead_harvester_test"
+    database_url: str = (
+        "postgresql+asyncpg://postgres:development-only@localhost:5432/opportunity_engine"
+    )
+    test_database_url: str | None = (
+        "postgresql+asyncpg://opportunity_test:TEST_PASSWORD@127.0.0.1:5432/lead_harvester_test"
+    )
     google_places_api_key: str = ""
     job_config_path: str = ""
     job_config: dict = {}
     app_env: str = "development"
     allow_demo_seed: bool = False
-    
+
     # WebCrawler settings
     user_agent: str = "LeadBot/1.0"
     request_timeout_seconds: float = 10.0
@@ -21,23 +25,29 @@ class Settings(BaseSettings):
     keywords: list[str] = []
     intent_terms: list[str] = []
 
+    # Lead sync webhook (harvester -> core-newax)
+    lead_sync_enabled: bool = False
+    lead_sync_webhook_url: str = ""
+    lead_sync_webhook_secret: str = ""
+    lead_sync_webhook_timeout_seconds: float = 5.0
+    lead_sync_default_country_code: str = "PK"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     def load_job_config(self) -> None:
         if self.job_config_path:
             import yaml
-            with open(self.job_config_path, 'r') as f:
+
+            with open(self.job_config_path, "r") as f:
                 self.job_config = yaml.safe_load(f)
+
 
 def validate_test_database_url(test_url: str, production_url: str) -> None:
     if test_url == production_url:
-        raise RuntimeError(
-            "TEST_DATABASE_URL must not match DATABASE_URL."
-        )
+        raise RuntimeError("TEST_DATABASE_URL must not match DATABASE_URL.")
 
     if "test" not in test_url.lower():
-        raise RuntimeError(
-            "Test database name must contain 'test'."
-        )
+        raise RuntimeError("Test database name must contain 'test'.")
+
 
 settings = Settings()

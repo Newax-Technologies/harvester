@@ -531,6 +531,53 @@
           }
         }
       }
+    },
+    "/api/v1/leads/manual": {
+      "post": {
+        "tags": [
+          "Manual Lead Entry"
+        ],
+        "summary": "Submit a manually entered lead",
+        "description": "Record a lead discovered manually (cold call, referral, field visit, etc.)\ninto the same database pipeline as automated sources.",
+        "operationId": "create_manual_lead_api_v1_leads_manual_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManualLeadIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManualLeadOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -564,6 +611,48 @@
           "provider_ids"
         ],
         "title": "BranchSchema"
+      },
+      "ContactEntry": {
+        "properties": {
+          "contact_type": {
+            "type": "string",
+            "title": "Contact Type",
+            "description": "phone | email | whatsapp | linkedin | other"
+          },
+          "contact_value": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Contact Value"
+          },
+          "person_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Person Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contact_type",
+          "contact_value"
+        ],
+        "title": "ContactEntry"
       },
       "ContactPointSchema": {
         "properties": {
@@ -825,6 +914,134 @@
           "updated_at"
         ],
         "title": "InstitutionListResponse"
+      },
+      "ManualLeadIn": {
+        "properties": {
+          "institution_name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Institution Name"
+          },
+          "institution_type": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Institution Type",
+            "description": "school | college | university | clinic | other",
+            "default": "school"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          },
+          "operating_status": {
+            "type": "string",
+            "title": "Operating Status",
+            "default": "operational"
+          },
+          "address": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Address",
+            "default": ""
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "City"
+          },
+          "country": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Country",
+            "default": "Pakistan"
+          },
+          "country_code": {
+            "type": "string",
+            "maxLength": 2,
+            "minLength": 2,
+            "title": "Country Code",
+            "description": "ISO 3166-1 alpha-2, e.g. 'PK'"
+          },
+          "contacts": {
+            "items": {
+              "$ref": "#/components/schemas/ContactEntry"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Contacts"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "lead_source_note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Source Note",
+            "description": "Where did you find this lead? e.g. 'Cold call', 'Referral from X'"
+          }
+        },
+        "type": "object",
+        "required": [
+          "institution_name",
+          "city",
+          "country_code",
+          "contacts"
+        ],
+        "title": "ManualLeadIn"
+      },
+      "ManualLeadOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "institution_name": {
+            "type": "string",
+            "title": "Institution Name"
+          },
+          "contacts_saved": {
+            "type": "integer",
+            "title": "Contacts Saved"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "institution_name",
+          "contacts_saved",
+          "message"
+        ],
+        "title": "ManualLeadOut"
       },
       "MatchAssessmentSchema": {
         "properties": {

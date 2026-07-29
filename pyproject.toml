@@ -53,3 +53,9 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+# B008 (flake8-bugbear "no function calls in argument defaults") flags
+# FastAPI's own Depends(...)/Query(...)/etc. pattern, which is how dependency
+# injection is meant to be written in this framework -- not a real bug here.
+ignore = ["B008"]

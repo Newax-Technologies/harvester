@@ -11,24 +11,26 @@ Accepts a manually entered lead and writes it to the database as:
 This means manual leads go through the exact same data model as
 scraped leads and appear in the same dashboard/pipeline.
 """
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, status
+from pydantic import BaseModel, Field, field_validator
 
+from lead_harvester.api.dependencies import get_lead_sync_emitter
 from lead_harvester.database import get_session
-from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
+from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.models.canonical import (
     Branch,
     CanonicalInstitution,
     ContactPoint,
     OperatingStatus,
 )
+from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
 
 router = APIRouter(prefix="/leads", tags=["Manual Lead Entry"])
 
@@ -36,6 +38,7 @@ router = APIRouter(prefix="/leads", tags=["Manual Lead Entry"])
 # ---------------------------------------------------------------------------
 # Request schema
 # ---------------------------------------------------------------------------
+
 
 class ContactEntry(BaseModel):
     contact_type: str = Field(..., description="phone | email | whatsapp | linkedin | other")
@@ -46,24 +49,38 @@ class ContactEntry(BaseModel):
 
 class ManualLeadIn(BaseModel):
     # Institution
-    institution_name: str           = Field(..., min_length=2, max_length=255)
-    institution_type: str           = Field(default="school", max_length=100,
-                                            description="school | college | university | clinic | other")
-    website: str | None             = Field(default=None, max_length=500)
-    operating_status: str           = Field(default="operational")
+    institution_name: str = Field(..., min_length=2, max_length=255)
+    institution_type: str = Field(
+        default="school",
+        max_length=100,
+        description="school | college | university | clinic | other",
+    )
+    website: str | None = Field(default=None, max_length=500)
+    operating_status: str = Field(default="operational")
 
     # Location
-    address: str                    = Field(default="", max_length=1000)
-    city: str                       = Field(default="", max_length=100)
-    country: str                    = Field(default="Pakistan", max_length=100)
+    address: str = Field(default="", max_length=1000)
+    city: str = Field(..., min_length=1, max_length=100)
+    country: str = Field(default="Pakistan", max_length=100)
+    country_code: str = Field(
+        ..., min_length=2, max_length=2, description="ISO 3166-1 alpha-2, e.g. 'PK'"
+    )
+
+    @field_validator("country_code")
+    @classmethod
+    def _uppercase_country_code(cls, value: str) -> str:
+        return value.upper()
 
     # Contacts (at least one required)
-    contacts: list[ContactEntry]    = Field(..., min_length=1)
+    contacts: list[ContactEntry] = Field(..., min_length=1)
 
     # Notes
-    notes: str | None               = Field(default=None, max_length=2000)
-    lead_source_note: str | None    = Field(default=None, max_length=500,
-                                            description="Where did you find this lead? e.g. 'Cold call', 'Referral from X'")
+    notes: str | None = Field(default=None, max_length=2000)
+    lead_source_note: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Where did you find this lead? e.g. 'Cold call', 'Referral from X'",
+    )
 
 
 class ManualLeadOut(BaseModel):
@@ -77,13 +94,17 @@ class ManualLeadOut(BaseModel):
 # Route
 # ---------------------------------------------------------------------------
 
+
 @router.post(
     "/manual",
     response_model=ManualLeadOut,
     status_code=status.HTTP_201_CREATED,
     summary="Submit a manually entered lead",
 )
-async def create_manual_lead(payload: ManualLeadIn) -> ManualLeadOut:
+async def create_manual_lead(
+    payload: ManualLeadIn,
+    lead_sync_emitter: LeadSyncEmitter = Depends(get_lead_sync_emitter),
+) -> ManualLeadOut:
     """
     Record a lead discovered manually (cold call, referral, field visit, etc.)
     into the same database pipeline as automated sources.
@@ -93,9 +114,9 @@ async def create_manual_lead(payload: ManualLeadIn) -> ManualLeadOut:
         run = SourceRun(
             source_type=SourceType.MANUAL,
             run_metadata={
-                "entry_method":      "manual_form",
-                "lead_source_note":  payload.lead_source_note or "",
-                "notes":             payload.notes or "",
+                "entry_method": "manual_form",
+                "lead_source_note": payload.lead_source_note or "",
+                "notes": payload.notes or "",
             },
             status=RunStatus.STARTED,
         )
@@ -104,26 +125,32 @@ async def create_manual_lead(payload: ManualLeadIn) -> ManualLeadOut:
 
         # 2. Build the raw payload (mirrors what scrapers produce)
         raw_payload: dict[str, Any] = {
-            "institution_name":  payload.institution_name,
-            "institution_type":  payload.institution_type,
-            "website":           payload.website,
-            "address":           payload.address,
-            "city":              payload.city,
-            "country":           payload.country,
-            "operating_status":  payload.operating_status,
-            "contacts":          [c.model_dump() for c in payload.contacts],
-            "notes":             payload.notes,
-            "lead_source_note":  payload.lead_source_note,
-            "submitted_at":      datetime.now(timezone.utc).isoformat(),
+            "institution_name": payload.institution_name,
+            "institution_type": payload.institution_type,
+            "website": payload.website,
+            "address": payload.address,
+            "city": payload.city,
+            "country": payload.country,
+            "operating_status": payload.operating_status,
+            "contacts": [c.model_dump() for c in payload.contacts],
+            "notes": payload.notes,
+            "lead_source_note": payload.lead_source_note,
+            "submitted_at": datetime.now(UTC).isoformat(),
         }
 
         # Extract first phone/email for normalized index fields
-        first_phone  = next((c.contact_value for c in payload.contacts if c.contact_type == "phone"), None)
-        first_email  = next((c.contact_value for c in payload.contacts if c.contact_type == "email"), None)
-        domain       = None
+        first_phone = next(
+            (c.contact_value for c in payload.contacts if c.contact_type == "phone"), None
+        )
+        domain = None
         if payload.website:
             from urllib.parse import urlparse
-            parsed = urlparse(payload.website if payload.website.startswith("http") else f"https://{payload.website}")
+
+            parsed = urlparse(
+                payload.website
+                if payload.website.startswith("http")
+                else f"https://{payload.website}"
+            )
             domain = parsed.netloc or None
 
         # 3. Raw source record
@@ -154,7 +181,7 @@ async def create_manual_lead(payload: ManualLeadIn) -> ManualLeadOut:
             domain=domain,
             website=payload.website,
             status=op_status,
-            confidence_score=0.7,   # Manual entries get a high base confidence
+            confidence_score=0.7,  # Manual entries get a high base confidence
         )
         session.add(institution)
         await session.flush()
@@ -164,11 +191,14 @@ async def create_manual_lead(payload: ManualLeadIn) -> ManualLeadOut:
             institution_id=institution.id,
             branch_name=payload.institution_name.strip(),
             address=full_address,
+            city=payload.city.strip(),
+            country_code=payload.country_code,
             provider_ids={"manual_record_id": source_id},
         )
         session.add(branch)
 
         # 6. Contact points
+        contact_points: list[ContactPoint] = []
         for c in payload.contacts:
             cp = ContactPoint(
                 institution_id=institution.id,
@@ -179,10 +209,20 @@ async def create_manual_lead(payload: ManualLeadIn) -> ManualLeadOut:
                 is_publicly_listed=False,  # manually entered = not scraped from public web
             )
             session.add(cp)
+            contact_points.append(cp)
 
         # 7. Mark run as complete
         run.status = RunStatus.COMPLETED
-        run.completed_at = datetime.now(timezone.utc)
+        run.completed_at = datetime.now(UTC)
+
+    # Fires only after the block above has committed successfully. The emitter
+    # itself never raises on delivery failure, but this endpoint's contract
+    # ("a webhook problem never fails a lead submission") shouldn't depend on
+    # trusting that implementation detail -- belt and suspenders.
+    try:
+        await lead_sync_emitter.emit_institution_upserted(institution, [branch], contact_points)
+    except Exception as e:  # noqa: BLE001 -- intentional: a webhook problem must never fail this endpoint
+        print(f"lead_sync emitter raised unexpectedly for institution {institution.id}: {e}")
 
     return ManualLeadOut(
         id=str(institution.id),
