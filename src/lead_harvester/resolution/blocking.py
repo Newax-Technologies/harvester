@@ -1,5 +1,6 @@
+from geoalchemy2 import Geography
 from geoalchemy2.functions import ST_DWithin
-from sqlalchemy import func, select
+from sqlalchemy import cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.resolution import ResolutionCandidate
@@ -62,11 +63,21 @@ async def generate_candidates(
         # We need the pg_trgm '%' operator (similarity). In SQLAlchemy, we can use func.similarity
         # or the custom operator.
 
+        # record.location may still be the raw WKT string set at
+        # construction time (not yet reloaded from the DB as a WKBElement)
+        # when this runs immediately after creating a new record -- cast it
+        # explicitly so it binds as a geography value, not a bare varchar
+        # ("function st_dwithin(geography, character varying, ...) does not
+        # exist" otherwise).
         # We only want records that are physically close AND have similar names.
         stmt = select(RawSourceRecord).where(
             RawSourceRecord.id != record.id,
             RawSourceRecord.location.is_not(None),
-            ST_DWithin(RawSourceRecord.location, record.location, GEOGRAPHIC_DISTANCE_METERS),
+            ST_DWithin(
+                RawSourceRecord.location,
+                cast(record.location, Geography),
+                GEOGRAPHIC_DISTANCE_METERS,
+            ),
             func.similarity(RawSourceRecord.normalized_name, record.normalized_name)
             >= NAME_SIMILARITY_THRESHOLD,
         )

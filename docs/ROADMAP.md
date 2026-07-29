@@ -24,11 +24,19 @@ These are gaps identified while building the harvester → core-newax lead sync 
    with an `event_id`-keyed inbox on core-newax's side for idempotent replay. This is the
    "Export and Integration" module's `event_outbox`/`delivery_status` pieces (see module 13
    above) — not yet built.
-2. **Wire up the dormant auto-resolution pipeline.** `canonical/merger.py::merge_records()` (the
-   automated dedup/merge logic) is currently dead code; nothing in `pipeline.py` calls it.
-   Connecting it to the actual scraping pipeline is real, separate feature work, not a bug fix.
-   Currently only the manual-lead entry path produces live data. This is module 5 ("Entity
-   Resolution and Deduplication") above, already built but disconnected.
+2. **Wire up the dormant auto-resolution pipeline. DONE.** `resolution/orchestrator.py::resolve_incoming_record`
+   now runs blocking + scoring for every `RawSourceRecord` created by `pipeline.py` (both
+   `process_place` and `_run_web_crawler`), and decides: attach to an already-resolved
+   institution, merge with an unresolved match, leave PENDING candidates for human review via
+   the (now-fixed) `resolution-reviews` API, or give a confidently-distinct record its own
+   institution. `canonical/merger.py` gained source-type-aware field extraction (it previously
+   assumed every record was Google-Places-shaped), a same-location-aware branch-collapse path,
+   and an `attach_record_to_institution` path for merging into an existing institution. Known v1
+   limitation, documented in `resolution/orchestrator.py`'s docstring: two concurrent runs can
+   each independently create a separate institution for what should be one, since resolution
+   only sees records already committed by *other* completed runs, not concurrent in-flight ones
+   — a full fix (advisory locks / per-record commits / a unique constraint) is separate follow-up
+   work. This was module 5 ("Entity Resolution and Deduplication") above.
 3. **Broader contact-type support.** Contact points outside phone/email/whatsapp/telegram (e.g.
    `linkedin`) are currently skipped-and-logged rather than synced, since core-newax's
    `ContactType` only supports that set. Expanding it is a joint harvester+core-newax change.
@@ -105,9 +113,10 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   in `pipeline.py`/`sources/web.py` rather than a distinct `ingestion/` module.
 - **Normalization**: partial, lives in `resolution/normalize.py` rather than its own module;
   covers phone/domain, not yet a full city/country normalization layer.
-- **Resolution**: `resolution/` and `canonical/merger.py` exist, but `merge_records()` is
-  currently disconnected from the live pipeline — this is the "separate major work item"
-  already identified.
+- **Resolution**: done for the live ingestion paths. `resolution/orchestrator.py` wires
+  blocking + scoring into `pipeline.py` (both Google Places and the web crawler), with a human
+  review path for ambiguous (PENDING) matches via the `resolution-reviews` API. See tracked
+  follow-up #2 above for the one documented v1 limitation (cross-run concurrency).
 - **Enrichment**: partial (`enrichment/website_analyzer.py`); no contact_extractor/
   social_resolver/technology_detector/decision_maker_discovery as distinct pieces yet.
 - **Business Intelligence**: partial (`intelligence/pain_detection.py`, `researcher.py`,

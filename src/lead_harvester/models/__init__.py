@@ -4,7 +4,7 @@ from .outreach import AccountBrief, BriefStatus, DraftStatus, OutreachDraft, Out
 from .provenance import FieldProvenance
 from .qualification import QualificationAssessment, QualificationStatus
 from .research import FindingType, JobStatus, ResearchFinding, ResearchJob
-from .resolution import MatchAssessment, MatchDecision, ResolutionCandidate
+from .resolution import MatchAssessment, MatchDecision, ResolutionCandidate, ReviewOutcome
 from .source import RawSourceRecord, RunStatus, SourceRun, SourceType
 
 __all__ = [
@@ -29,6 +29,7 @@ __all__ = [
     "ResearchFinding",
     "ResearchJob",
     "ResolutionCandidate",
+    "ReviewOutcome",
     "RunStatus",
     "SourceRun",
     "SourceType",

@@ -16,6 +16,19 @@ class MatchDecision(str, enum.Enum):
     REJECT = "reject"  # Distinct entities, no relationship
 
 
+class ReviewOutcome(str, enum.Enum):
+    """
+    What a human reviewer actually decided for a ResolutionCandidate, as
+    distinct from MatchDecision (the automated scorer's verdict). Null means
+    "not yet reviewed" -- this is what the resolution-reviews queue filters
+    on, rather than inferring "already decided" from AuditLog presence.
+    """
+
+    MERGED = "merged"  # Same branch -- enrich the existing Branch in place
+    BRANCHED = "branched"  # Same institution, a distinct physical location
+    SEPARATED = "separated"  # Confidently distinct entities
+
+
 class ResolutionCandidate(Base):
     """
     Pairs a raw source record with a target CanonicalInstitution (or another raw record)
@@ -46,6 +59,10 @@ class ResolutionCandidate(Base):
 
     # Optimistic locking version
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+
+    # Null until a human reviewer acts on this candidate via the
+    # resolution-reviews decision endpoint.
+    review_outcome: Mapped[ReviewOutcome | None] = mapped_column(Enum(ReviewOutcome), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)

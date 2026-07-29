@@ -4,6 +4,7 @@ from typing import Any
 from .config import Settings
 from .database import get_session
 from .models import RawSourceRecord, RunStatus, SourceRun, SourceType
+from .resolution.orchestrator import resolve_incoming_record
 from .sources.geographic_tiling import build_queries_for_tile, generate_tiles
 from .sources.google_places import GooglePlacesConnector
 
@@ -55,13 +56,15 @@ class LeadPipeline:
                         location=None,
                     )
                     session.add(record)
+                    await session.flush()
+                    await self._resolve_or_log(session, run, record)
 
                 run.status = RunStatus.COMPLETED
                 run.completed_at = datetime.datetime.now(datetime.UTC)
             except Exception as e:
                 run.status = RunStatus.FAILED
                 run.completed_at = datetime.datetime.now(datetime.UTC)
-                run.run_metadata["error"] = str(e)
+                run.run_metadata = {**run.run_metadata, "error": str(e)}
                 raise
             finally:
                 await session.commit()
@@ -89,19 +92,19 @@ class LeadPipeline:
                         places = self.places_connector.search(query)
 
                         for place in places:
-                            await self.process_place(session, run.id, place)
+                            await self.process_place(session, run, place)
 
                 run.status = RunStatus.COMPLETED
                 run.completed_at = datetime.datetime.now(datetime.UTC)
             except Exception as e:
                 run.status = RunStatus.FAILED
                 run.completed_at = datetime.datetime.now(datetime.UTC)
-                run.run_metadata["error"] = str(e)
+                run.run_metadata = {**run.run_metadata, "error": str(e)}
                 raise
             finally:
                 await session.commit()
 
-    async def process_place(self, session, run_id, place: dict[str, Any]) -> None:
+    async def process_place(self, session, run: SourceRun, place: dict[str, Any]) -> None:
         source_id = place.get("id")
         if not source_id:
             return
@@ -121,7 +124,7 @@ class LeadPipeline:
             location_wkt = f"SRID=4326;POINT({lng} {lat})"
 
         record = RawSourceRecord(
-            source_run_id=run_id,
+            source_run_id=run.id,
             source_type=SourceType.GOOGLE_PLACES,
             source_id=source_id,
             raw_payload=place,
@@ -131,3 +134,24 @@ class LeadPipeline:
             location=location_wkt,
         )
         session.add(record)
+        await session.flush()
+        await self._resolve_or_log(session, run, record)
+
+    @staticmethod
+    async def _resolve_or_log(session, run: SourceRun, record: RawSourceRecord) -> None:
+        # A resolution failure for one record must never abort the rest of
+        # the run -- the outer per-run except/finally would otherwise mark
+        # the whole run FAILED and stop processing every remaining
+        # tile/place/lead. Logged into run_metadata so it's visible, not
+        # silently dropped.
+        try:
+            await resolve_incoming_record(session, record)
+        except Exception as e:
+            unresolved = list(run.run_metadata.get("unresolved_records", []))
+            unresolved.append({"raw_record_id": str(record.id), "error": str(e)})
+            # run_metadata is a plain JSONB column (no MutableDict tracking),
+            # so mutating the existing dict in place would never be detected
+            # as a change -- reassign a new dict so the attribute-set event
+            # actually marks `run` dirty.
+            run.run_metadata = {**run.run_metadata, "unresolved_records": unresolved}
+            print(f"Entity resolution failed for raw record {record.id}: {e}")
