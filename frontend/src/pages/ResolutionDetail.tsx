@@ -83,6 +83,7 @@ export function ResolutionDetail() {
     );
 
   const candidate = (resolution as any).incoming_data || {};
+  const target = (resolution as any).target_data || {};
 
   return (
     <div className="h-full flex flex-col max-w-6xl mx-auto relative">
@@ -165,25 +166,23 @@ export function ResolutionDetail() {
           <div className="space-y-4">
             <div>
               <div className="text-sm text-muted-foreground mb-1">Name</div>
-              <div className="font-medium">
-                Unknown (Need to fetch Canonical Institution details)
-              </div>
+              <div className="font-medium">{target.name || "Unknown"}</div>
             </div>
             <div>
               <div className="text-sm text-muted-foreground mb-1">Address</div>
               <div className="flex items-center gap-2 font-medium">
                 <MapPin size={16} className="text-muted-foreground" />
-                Unknown
+                {target.address || "Unknown"}
               </div>
             </div>
             <div>
               <div className="text-sm text-muted-foreground mb-1">Phone</div>
-              <div className="font-medium">Unknown</div>
+              <div className="font-medium">{target.phone || "Unknown"}</div>
             </div>
             <div>
               <div className="text-sm text-muted-foreground mb-1">Website</div>
               <div className="font-medium flex items-center gap-2 text-primary">
-                Unknown
+                {target.website || "Unknown"}
                 <ExternalLink size={14} />
               </div>
             </div>

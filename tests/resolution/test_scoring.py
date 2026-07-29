@@ -47,3 +47,84 @@ async def test_pending_is_reachable_for_moderate_ambiguous_match(db_session, sou
 
     assert assessment.total_score == 60.0
     assert assessment.decision == MatchDecision.PENDING
+
+
+@pytest.mark.asyncio
+async def test_exact_domain_and_strong_name_match_is_pending_not_link_only(db_session, source_run):
+    # A web-crawled record has no coordinates at all (location is always
+    # None), so it can never reach the MERGE branch (needs distance<100m).
+    # Before this fix, an exact domain match plus a near-identical name would
+    # still fall through to LINK_ONLY (the phone/domain branch), which the
+    # orchestrator treats as "confidently distinct" and immediately
+    # canonicalizes as a second, duplicate institution.
+    a = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone=None,
+        website="https://riverside.example.edu",
+        lat=None,
+        lng=None,
+    )
+    b = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone=None,
+        website="https://riverside.example.edu",
+        lat=None,
+        lng=None,
+    )
+    db_session.add_all([a, b])
+    await db_session.flush()
+
+    candidate = ResolutionCandidate(
+        raw_record_id=a.id,
+        target_raw_record_id=b.id,
+        blocking_strategy="domain",
+        version=1,
+    )
+    db_session.add(candidate)
+    await db_session.flush()
+
+    assessment = await score_candidate(db_session, candidate)
+
+    assert assessment.domain_match is True
+    assert assessment.decision == MatchDecision.PENDING
+
+
+@pytest.mark.asyncio
+async def test_domain_match_alone_with_weak_name_stays_link_only(db_session, source_run):
+    # Domain match without a strong name match is still LINK_ONLY -- e.g. a
+    # shared website domain that doesn't otherwise look like the same
+    # institution shouldn't jump to PENDING just because of the domain.
+    a = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=None,
+        lng=None,
+    )
+    b = google_places_record(
+        source_run.id,
+        name="Totally Unrelated Name",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=None,
+        lng=None,
+    )
+    db_session.add_all([a, b])
+    await db_session.flush()
+
+    candidate = ResolutionCandidate(
+        raw_record_id=a.id,
+        target_raw_record_id=b.id,
+        blocking_strategy="domain",
+        version=1,
+    )
+    db_session.add(candidate)
+    await db_session.flush()
+
+    assessment = await score_candidate(db_session, candidate)
+
+    assert assessment.domain_match is True
+    assert assessment.decision == MatchDecision.LINK_ONLY

@@ -37,6 +37,20 @@ class AlreadyReviewedError(BaseAPIException):
         )
 
 
+class RecordAlreadyCanonicalizedError(BaseAPIException):
+    def __init__(self, raw_record_id: str):
+        super().__init__(
+            status_code=409,
+            code="already_canonicalized",
+            message=(
+                "The incoming record for this candidate has already been "
+                "canonicalized (via a sibling candidate or automated "
+                "resolution) and cannot be decided again."
+            ),
+            details={"raw_record_id": str(raw_record_id)},
+        )
+
+
 class ResourceNotFoundError(BaseAPIException):
     def __init__(self, resource_id: str = "unknown"):
         super().__init__(

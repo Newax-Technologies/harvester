@@ -4,7 +4,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from lead_harvester.api.errors import AlreadyReviewedError, ResourceNotFoundError, StaleDataError
+from lead_harvester.api.errors import (
+    AlreadyReviewedError,
+    RecordAlreadyCanonicalizedError,
+    ResourceNotFoundError,
+    StaleDataError,
+)
 from lead_harvester.canonical.merger import (
     attach_record_to_institution,
     display_fields,
@@ -14,6 +19,7 @@ from lead_harvester.canonical.merger import (
 )
 from lead_harvester.models.audit import AuditLog
 from lead_harvester.models.canonical import CanonicalInstitution
+from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.resolution import (
     MatchAssessment,
     MatchDecision,
@@ -52,12 +58,25 @@ class ResolutionService:
         (review_outcome is still null) -- shape matches
         frontend/src/pages/ResolutionQueue.tsx.
         """
+        already_canonicalized = (
+            select(FieldProvenance.raw_record_id)
+            .where(FieldProvenance.raw_record_id == ResolutionCandidate.raw_record_id)
+            .exists()
+        )
         stmt = select(ResolutionCandidate, MatchAssessment).join(
             MatchAssessment, MatchAssessment.candidate_id == ResolutionCandidate.id
         )
         stmt = stmt.where(
             MatchAssessment.decision == MatchDecision.PENDING,
             ResolutionCandidate.review_outcome.is_(None),
+            # A sibling candidate for the same raw record (matched against a
+            # different target) may already have been decided, or automated
+            # resolution may have already canonicalized this record entirely
+            # -- either way, merge_records/attach_record_to_institution
+            # always write a "branch_membership" FieldProvenance row, so its
+            # presence means this candidate is moot and shouldn't linger in
+            # the queue as an item that will just 409 if acted on.
+            ~already_canonicalized,
         )
         result = await session.execute(stmt)
 
@@ -65,7 +84,7 @@ class ResolutionService:
         for candidate, assessment in result.all():
             record = await session.get(RawSourceRecord, candidate.raw_record_id)
             candidate_name = display_fields(record)["name"] if record else "Unknown"
-            target_name = await _target_display_name(session, candidate)
+            target_name = (await _target_evidence(session, candidate))["name"]
 
             summaries.append(
                 {
@@ -120,6 +139,17 @@ class ResolutionService:
             if candidate.review_outcome is not None:
                 raise AlreadyReviewedError(str(review_id), candidate.review_outcome.value)
 
+            # The candidate itself may be unreviewed, but its raw record can
+            # already be canonicalized -- via a sibling candidate (the same
+            # record matched against a different target through a different
+            # blocking strategy) that was already decided, or via automated
+            # resolution picking a MERGE for a different candidate and
+            # leaving this one PENDING. Either way, deciding this candidate
+            # now would create a second institution for (or re-attach) an
+            # already-canonicalized record.
+            if await find_canonical_for_raw_record(session, candidate.raw_record_id) is not None:
+                raise RecordAlreadyCanonicalizedError(str(candidate.raw_record_id))
+
             await _apply_decision(session, candidate, req.decision)
 
             candidate.review_outcome = _OUTCOME_BY_DECISION[req.decision]
@@ -149,9 +179,42 @@ class ResolutionService:
         return detail
 
 
+def _record_evidence(record: RawSourceRecord | None) -> dict:
+    fields = display_fields(record) if record else {}
+    return {
+        "name": fields.get("name"),
+        "address": fields.get("address"),
+        "phone": record.normalized_phone if record else None,
+        "website": fields.get("website"),
+    }
+
+
+async def _target_evidence(session: AsyncSession, candidate: ResolutionCandidate) -> dict:
+    """
+    Evidence for the "Record B" / target side of a review, mirroring
+    incoming_data's shape -- previously only the incoming record's evidence
+    was returned, forcing the frontend to hardcode the target side as
+    "Unknown" (ResolutionDetail.tsx), which meant a reviewer had nothing to
+    compare the incoming record against before deciding.
+    """
+    if candidate.target_raw_record_id:
+        target_record = await session.get(RawSourceRecord, candidate.target_raw_record_id)
+        if target_record:
+            return _record_evidence(target_record)
+    elif candidate.target_canonical_id:
+        institution = await session.get(CanonicalInstitution, candidate.target_canonical_id)
+        if institution:
+            return {
+                "name": institution.canonical_name,
+                "address": None,
+                "phone": None,
+                "website": institution.website,
+            }
+    return {"name": "Unknown", "address": None, "phone": None, "website": None}
+
+
 async def _assemble_detail(session: AsyncSession, candidate: ResolutionCandidate) -> dict:
     record = await session.get(RawSourceRecord, candidate.raw_record_id)
-    fields = display_fields(record) if record else {}
     best_score = max((a.total_score for a in candidate.assessments), default=0.0)
 
     return {
@@ -164,25 +227,9 @@ async def _assemble_detail(session: AsyncSession, candidate: ResolutionCandidate
         "created_at": candidate.created_at,
         "assessments": candidate.assessments,
         "confidence_score": best_score,
-        "incoming_data": {
-            "name": fields.get("name"),
-            "address": fields.get("address"),
-            "phone": record.normalized_phone if record else None,
-            "website": fields.get("website"),
-        },
+        "incoming_data": _record_evidence(record),
+        "target_data": await _target_evidence(session, candidate),
     }
-
-
-async def _target_display_name(session: AsyncSession, candidate: ResolutionCandidate) -> str:
-    if candidate.target_raw_record_id:
-        target_record = await session.get(RawSourceRecord, candidate.target_raw_record_id)
-        if target_record:
-            return display_fields(target_record)["name"]
-    elif candidate.target_canonical_id:
-        institution = await session.get(CanonicalInstitution, candidate.target_canonical_id)
-        if institution:
-            return institution.canonical_name
-    return "Unknown"
 
 
 async def _apply_decision(

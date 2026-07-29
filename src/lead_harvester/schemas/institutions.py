@@ -9,6 +9,8 @@ class BranchSchema(BaseSchema):
     id: UUID
     branch_name: str
     address: str
+    city: str
+    country_code: str
     provider_ids: dict
 
 

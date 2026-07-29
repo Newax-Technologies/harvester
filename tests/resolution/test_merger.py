@@ -92,6 +92,20 @@ async def test_display_fields_handles_website_shape(source_run):
 
 
 @pytest.mark.asyncio
+async def test_display_fields_prefers_full_website_url_over_bare_domain(source_run):
+    # normalized_domain is a bare host ("beacon.edu"), used for blocking, and
+    # is truthy whenever a website exists at all -- it must not shadow the
+    # full origin ("https://www.beacon.edu") retained in raw_payload, or
+    # every website-sourced institution's `website` field becomes a
+    # non-usable bare domain instead of an absolute URL.
+    record = website_record(source_run.id, name="Beacon School", website="https://www.beacon.edu")
+    assert record.normalized_domain == "beacon.edu"  # sanity check on the factory
+
+    fields = display_fields(record)
+    assert fields["website"] == "https://www.beacon.edu"
+
+
+@pytest.mark.asyncio
 async def test_find_canonical_for_raw_record_returns_none_when_unresolved(db_session, source_run):
     record = google_places_record(source_run.id)
     db_session.add(record)
@@ -212,3 +226,39 @@ async def test_attach_record_reuses_existing_contact_point_for_same_phone(db_ses
         .all()
     )
     assert len(prov) == 1
+
+
+@pytest.mark.asyncio
+async def test_merge_records_creates_email_contact_for_email_only_website_lead(
+    db_session, source_run
+):
+    # An email-only web-crawled lead (no phone) previously got zero
+    # ContactPoints at all -- _add_contacts_and_provenance only ever looked
+    # at normalized_phone -- making the institution appear uncontactable
+    # despite a valid email being present in the raw payload.
+    record = website_record(
+        source_run.id,
+        name="Beacon School",
+        organization="Beacon School",
+        phone=None,
+        email="admissions@beacon.edu",
+        website="https://beacon.edu",
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [record])
+    await db_session.flush()
+
+    contacts = (
+        (
+            await db_session.execute(
+                select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(contacts) == 1
+    assert contacts[0].contact_type == "email"
+    assert contacts[0].contact_value == "admissions@beacon.edu"

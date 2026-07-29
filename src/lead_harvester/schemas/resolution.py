@@ -32,6 +32,7 @@ class ResolutionCandidateSchema(BaseSchema):
     # lives on ResolutionCandidate itself.
     confidence_score: float = 0.0
     incoming_data: dict[str, Any] = {}
+    target_data: dict[str, Any] = {}
 
 
 class ResolutionSummarySchema(BaseSchema):

@@ -596,6 +596,14 @@
             "type": "string",
             "title": "Address"
           },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "country_code": {
+            "type": "string",
+            "title": "Country Code"
+          },
           "provider_ids": {
             "additionalProperties": true,
             "type": "object",
@@ -607,6 +615,8 @@
           "id",
           "branch_name",
           "address",
+          "city",
+          "country_code",
           "provider_ids"
         ],
         "title": "BranchSchema"
@@ -1285,6 +1295,12 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Incoming Data",
+            "default": {}
+          },
+          "target_data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Target Data",
             "default": {}
           }
         },

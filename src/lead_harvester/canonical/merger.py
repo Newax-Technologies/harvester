@@ -38,6 +38,7 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
             "name": name,
             "address": payload.get("formattedAddress", ""),
             "website": payload.get("websiteUri"),
+            "email": None,
             "institution_type": payload.get("primaryType", ""),
         }
 
@@ -46,7 +47,13 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
         return {
             "name": name,
             "address": payload.get("location") or "",
-            "website": record.normalized_domain or payload.get("website"),
+            # normalized_domain is a bare host ("example.edu") used for
+            # blocking/matching -- prefer the full origin from raw_payload
+            # ("https://example.edu") as the actual website value, since
+            # normalized_domain is truthy whenever a website exists at all
+            # and would otherwise always shadow the real URL.
+            "website": payload.get("website") or record.normalized_domain,
+            "email": payload.get("email") or None,
             "institution_type": "",
         }
 
@@ -56,6 +63,7 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
             "name": name,
             "address": payload.get("address", ""),
             "website": payload.get("website"),
+            "email": None,
             "institution_type": payload.get("institution_type", ""),
         }
 
@@ -66,6 +74,7 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
         "name": record.normalized_name or "Unknown",
         "address": "",
         "website": record.normalized_domain,
+        "email": None,
         "institution_type": "",
     }
 
@@ -140,29 +149,49 @@ async def _add_contacts_and_provenance(
         )
     )
 
-    phone = record.normalized_phone
-    if phone:
-        # Overlapping ingestion (e.g. repeated Google Places queries hitting
-        # the same place, or a later run re-discovering the same institution)
-        # would otherwise insert a duplicate phone ContactPoint every time --
-        # reuse the existing one (still recording this record's own
-        # provenance link to it) instead.
-        existing = await _find_contact_point(session, institution.id, "phone", phone)
-        if existing is None:
-            session.add(
-                ContactPoint(
-                    institution_id=institution.id, contact_type="phone", contact_value=phone
-                )
-            )
+    await _add_contact_if_present(
+        session, institution, record, contact_type="phone", contact_value=record.normalized_phone
+    )
+    email = display_fields(record).get("email")
+    await _add_contact_if_present(
+        session, institution, record, contact_type="email", contact_value=email
+    )
+
+
+async def _add_contact_if_present(
+    session: AsyncSession,
+    institution: CanonicalInstitution,
+    record: RawSourceRecord,
+    *,
+    contact_type: str,
+    contact_value: str | None,
+) -> None:
+    if not contact_value:
+        return
+
+    # Overlapping ingestion (e.g. repeated Google Places queries hitting the
+    # same place, or a later run re-discovering the same institution) would
+    # otherwise insert a duplicate ContactPoint every time -- reuse the
+    # existing one (still recording this record's own provenance link to
+    # it) instead.
+    existing = await _find_contact_point(session, institution.id, contact_type, contact_value)
+    if existing is None:
         session.add(
-            FieldProvenance(
-                canonical_id=institution.id,
-                raw_record_id=record.id,
-                field_name="contact_phone",
-                asserted_value=phone,
-                assertion_trust=1.0,
+            ContactPoint(
+                institution_id=institution.id,
+                contact_type=contact_type,
+                contact_value=contact_value,
             )
         )
+    session.add(
+        FieldProvenance(
+            canonical_id=institution.id,
+            raw_record_id=record.id,
+            field_name=f"contact_{contact_type}",
+            asserted_value=contact_value,
+            assertion_trust=1.0,
+        )
+    )
 
 
 async def merge_records(

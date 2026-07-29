@@ -71,6 +71,16 @@ async def score_candidate(session: AsyncSession, candidate: ResolutionCandidate)
     if name_similarity > 0.8 and distance_meters is not None and distance_meters < 100:
         # Same name, same location -> Definitely the same entity (MERGE)
         decision = MatchDecision.MERGE
+    elif domain_match and name_similarity > 0.8:
+        # An exact website-domain match plus a strong name match is too
+        # confident to auto-dismiss as LINK_ONLY (unlike phone_match alone,
+        # which franchises commonly share across genuinely distinct
+        # locations) but can't auto-MERGE without geographic confirmation --
+        # e.g. a web-crawled record has no coordinates at all (location is
+        # always None), so cross-source matches never reach the MERGE branch
+        # above. Flag for human review instead of silently treating it as
+        # confidently distinct.
+        decision = MatchDecision.PENDING
     elif phone_match or domain_match:
         # Shared contact details, but potentially different physical locations/names.
         # This prevents merging a franchise network into a single school.

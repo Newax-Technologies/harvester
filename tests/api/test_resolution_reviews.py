@@ -96,6 +96,10 @@ async def test_get_review_shape(client_a, db_session):
     assert body["confidence_score"] == 65.0
     assert body["incoming_data"]["name"] == "school a"
     assert body["incoming_data"]["phone"] == "+923001112222"
+    # Target evidence must be populated too -- previously the frontend had to
+    # hardcode the target side as "Unknown" since only incoming_data existed.
+    assert body["target_data"]["name"] == "school b"
+    assert body["target_data"]["phone"] == "+923001112222"
 
 
 @pytest.mark.asyncio
@@ -215,6 +219,90 @@ async def test_second_decision_with_correct_version_is_rejected(client_a, db_ses
     # expired) ORM object.
     canonical_b = await find_canonical_for_raw_record(db_session, target_id)
     assert canonical_b is None
+
+
+@pytest.mark.asyncio
+async def test_sibling_candidate_for_same_raw_record_is_rejected(client_a, db_session):
+    # One incoming record can generate multiple candidates against different
+    # targets (e.g. a phone-match candidate and a separate domain-match
+    # candidate). Deciding one must prevent deciding the other -- otherwise
+    # the same raw record gets canonicalized twice.
+    run = SourceRun(source_type=SourceType.GOOGLE_PLACES, run_metadata={}, status=RunStatus.STARTED)
+    db_session.add(run)
+    await db_session.flush()
+
+    record = _record(run.id, "School A", "+923001112222", "gp-record")
+    target_1 = _record(run.id, "School B", "+923001112222", "gp-target-1")
+    target_2 = _record(run.id, "School C", "+923009998888", "gp-target-2")
+    db_session.add_all([record, target_1, target_2])
+    await db_session.flush()
+
+    candidate_1 = ResolutionCandidate(
+        raw_record_id=record.id,
+        target_raw_record_id=target_1.id,
+        blocking_strategy="phone",
+        version=1,
+    )
+    candidate_2 = ResolutionCandidate(
+        raw_record_id=record.id,
+        target_raw_record_id=target_2.id,
+        blocking_strategy="geo_name",
+        version=1,
+    )
+    db_session.add_all([candidate_1, candidate_2])
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            MatchAssessment(
+                candidate_id=candidate_1.id,
+                name_similarity=0.5,
+                distance_meters=None,
+                phone_match=True,
+                domain_match=False,
+                total_score=65.0,
+                decision=MatchDecision.PENDING,
+            ),
+            MatchAssessment(
+                candidate_id=candidate_2.id,
+                name_similarity=0.5,
+                distance_meters=None,
+                phone_match=False,
+                domain_match=False,
+                total_score=65.0,
+                decision=MatchDecision.PENDING,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    candidate_2_id = candidate_2.id
+
+    first = await client_a.post(
+        f"/api/v1/resolution-reviews/{candidate_1.id}/decision",
+        json={
+            "decision": "separate",
+            "feedback": "resolved via candidate 1",
+            "expected_version": 1,
+        },
+    )
+    assert first.status_code == 200
+
+    second = await client_a.post(
+        f"/api/v1/resolution-reviews/{candidate_2_id}/decision",
+        json={
+            "decision": "separate",
+            "feedback": "same record, different candidate",
+            "expected_version": 1,
+        },
+    )
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "already_canonicalized"
+
+    # The now-moot sibling must not linger in the pending queue either.
+    listing = await client_a.get("/api/v1/resolution-reviews")
+    ids = [r["id"] for r in listing.json()]
+    assert str(candidate_2_id) not in ids
 
 
 @pytest.mark.asyncio
