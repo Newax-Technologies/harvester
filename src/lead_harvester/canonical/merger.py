@@ -111,7 +111,19 @@ def _create_branches(
     return branches
 
 
-def _add_contacts_and_provenance(
+async def _find_contact_point(
+    session: AsyncSession, institution_id: uuid.UUID, contact_type: str, contact_value: str
+) -> ContactPoint | None:
+    stmt = select(ContactPoint).where(
+        ContactPoint.institution_id == institution_id,
+        ContactPoint.contact_type == contact_type,
+        ContactPoint.contact_value == contact_value,
+    )
+    result = await session.execute(stmt)
+    return result.scalars().first()
+
+
+async def _add_contacts_and_provenance(
     session: AsyncSession, institution: CanonicalInstitution, record: RawSourceRecord
 ) -> None:
     # Written unconditionally (not just when a phone is present) so every
@@ -130,10 +142,18 @@ def _add_contacts_and_provenance(
 
     phone = record.normalized_phone
     if phone:
-        contact = ContactPoint(
-            institution_id=institution.id, contact_type="phone", contact_value=phone
-        )
-        session.add(contact)
+        # Overlapping ingestion (e.g. repeated Google Places queries hitting
+        # the same place, or a later run re-discovering the same institution)
+        # would otherwise insert a duplicate phone ContactPoint every time --
+        # reuse the existing one (still recording this record's own
+        # provenance link to it) instead.
+        existing = await _find_contact_point(session, institution.id, "phone", phone)
+        if existing is None:
+            session.add(
+                ContactPoint(
+                    institution_id=institution.id, contact_type="phone", contact_value=phone
+                )
+            )
         session.add(
             FieldProvenance(
                 canonical_id=institution.id,
@@ -195,7 +215,7 @@ async def merge_records(
 
     _create_branches(session, institution, raw_records, same_location=same_location)
     for record in raw_records:
-        _add_contacts_and_provenance(session, institution, record)
+        await _add_contacts_and_provenance(session, institution, record)
 
     return institution
 
@@ -273,7 +293,7 @@ async def attach_record_to_institution(
         branch = _build_branch([record], institution.id, branch_name="Additional Campus")
         session.add(branch)
 
-    _add_contacts_and_provenance(session, institution, record)
+    await _add_contacts_and_provenance(session, institution, record)
     institution.confidence_score += 10.0
 
     return branch

@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.canonical import CanonicalInstitution
 from lead_harvester.models.outreach import DraftStatus, OutreachDraft
-from lead_harvester.models.resolution import ResolutionCandidate
+from lead_harvester.models.resolution import MatchAssessment, MatchDecision, ResolutionCandidate
 
 
 class DashboardService:
@@ -15,7 +15,19 @@ class DashboardService:
                 OutreachDraft.status == DraftStatus.GENERATED
             )
         )
-        pending_resolutions = await session.scalar(select(func.count(ResolutionCandidate.id)))
+        # Must match services/resolution_service.py::list_pending's filter --
+        # otherwise this counted every ResolutionCandidate ever created
+        # (including automated MERGE/LINK_ONLY/REJECT ones and already
+        # human-reviewed ones), so the badge only ever grew and disagreed
+        # with what the review queue actually shows.
+        pending_resolutions = await session.scalar(
+            select(func.count(ResolutionCandidate.id))
+            .join(MatchAssessment, MatchAssessment.candidate_id == ResolutionCandidate.id)
+            .where(
+                MatchAssessment.decision == MatchDecision.PENDING,
+                ResolutionCandidate.review_outcome.is_(None),
+            )
+        )
 
         return {
             "total_canonical_institutions": total_institutions or 0,

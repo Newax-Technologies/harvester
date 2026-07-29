@@ -188,6 +188,36 @@ async def test_second_reviewer_receives_409_on_stale_version(client_a, client_b,
 
 
 @pytest.mark.asyncio
+async def test_second_decision_with_correct_version_is_rejected(client_a, db_session):
+    # A client that fetches the post-decision version (2) and resubmits a
+    # new decision must still be rejected -- the candidate was already
+    # reviewed, version-matching alone isn't enough.
+    candidate, _record, target = await _seed_pending_pair(db_session)
+    target_id = target.id
+
+    first = await client_a.post(
+        f"/api/v1/resolution-reviews/{candidate.id}/decision",
+        json={"decision": "separate", "feedback": "first decision", "expected_version": 1},
+    )
+    assert first.status_code == 200
+    assert first.json()["version"] == 2
+
+    second = await client_a.post(
+        f"/api/v1/resolution-reviews/{candidate.id}/decision",
+        json={"decision": "merge", "feedback": "second decision", "expected_version": 2},
+    )
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "already_reviewed"
+
+    # And the second decision's side effects must not have happened. The
+    # rejected request's internal rollback expires session-tracked objects,
+    # so look up by the captured plain UUID rather than the (now possibly
+    # expired) ORM object.
+    canonical_b = await find_canonical_for_raw_record(db_session, target_id)
+    assert canonical_b is None
+
+
+@pytest.mark.asyncio
 async def test_resolved_candidate_disappears_from_pending_list(client_a, db_session):
     candidate, _record, _target = await _seed_pending_pair(db_session)
 

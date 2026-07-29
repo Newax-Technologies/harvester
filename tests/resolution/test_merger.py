@@ -8,7 +8,7 @@ from lead_harvester.canonical.merger import (
     find_canonical_for_raw_record,
     merge_records,
 )
-from lead_harvester.models.canonical import Branch
+from lead_harvester.models.canonical import Branch, ContactPoint
 from lead_harvester.models.provenance import FieldProvenance
 
 from .factories import google_places_record, website_record
@@ -153,3 +153,62 @@ async def test_attach_record_to_institution_creates_new_branch_when_no_target(
 
     result = await db_session.execute(select(Branch).where(Branch.institution_id == institution.id))
     assert len(result.scalars().all()) == 2
+
+
+@pytest.mark.asyncio
+async def test_attach_record_reuses_existing_contact_point_for_same_phone(db_session, source_run):
+    # Overlapping ingestion (e.g. the same place discovered by two
+    # overlapping Google Places queries) must not accumulate a duplicate
+    # ContactPoint row for the same phone number every time a record
+    # attaches to an already-existing institution.
+    a = google_places_record(source_run.id, name="Riverside Academy", phone="+923001111111")
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+
+    contacts_after_create = (
+        (
+            await db_session.execute(
+                select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(contacts_after_create) == 1
+
+    b = google_places_record(
+        source_run.id, name="Riverside Academy Duplicate Hit", phone="+923001111111"
+    )
+    db_session.add(b)
+    await db_session.flush()
+
+    await attach_record_to_institution(db_session, b, institution, target_branch=None)
+    await db_session.flush()
+
+    contacts_after_attach = (
+        (
+            await db_session.execute(
+                select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(contacts_after_attach) == 1  # not 2 -- reused, not duplicated
+
+    # But provenance for the second record's own contribution is still recorded.
+    prov = (
+        (
+            await db_session.execute(
+                select(FieldProvenance).where(
+                    FieldProvenance.raw_record_id == b.id,
+                    FieldProvenance.field_name == "contact_phone",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(prov) == 1

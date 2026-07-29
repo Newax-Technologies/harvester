@@ -75,7 +75,13 @@ async def score_candidate(session: AsyncSession, candidate: ResolutionCandidate)
         # Shared contact details, but potentially different physical locations/names.
         # This prevents merging a franchise network into a single school.
         decision = MatchDecision.LINK_ONLY
-    elif total_score > 60:
+    elif total_score >= 60:
+        # >= not >: the highest score reachable without tripping either MERGE
+        # (needs name>0.8 AND distance<100) or LINK_ONLY (needs phone/domain)
+        # is exactly 60 (one "secondary" bucket each from name and distance,
+        # e.g. name in (0.5,0.8]+distance<50, or name>0.8+distance in
+        # [100,200)) -- a strict `> 60` made this branch unreachable and the
+        # review queue would never receive a candidate.
         # High overall confidence but lacking definitive proof
         decision = MatchDecision.PENDING
 

@@ -4,6 +4,7 @@ from typing import Any
 from .config import Settings
 from .database import get_session
 from .models import RawSourceRecord, RunStatus, SourceRun, SourceType
+from .resolution.normalize import normalize_domain, normalize_name, normalize_phone
 from .resolution.orchestrator import resolve_incoming_record
 from .sources.geographic_tiling import build_queries_for_tile, generate_tiles
 from .sources.google_places import GooglePlacesConnector
@@ -50,9 +51,16 @@ class LeadPipeline:
                         source_type=SourceType.WEBSITE,
                         source_id=lead.website,
                         raw_payload=dataclasses.asdict(lead),
-                        normalized_name=lead.organization or lead.name,
-                        normalized_phone=lead.phone,
-                        normalized_domain=lead.website,
+                        # Normalized the same way as the Google Places path
+                        # (process_place, below) -- otherwise domain-based
+                        # blocking could never match a web-crawled record
+                        # against a Google Places record for the same
+                        # institution, since lead.website is a full origin
+                        # like "https://www.example.edu" while Google
+                        # Places' normalized_domain is "example.edu".
+                        normalized_name=normalize_name(lead.organization or lead.name),
+                        normalized_phone=normalize_phone(lead.phone) if lead.phone else None,
+                        normalized_domain=normalize_domain(lead.website) if lead.website else None,
                         location=None,
                     )
                     session.add(record)
@@ -109,8 +117,6 @@ class LeadPipeline:
         if not source_id:
             return
 
-        from .resolution.normalize import normalize_domain, normalize_name, normalize_phone
-
         name = place.get("displayName", {}).get("text", "")
         phone = place.get("nationalPhoneNumber", "")
         website = place.get("websiteUri", "")
@@ -144,8 +150,16 @@ class LeadPipeline:
         # the whole run FAILED and stop processing every remaining
         # tile/place/lead. Logged into run_metadata so it's visible, not
         # silently dropped.
+        #
+        # Run inside a SAVEPOINT (begin_nested): a failed database operation
+        # (e.g. a constraint violation) leaves the surrounding Postgres
+        # transaction aborted -- every subsequent statement on it fails with
+        # "current transaction is aborted" until something rolls back. Catching
+        # the exception here without a savepoint would still leave every
+        # later record's flush, and the run's own final commit, broken.
         try:
-            await resolve_incoming_record(session, record)
+            async with session.begin_nested():
+                await resolve_incoming_record(session, record)
         except Exception as e:
             unresolved = list(run.run_metadata.get("unresolved_records", []))
             unresolved.append({"raw_record_id": str(record.id), "error": str(e)})

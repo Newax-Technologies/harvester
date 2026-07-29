@@ -409,8 +409,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "additionalProperties": true,
-                    "type": "object"
+                    "$ref": "#/components/schemas/ResolutionSummarySchema"
                   },
                   "type": "array",
                   "title": "Response List Reviews Api V1 Resolution Reviews Get"
@@ -1276,6 +1275,17 @@
             "type": "array",
             "title": "Assessments",
             "default": []
+          },
+          "confidence_score": {
+            "type": "number",
+            "title": "Confidence Score",
+            "default": 0.0
+          },
+          "incoming_data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Incoming Data",
+            "default": {}
           }
         },
         "type": "object",
@@ -1310,6 +1320,41 @@
           "expected_version"
         ],
         "title": "ResolutionDecisionRequest"
+      },
+      "ResolutionSummarySchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "candidateName": {
+            "type": "string",
+            "title": "Candidatename"
+          },
+          "targetName": {
+            "type": "string",
+            "title": "Targetname"
+          },
+          "strategy": {
+            "type": "string",
+            "title": "Strategy"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "candidateName",
+          "targetName",
+          "strategy",
+          "score"
+        ],
+        "title": "ResolutionSummarySchema",
+        "description": "Shape expected by frontend/src/pages/ResolutionQueue.tsx."
       },
       "ValidationError": {
         "properties": {

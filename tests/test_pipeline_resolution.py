@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from lead_harvester.config import Settings
 from lead_harvester.models.canonical import Branch, CanonicalInstitution
@@ -97,11 +97,31 @@ async def test_resolution_failure_is_logged_not_raised(db_session, source_run):
     )
     pipeline = LeadPipeline(Settings(google_places_api_key="dummy-test-key"))
 
+    # A plain Python exception (e.g. RuntimeError) doesn't actually abort the
+    # underlying Postgres transaction, so it wouldn't exercise the savepoint
+    # rollback at all -- issue a real broken SQL statement instead, matching
+    # what a genuine resolution failure (a constraint violation, a bad query)
+    # would actually do to the transaction.
+    async def fake_resolve(session, record):
+        await session.execute(text("SELECT * FROM this_table_does_not_exist"))
+
     with patch(
         "lead_harvester.pipeline.resolve_incoming_record",
-        new=AsyncMock(side_effect=RuntimeError("boom")),
+        new=AsyncMock(side_effect=fake_resolve),
     ):
         await pipeline.process_place(db_session, source_run, place)  # must not raise
 
     assert len(source_run.run_metadata["unresolved_records"]) == 1
-    assert "boom" in source_run.run_metadata["unresolved_records"][0]["error"]
+    assert "this_table_does_not_exist" in source_run.run_metadata["unresolved_records"][0]["error"]
+
+    # The transaction must not be left aborted -- a subsequent normal
+    # operation on the same session has to still work.
+    place_ok = _place(
+        place_id="gp-ok", name="Healthy School", phone="+923001112233", lat=2.0, lng=2.0
+    )
+    await pipeline.process_place(db_session, source_run, place_ok)
+
+    result = await db_session.execute(
+        select(CanonicalInstitution).where(CanonicalInstitution.canonical_name == "healthy school")
+    )
+    assert result.scalar_one() is not None

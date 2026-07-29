@@ -27,6 +27,16 @@ class StaleDataError(BaseAPIException):
         )
 
 
+class AlreadyReviewedError(BaseAPIException):
+    def __init__(self, resource_id: str, review_outcome: str):
+        super().__init__(
+            status_code=409,
+            code="already_reviewed",
+            message="This resource has already been reviewed and cannot be decided again.",
+            details={"resource_id": str(resource_id), "review_outcome": review_outcome},
+        )
+
+
 class ResourceNotFoundError(BaseAPIException):
     def __init__(self, resource_id: str = "unknown"):
         super().__init__(

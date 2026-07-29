@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from lead_harvester.api.errors import ResourceNotFoundError, StaleDataError
+from lead_harvester.api.errors import AlreadyReviewedError, ResourceNotFoundError, StaleDataError
 from lead_harvester.canonical.merger import (
     attach_record_to_institution,
     display_fields,
@@ -111,6 +111,14 @@ class ResolutionService:
                     expected_version=req.expected_version,
                     current_version=candidate.version,
                 )
+
+            # A version match alone doesn't rule out "already decided" -- the
+            # client could have fetched the post-decision version and
+            # resubmitted. Without this, a second decision would merge/
+            # attach/separate the same record again, creating a duplicate
+            # institution or double-attaching it.
+            if candidate.review_outcome is not None:
+                raise AlreadyReviewedError(str(review_id), candidate.review_outcome.value)
 
             await _apply_decision(session, candidate, req.decision)
 
