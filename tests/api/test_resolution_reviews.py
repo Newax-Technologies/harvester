@@ -498,6 +498,183 @@ async def test_concurrent_sibling_decisions_serialize_via_raw_record_lock(async_
 
 
 @pytest.mark.asyncio
+async def test_concurrent_decisions_on_shared_target_serialize_via_target_lock(async_engine):
+    # Two DIFFERENT incoming records (A, B) can each generate a candidate
+    # against the SAME target record T (e.g. matched via different
+    # blocking strategies). make_decision previously only locked each
+    # candidate's own incoming raw_record_id -- since A and B are different
+    # rows, that lock never serialized these two decisions against each
+    # other, so both transactions could see T as not-yet-canonicalized and
+    # each independently merge_records([their record, T]), leaving T
+    # associated with two conflicting institutions. This test decides both
+    # truly concurrently (two independent connections) and confirms A, B,
+    # and T all end up under exactly one shared institution.
+    import asyncio
+
+    from sqlalchemy import delete
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from lead_harvester.models.audit import AuditLog
+    from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
+    from lead_harvester.models.provenance import FieldProvenance
+    from lead_harvester.models.source import RawSourceRecord
+    from lead_harvester.schemas.resolution import ResolutionDecisionRequest
+    from lead_harvester.services.resolution_service import ResolutionService
+
+    setup_conn = await async_engine.connect()
+    setup_session = AsyncSession(bind=setup_conn, expire_on_commit=False)
+    run = SourceRun(source_type=SourceType.GOOGLE_PLACES, run_metadata={}, status=RunStatus.STARTED)
+    setup_session.add(run)
+    await setup_session.flush()
+
+    target = _record(run.id, "Shared Target School", "+923005553333", "gp-shared-target")
+    record_a = _record(run.id, "Shared Target School A", "+923005554444", "gp-shared-a")
+    record_b = _record(run.id, "Shared Target School B", "+923005555555", "gp-shared-b")
+    setup_session.add_all([target, record_a, record_b])
+    await setup_session.flush()
+
+    candidate_1 = ResolutionCandidate(
+        raw_record_id=record_a.id,
+        target_raw_record_id=target.id,
+        blocking_strategy="phone",
+        version=1,
+    )
+    candidate_2 = ResolutionCandidate(
+        raw_record_id=record_b.id,
+        target_raw_record_id=target.id,
+        blocking_strategy="geo_name",
+        version=1,
+    )
+    setup_session.add_all([candidate_1, candidate_2])
+    await setup_session.flush()
+
+    setup_session.add_all(
+        [
+            MatchAssessment(
+                candidate_id=candidate_1.id,
+                name_similarity=0.9,
+                distance_meters=None,
+                phone_match=False,
+                domain_match=False,
+                total_score=65.0,
+                decision=MatchDecision.PENDING,
+            ),
+            MatchAssessment(
+                candidate_id=candidate_2.id,
+                name_similarity=0.9,
+                distance_meters=None,
+                phone_match=False,
+                domain_match=False,
+                total_score=65.0,
+                decision=MatchDecision.PENDING,
+            ),
+        ]
+    )
+    await setup_session.commit()
+    candidate_1_id, candidate_2_id, target_id = candidate_1.id, candidate_2.id, target.id
+    record_a_id, record_b_id = record_a.id, record_b.id
+    await setup_session.close()
+    await setup_conn.close()
+
+    conn1 = await async_engine.connect()
+    session1 = AsyncSession(bind=conn1, expire_on_commit=False)
+    conn2 = await async_engine.connect()
+    session2 = AsyncSession(bind=conn2, expire_on_commit=False)
+
+    req = ResolutionDecisionRequest(decision="merge", feedback="race", expected_version=1)
+
+    try:
+        results = await asyncio.gather(
+            ResolutionService.make_decision(session1, candidate_1_id, req, "tester-1"),
+            ResolutionService.make_decision(session2, candidate_2_id, req, "tester-2"),
+            return_exceptions=True,
+        )
+    finally:
+        await session1.close()
+        await conn1.close()
+        await session2.close()
+        await conn2.close()
+
+    errors = [r for r in results if isinstance(r, Exception)]
+    assert len(errors) == 0, results
+
+    cleanup_conn = await async_engine.connect()
+    cleanup_session = AsyncSession(bind=cleanup_conn, expire_on_commit=False)
+    try:
+        provenance = (
+            (
+                await cleanup_session.execute(
+                    select(FieldProvenance).where(
+                        FieldProvenance.raw_record_id.in_([target_id, record_a_id, record_b_id])
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        canonical_ids = {p.canonical_id for p in provenance}
+        assert len(canonical_ids) == 1, (
+            f"expected A, B, and T to share one institution, got {canonical_ids}"
+        )
+
+        institutions = (
+            (
+                await cleanup_session.execute(
+                    select(CanonicalInstitution).where(CanonicalInstitution.id.in_(canonical_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
+        branch_ids = [
+            b.id
+            for b in (
+                await cleanup_session.execute(
+                    select(Branch).where(Branch.institution_id.in_([i.id for i in institutions]))
+                )
+            )
+            .scalars()
+            .all()
+        ]
+
+        await cleanup_session.execute(
+            delete(AuditLog).where(
+                AuditLog.entity_id.in_([str(candidate_1_id), str(candidate_2_id)])
+            )
+        )
+        await cleanup_session.execute(
+            delete(FieldProvenance).where(FieldProvenance.canonical_id.in_(canonical_ids))
+        )
+        await cleanup_session.execute(
+            delete(ContactPoint).where(ContactPoint.institution_id.in_(canonical_ids))
+        )
+        await cleanup_session.execute(delete(Branch).where(Branch.id.in_(branch_ids)))
+        await cleanup_session.execute(
+            delete(CanonicalInstitution).where(CanonicalInstitution.id.in_(canonical_ids))
+        )
+        await cleanup_session.execute(
+            delete(MatchAssessment).where(
+                MatchAssessment.candidate_id.in_([candidate_1_id, candidate_2_id])
+            )
+        )
+        await cleanup_session.execute(
+            delete(ResolutionCandidate).where(
+                ResolutionCandidate.id.in_([candidate_1_id, candidate_2_id])
+            )
+        )
+        await cleanup_session.execute(
+            delete(RawSourceRecord).where(
+                RawSourceRecord.id.in_([target_id, record_a_id, record_b_id])
+            )
+        )
+        await cleanup_session.execute(delete(SourceRun).where(SourceRun.id == run.id))
+        await cleanup_session.commit()
+    finally:
+        await cleanup_session.close()
+        await cleanup_conn.close()
+
+
+@pytest.mark.asyncio
 async def test_invalid_decision_value_returns_422(client_a, db_session):
     candidate, _record, _target = await _seed_pending_pair(db_session)
 

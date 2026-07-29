@@ -8,7 +8,7 @@ from lead_harvester.canonical.merger import (
     find_canonical_for_raw_record,
     merge_records,
 )
-from lead_harvester.models.canonical import Branch, ContactPoint
+from lead_harvester.models.canonical import Branch, ContactPoint, OperatingStatus
 from lead_harvester.models.provenance import FieldProvenance
 
 from .factories import google_places_record, website_record
@@ -28,6 +28,35 @@ async def test_merge_records_creates_separate_branches_by_default(db_session, so
     branches = result.scalars().all()
     assert len(branches) == 2
     assert {b.branch_name for b in branches} == {"Main Campus", "Additional Campus"}
+
+
+@pytest.mark.asyncio
+async def test_merge_records_maps_google_places_closed_status(db_session, source_run):
+    # A permanently closed Google Place must not be canonicalized as
+    # OPERATIONAL -- otherwise it can silently proceed into qualification
+    # or outreach despite the source data explicitly flagging it closed.
+    a = google_places_record(source_run.id, business_status="CLOSED_PERMANENTLY")
+    db_session.add(a)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [a])
+
+    assert institution.status == OperatingStatus.CLOSED_PERMANENTLY
+
+
+@pytest.mark.asyncio
+async def test_merge_records_defaults_to_unknown_status_without_source_signal(
+    db_session, source_run
+):
+    # A source with no operating-status signal at all (e.g. a web-crawled
+    # record) shouldn't be guessed as OPERATIONAL either.
+    a = website_record(source_run.id)
+    db_session.add(a)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [a])
+
+    assert institution.status == OperatingStatus.UNKNOWN
 
 
 @pytest.mark.asyncio
@@ -89,8 +118,9 @@ async def test_display_fields_handles_website_shape(source_run):
         location_text="Karachi, Pakistan",
     )
     fields = display_fields(record)
-    # normalized_name is built from organization (preferred over name) and lowercased
-    assert fields["name"] == "beacon school"
+    # The raw "organization" value (original casing) is preferred over
+    # "name" and over normalized_name for presentation.
+    assert fields["name"] == "Beacon School"
     assert fields["address"] == "Karachi, Pakistan"
     assert fields["website"] == "beacon.edu"
 
@@ -148,6 +178,59 @@ async def test_attach_record_to_institution_enriches_existing_branch(db_session,
         select(FieldProvenance).where(FieldProvenance.raw_record_id == b.id)
     )
     assert len(prov.scalars().all()) >= 1
+
+
+@pytest.mark.asyncio
+async def test_attach_record_to_institution_does_not_boost_score_for_duplicate_source(
+    db_session, source_run
+):
+    # Every ingestion run creates a brand new RawSourceRecord row even when
+    # re-scraping the exact same Google Place (pipeline.py never dedupes by
+    # source_id before inserting) -- so two distinct RawSourceRecord rows
+    # sharing the same source_id is the realistic "repeated rediscovery"
+    # shape, not a hypothetical. Re-attaching that duplicate evidence must
+    # not inflate confidence_score, since it isn't independent evidence.
+    a = google_places_record(source_run.id, name="Riverside Academy", phone="+923001111111")
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+    assert institution.confidence_score == 10.0
+
+    branch = await find_branch_for_raw_record(db_session, institution.id, a)
+
+    # A second RawSourceRecord row for the exact same Place (identical
+    # source_id) from a later rerun.
+    duplicate = google_places_record(
+        source_run.id, name="Riverside Academy", phone="+923001111111", source_id=a.source_id
+    )
+    db_session.add(duplicate)
+    await db_session.flush()
+
+    await attach_record_to_institution(db_session, duplicate, institution, target_branch=branch)
+    await db_session.flush()
+
+    assert branch.provider_ids["google_places"] == [a.source_id]
+    assert institution.confidence_score == 10.0
+
+
+@pytest.mark.asyncio
+async def test_attach_record_to_institution_caps_confidence_score_at_100(db_session, source_run):
+    a = google_places_record(source_run.id, name="Riverside Academy", phone="+923001111111")
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+    institution.confidence_score = 95.0
+
+    b = google_places_record(source_run.id, name="Riverside Academy", phone="+923002222222")
+    db_session.add(b)
+    await db_session.flush()
+
+    await attach_record_to_institution(db_session, b, institution, target_branch=None)
+    await db_session.flush()
+
+    assert institution.confidence_score == 100.0
 
 
 @pytest.mark.asyncio

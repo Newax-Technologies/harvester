@@ -12,6 +12,7 @@ def google_places_record(
     website: str | None = "https://riverside.edu",
     lat: float | None = 24.8607,
     lng: float | None = 67.0011,
+    business_status: str | None = "OPERATIONAL",
     source_id: str | None = None,
 ) -> RawSourceRecord:
     source_id = source_id or f"gp:{uuid.uuid4().hex[:8]}"
@@ -26,6 +27,7 @@ def google_places_record(
             "websiteUri": website,
             "primaryType": "school",
             "nationalPhoneNumber": phone,
+            "businessStatus": business_status,
         },
         normalized_name=normalize_name(name),
         normalized_phone=normalize_phone(phone) if phone else None,

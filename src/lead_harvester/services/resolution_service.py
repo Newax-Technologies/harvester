@@ -142,18 +142,23 @@ class ResolutionService:
             # Locking only this candidate row isn't enough to serialize
             # against a SIBLING candidate (a different ResolutionCandidate
             # row for the same raw_record_id, matched against a different
-            # target) -- two concurrent make_decision calls for two
-            # different siblings could each pass the
-            # find_canonical_for_raw_record check below before either
-            # commits, and both proceed to canonicalize the same raw
-            # record. Locking the shared RawSourceRecord row itself makes
-            # the second transaction block here until the first commits, so
-            # its own find_canonical_for_raw_record re-check (run after
-            # acquiring this lock) correctly observes the just-committed
-            # canonicalization.
+            # target -- OR a different candidate that happens to target the
+            # SAME target_raw_record_id, e.g. two reviewers deciding
+            # A->T and B->T concurrently). Either shape lets two concurrent
+            # make_decision calls both pass the find_canonical_for_raw_record
+            # check below before either commits, and both proceed to
+            # canonicalize the same raw record -- so lock BOTH this
+            # candidate's own raw_record_id and its target_raw_record_id (if
+            # any). Locked together in one id-ordered query so two
+            # transactions that both need to lock the same pair of rows
+            # always acquire them in the same order, avoiding a deadlock.
+            lock_ids = {candidate.raw_record_id}
+            if candidate.target_raw_record_id is not None:
+                lock_ids.add(candidate.target_raw_record_id)
             await session.execute(
                 select(RawSourceRecord)
-                .where(RawSourceRecord.id == candidate.raw_record_id)
+                .where(RawSourceRecord.id.in_(lock_ids))
+                .order_by(RawSourceRecord.id)
                 .with_for_update()
             )
 

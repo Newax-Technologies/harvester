@@ -14,6 +14,17 @@ NAME_SIMILARITY_THRESHOLD = 0.4
 # Distance threshold in meters (e.g. 500 meters)
 GEOGRAPHIC_DISTANCE_METERS = 500
 
+# Relative strength of each blocking strategy as evidence, lowest = strongest.
+# geo_name (matching name AND physical proximity) is far more discriminating
+# than a bare phone match (routinely shared across an entire franchise's
+# unrelated branches) or a bare domain match (a shared portal/CMS domain).
+# Used to pick which sibling to keep as the representative for an
+# already-canonicalized institution when several match -- keeping an
+# arbitrary (e.g. first-in-DB-order) sibling instead could discard the one
+# match that actually carries strong evidence in favor of a weaker one,
+# understating the eventual score_candidate result.
+_STRATEGY_PRIORITY = {"geo_name": 0, "domain": 1, "phone": 2}
+
 
 async def _canonical_ids_by_raw_record(
     session: AsyncSession, raw_record_ids: list[uuid.UUID]
@@ -49,31 +60,23 @@ async def generate_candidates(
     attach to that institution via find_canonical_for_raw_record, so scoring
     (and persisting a permanent ResolutionCandidate/MatchAssessment row for)
     every other already-represented sibling is pure waste that grows
-    unboundedly with repeated ingestion. Still-unresolved matches are never
-    deduplicated this way -- each is a genuine, independent candidate that
-    may need its own review/merge decision.
+    unboundedly with repeated ingestion. The kept representative is the one
+    matched via the STRONGEST strategy (see _STRATEGY_PRIORITY), not merely
+    whichever the DB happened to return first -- an arbitrary weak (phone)
+    match could otherwise shadow a same-institution sibling that actually
+    matched on name+location, understating the eventual score. Still-
+    unresolved matches are never deduplicated this way -- each is a genuine,
+    independent candidate that may need its own review/merge decision.
     """
-    candidates = []
-    seen_ids: set[uuid.UUID] = set()
-    seen_canonical_ids: set[uuid.UUID] = set()
+    # record_id -> the strongest strategy that matched it, across all three
+    # blocking queries (a record can qualify via more than one).
+    matched_strategy: dict[uuid.UUID, str] = {}
 
-    async def _add_matches(matched_ids: list[uuid.UUID], strategy: str) -> None:
-        fresh_ids = [rid for rid in matched_ids if rid not in seen_ids]
-        canonical_by_record = await _canonical_ids_by_raw_record(session, fresh_ids)
-        for rid in fresh_ids:
-            seen_ids.add(rid)
-            canonical_id = canonical_by_record.get(rid)
-            if canonical_id is not None:
-                if canonical_id in seen_canonical_ids:
-                    continue
-                seen_canonical_ids.add(canonical_id)
-            candidates.append(
-                ResolutionCandidate(
-                    raw_record_id=record.id,
-                    target_raw_record_id=rid,
-                    blocking_strategy=strategy,
-                )
-            )
+    def _note_matches(matched_ids: list[uuid.UUID], strategy: str) -> None:
+        for rid in matched_ids:
+            current = matched_strategy.get(rid)
+            if current is None or _STRATEGY_PRIORITY[strategy] < _STRATEGY_PRIORITY[current]:
+                matched_strategy[rid] = strategy
 
     # Strategy 1: Exact Phone Match
     if record.normalized_phone:
@@ -82,7 +85,7 @@ async def generate_candidates(
             RawSourceRecord.id != record.id,
         )
         result = await session.execute(stmt)
-        await _add_matches(list(result.scalars()), "phone")
+        _note_matches(list(result.scalars()), "phone")
 
     # Strategy 2: Exact Domain Match
     if record.normalized_domain:
@@ -91,7 +94,7 @@ async def generate_candidates(
             RawSourceRecord.id != record.id,
         )
         result = await session.execute(stmt)
-        await _add_matches(list(result.scalars()), "domain")
+        _note_matches(list(result.scalars()), "domain")
 
     # Strategy 3: Geographic Proximity + Name Similarity
     if record.location is not None and record.normalized_name:
@@ -117,6 +120,41 @@ async def generate_candidates(
             >= NAME_SIMILARITY_THRESHOLD,
         )
         result = await session.execute(stmt)
-        await _add_matches(list(result.scalars()), "geo_name")
+        _note_matches(list(result.scalars()), "geo_name")
+
+    if not matched_strategy:
+        return []
+
+    canonical_by_record = await _canonical_ids_by_raw_record(session, list(matched_strategy))
+
+    candidates = []
+    best_per_canonical: dict[uuid.UUID, uuid.UUID] = {}
+    for rid, strategy in matched_strategy.items():
+        canonical_id = canonical_by_record.get(rid)
+        if canonical_id is None:
+            # Not yet resolved -- always its own independent candidate.
+            candidates.append(
+                ResolutionCandidate(
+                    raw_record_id=record.id,
+                    target_raw_record_id=rid,
+                    blocking_strategy=strategy,
+                )
+            )
+            continue
+
+        current_best = best_per_canonical.get(canonical_id)
+        if current_best is None or (
+            _STRATEGY_PRIORITY[strategy] < _STRATEGY_PRIORITY[matched_strategy[current_best]]
+        ):
+            best_per_canonical[canonical_id] = rid
+
+    for rid in best_per_canonical.values():
+        candidates.append(
+            ResolutionCandidate(
+                raw_record_id=record.id,
+                target_raw_record_id=rid,
+                blocking_strategy=matched_strategy[rid],
+            )
+        )
 
     return candidates

@@ -19,6 +19,30 @@ from lead_harvester.models.source import RawSourceRecord, SourceType
 _UNKNOWN_CITY = "Unknown"
 _UNKNOWN_COUNTRY_CODE = "XX"
 
+_GOOGLE_BUSINESS_STATUS_MAP = {
+    "OPERATIONAL": OperatingStatus.OPERATIONAL,
+    "CLOSED_TEMPORARILY": OperatingStatus.CLOSED_TEMPORARILY,
+    "CLOSED_PERMANENTLY": OperatingStatus.CLOSED_PERMANENTLY,
+}
+
+
+def _operating_status(record: RawSourceRecord) -> OperatingStatus:
+    """
+    Google Places' response includes a businessStatus field (requested via
+    the connector's field mask) that flags CLOSED_TEMPORARILY/
+    CLOSED_PERMANENTLY places -- merge_records previously always marked
+    every new institution OPERATIONAL regardless, letting a closed business
+    appear active and proceed into qualification or outreach. Other source
+    types have no equivalent signal yet, so they default to UNKNOWN rather
+    than guessing OPERATIONAL for them.
+    """
+    if record.source_type == SourceType.GOOGLE_PLACES:
+        payload = record.raw_payload or {}
+        return _GOOGLE_BUSINESS_STATUS_MAP.get(
+            payload.get("businessStatus"), OperatingStatus.UNKNOWN
+        )
+    return OperatingStatus.UNKNOWN
+
 
 def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
     """
@@ -50,7 +74,17 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
         }
 
     if record.source_type == SourceType.WEBSITE:
-        name = record.normalized_name or payload.get("name") or "Unknown"
+        # Same reasoning as the Google Places branch above: normalized_name
+        # is always populated by _run_web_crawler() and would otherwise
+        # always win, silently presenting every crawled institution's name
+        # lowercased and punctuation-stripped. Prefer the raw "organization"
+        # (or "name") value from raw_payload for presentation instead.
+        name = (
+            payload.get("organization")
+            or payload.get("name")
+            or record.normalized_name
+            or "Unknown"
+        )
         return {
             "name": name,
             "address": payload.get("location") or "",
@@ -255,7 +289,7 @@ async def merge_records(
         institution_type=fields["institution_type"] or "",
         domain=primary_record.normalized_domain,
         website=fields["website"],
-        status=OperatingStatus.OPERATIONAL,
+        status=_operating_status(primary_record),
         confidence_score=len(raw_records) * 10.0,  # simple confidence metric
     )
     session.add(institution)
@@ -380,15 +414,24 @@ async def attach_record_to_institution(
         # list entry per character.
         source_type = record.source_type.value
         existing_ids = _provider_ids_list(target_branch.provider_ids, source_type)
-        if record.source_id not in existing_ids:
+        # A repeated ingestion of the exact same provider record (e.g. a
+        # rerun scrape returning the identical Google Place) contributes no
+        # new independent evidence -- only bump confidence_score below when
+        # this source_id is genuinely new to the branch.
+        is_new_evidence = record.source_id not in existing_ids
+        if is_new_evidence:
             existing_ids.append(record.source_id)
-        target_branch.provider_ids = {**target_branch.provider_ids, source_type: existing_ids}
+            target_branch.provider_ids = {**target_branch.provider_ids, source_type: existing_ids}
         branch = target_branch
     else:
+        is_new_evidence = True
         branch = _build_branch([record], institution.id, branch_name="Additional Campus")
         session.add(branch)
 
     await _add_contacts_and_provenance(session, institution, record)
-    institution.confidence_score += 10.0
+    if is_new_evidence:
+        # Capped so confidence_score (an API/UI-facing percentage) can never
+        # exceed 100 regardless of how many distinct sources contribute.
+        institution.confidence_score = min(institution.confidence_score + 10.0, 100.0)
 
     return branch
