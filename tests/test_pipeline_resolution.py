@@ -44,7 +44,7 @@ async def test_process_place_creates_canonical_institution(db_session, pipeline,
     await pipeline.process_place(db_session, source_run, place)
 
     result = await db_session.execute(
-        select(CanonicalInstitution).where(CanonicalInstitution.canonical_name == "sunrise academy")
+        select(CanonicalInstitution).where(CanonicalInstitution.canonical_name == "Sunrise Academy")
     )
     institution = result.scalar_one()
 
@@ -72,7 +72,7 @@ async def test_process_place_merges_matching_places_into_one_institution(
 
     result = await db_session.execute(
         select(CanonicalInstitution).where(
-            CanonicalInstitution.canonical_name == "twin gate school"
+            CanonicalInstitution.canonical_name == "Twin Gate School"
         )
     )
     institutions = result.scalars().all()
@@ -122,6 +122,6 @@ async def test_resolution_failure_is_logged_not_raised(db_session, source_run):
     await pipeline.process_place(db_session, source_run, place_ok)
 
     result = await db_session.execute(
-        select(CanonicalInstitution).where(CanonicalInstitution.canonical_name == "healthy school")
+        select(CanonicalInstitution).where(CanonicalInstitution.canonical_name == "Healthy School")
     )
     assert result.scalar_one() is not None

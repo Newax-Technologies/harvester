@@ -256,10 +256,20 @@ async def create_manual_lead(
     # 6. Contact points
     contact_points: list[ContactPoint] = []
     for c in payload.contacts:
+        contact_value = c.contact_value.strip()
+        if c.contact_type == "phone":
+            # canonical/merger.py's own contact-writing path
+            # (_add_contact_if_present) always stores record.normalized_phone,
+            # not a raw formatted string -- storing an unnormalized value here
+            # instead (e.g. "+92 300 111 2222") means its exact-match dedup
+            # lookup can never recognize a later scraped record sharing this
+            # same phone (normalized to "+923001112222"), creating a
+            # duplicate ContactPoint instead of reusing this one.
+            contact_value = normalize_phone(contact_value)
         cp = ContactPoint(
             institution_id=institution.id,
             contact_type=c.contact_type,
-            contact_value=c.contact_value.strip(),
+            contact_value=contact_value,
             person_name=c.person_name,
             role=c.role,
             is_publicly_listed=False,  # manually entered = not scraped from public web

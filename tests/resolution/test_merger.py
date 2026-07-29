@@ -71,8 +71,9 @@ async def test_merge_records_writes_provenance_even_without_phone(db_session, so
 async def test_display_fields_handles_google_places_shape(source_run):
     record = google_places_record(source_run.id, name="Beacon School", website="https://beacon.edu")
     fields = display_fields(record)
-    # normalized_name (lowercased) is preferred over the raw displayName.text
-    assert fields["name"] == "beacon school"
+    # The raw display name (original casing) is preferred for presentation;
+    # normalized_name is reserved for blocking/scoring's exact-string matches.
+    assert fields["name"] == "Beacon School"
     assert fields["address"] == "12 River Road, Lahore"
     assert fields["website"] == "https://beacon.edu"
     assert fields["institution_type"] == "school"

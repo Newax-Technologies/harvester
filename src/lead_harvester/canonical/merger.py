@@ -33,7 +33,14 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
     payload = record.raw_payload or {}
 
     if record.source_type == SourceType.GOOGLE_PLACES:
-        name = record.normalized_name or payload.get("displayName", {}).get("text", "Unknown")
+        # The raw display name (original casing/punctuation, e.g. "St.
+        # Mary's School") is what institution APIs/the UI should show --
+        # normalized_name exists purely for blocking/scoring's exact-string
+        # comparisons and is always populated for a live record, so
+        # preferring it here would always win and silently present every
+        # Google Places institution's name lowercased and punctuation-
+        # stripped, unlike manually entered institutions.
+        name = payload.get("displayName", {}).get("text") or record.normalized_name or "Unknown"
         return {
             "name": name,
             "address": payload.get("formattedAddress", ""),
@@ -329,8 +336,36 @@ async def attach_record_to_institution(
     Branch> enriches that branch in place instead (this record describes the
     same branch).
     """
+    # Two concurrent calls attaching different incoming records to the same
+    # institution/branch (e.g. two reviewer decisions targeting the same
+    # branch, or two overlapping ingestion runs) would otherwise both read
+    # the same provider_ids/confidence_score snapshot and the later commit
+    # silently overwrites the earlier one's update -- a lost source ID (see
+    # find_branch_for_raw_record) or a lost +10 confidence_score increment.
+    # Locking (and, since the row may already be identity-mapped from an
+    # earlier query in this same session, refreshing) institution first and
+    # then target_branch -- a fixed order, to avoid deadlocking against a
+    # concurrent transaction locking the same two rows -- makes the second
+    # transaction block until the first commits, and then actually see its
+    # committed values rather than a stale in-memory snapshot.
+    await session.refresh(institution, with_for_update=True)
     if target_branch is not None:
-        fields = display_fields(record)
+        await session.refresh(target_branch, with_for_update=True)
+
+    fields = display_fields(record)
+    # The first record to form an institution may lack a website/domain
+    # (e.g. a Google Places result with no listed site); a later same-
+    # institution match that does supply one was previously only ever
+    # stored in the raw ledger (raw_payload/FieldProvenance) and never
+    # backfilled onto the canonical row itself, leaving dossiers and other
+    # downstream consumers reading institution.website/domain permanently
+    # incomplete despite the evidence already being on hand.
+    if not institution.website and fields["website"]:
+        institution.website = fields["website"]
+    if not institution.domain and record.normalized_domain:
+        institution.domain = record.normalized_domain
+
+    if target_branch is not None:
         if not target_branch.address and fields["address"]:
             target_branch.address = fields["address"]
         # provider_ids is a plain JSONB column (no MutableDict tracking), so

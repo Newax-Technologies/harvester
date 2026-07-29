@@ -78,8 +78,8 @@ async def test_list_reviews_shape(client_a, db_session):
     body = response.json()
 
     entry = next(r for r in body if r["id"] == str(candidate.id))
-    assert entry["candidateName"] == "school a"
-    assert entry["targetName"] == "school b"
+    assert entry["candidateName"] == "School A"
+    assert entry["targetName"] == "School B"
     assert entry["strategy"] == "phone"
     assert entry["score"] == 65.0
 
@@ -94,11 +94,11 @@ async def test_get_review_shape(client_a, db_session):
 
     assert body["version"] == 1
     assert body["confidence_score"] == 65.0
-    assert body["incoming_data"]["name"] == "school a"
+    assert body["incoming_data"]["name"] == "School A"
     assert body["incoming_data"]["phone"] == "+923001112222"
     # Target evidence must be populated too -- previously the frontend had to
     # hardcode the target side as "Unknown" since only incoming_data existed.
-    assert body["target_data"]["name"] == "school b"
+    assert body["target_data"]["name"] == "School B"
     assert body["target_data"]["phone"] == "+923001112222"
 
 

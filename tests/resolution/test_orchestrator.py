@@ -22,7 +22,7 @@ async def test_no_candidates_creates_own_institution(db_session, source_run):
     institution = await resolve_incoming_record(db_session, record)
 
     assert institution is not None
-    assert institution.canonical_name == "unique standalone school"
+    assert institution.canonical_name == "Unique Standalone School"
     canonical_id = await find_canonical_for_raw_record(db_session, record.id)
     assert canonical_id == institution.id
 
