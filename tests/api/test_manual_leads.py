@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 
 from lead_harvester.api.app import app
 from lead_harvester.api.dependencies import (
@@ -14,18 +15,7 @@ from lead_harvester.api.dependencies import (
 from lead_harvester.database import engine as manual_leads_engine
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.models.canonical import ContactPoint
-
-# NOTE: create_manual_lead's DB access goes through database.get_session()
-# directly rather than the get_db_session FastAPI dependency (unlike every
-# other route in this app), so overriding get_db_session here has no effect
-# on what this route actually writes to -- it always talks to the real
-# configured database (settings.database_url), not an injectable test
-# session. That's a pre-existing quirk of this route, not something this
-# change introduces. Because of that, these tests verify persistence via the
-# objects the route actually passed to the emitter (which are the same
-# objects it just committed) rather than querying a session that never sees
-# this route's writes.
-
+from lead_harvester.models.source import RawSourceRecord
 
 VALID_PAYLOAD = {
     "institution_name": "Riverside Academy",
@@ -51,12 +41,11 @@ VALID_PAYLOAD = {
 async def dispose_manual_leads_engine():
     # database.engine is a module-level engine created once at import time and
     # bound to whatever event loop first used it. pytest-asyncio (strict mode)
-    # gives each test its own event loop, and this route -- unlike every other
-    # one in this app -- talks to that global engine directly rather than
-    # through an injectable session (see the note above), so its pooled
-    # connections must be disposed between tests or the next test's loop
-    # can't reuse them ("Future attached to a different loop"). This is the
-    # standard SQLAlchemy-recommended workaround for that exact error.
+    # gives each test its own event loop, and importing lead_harvester.database
+    # (even though this route no longer uses its engine directly) is enough to
+    # create that binding, so it must be disposed between tests or the next
+    # test's loop can't reuse it ("Future attached to a different loop"). This
+    # is the standard SQLAlchemy-recommended workaround for that exact error.
     yield
     await manual_leads_engine.dispose()
 
@@ -158,6 +147,23 @@ async def test_create_manual_lead_invokes_emitter_after_commit(manual_leads_clie
     assert len(contact_points) == 1
     assert isinstance(contact_points[0], ContactPoint)
     assert contact_points[0].person_name == "Ayesha Malik"
+
+
+@pytest.mark.asyncio
+async def test_create_manual_lead_preserves_country_code_in_raw_payload(
+    manual_leads_client, db_session
+):
+    response = await manual_leads_client.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
+    assert response.status_code == 201
+
+    record = (
+        await db_session.execute(
+            select(RawSourceRecord).where(
+                RawSourceRecord.normalized_name == VALID_PAYLOAD["institution_name"].lower()
+            )
+        )
+    ).scalar_one()
+    assert record.raw_payload["country_code"] == "PK"
 
 
 @pytest.mark.asyncio

@@ -164,6 +164,7 @@ async def create_manual_lead(
         "address": payload.address,
         "city": payload.city,
         "country": payload.country,
+        "country_code": payload.country_code,
         "operating_status": payload.operating_status,
         "contacts": [c.model_dump() for c in payload.contacts],
         "notes": payload.notes,

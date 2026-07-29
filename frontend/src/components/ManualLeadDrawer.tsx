@@ -157,6 +157,10 @@ export function ManualLeadDrawer({
       showToast("Institution name is required.", false);
       return;
     }
+    if (!city.trim()) {
+      showToast("City is required.", false);
+      return;
+    }
     if (!validContacts.length) {
       showToast("Add at least one contact.", false);
       return;
@@ -358,11 +362,12 @@ export function ManualLeadDrawer({
               </div>
               <div>
                 <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                  City
+                  City <span className="text-blue-400">*</span>
                 </label>
                 <input
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
+                  required
                   placeholder="Karachi"
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-md px-3 py-2 text-sm text-white
                     placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30
