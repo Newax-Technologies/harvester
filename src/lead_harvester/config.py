@@ -51,6 +51,16 @@ class Settings(BaseSettings):
             )
         return self
 
+    @model_validator(mode="after")
+    def _require_webhook_url_when_enabled(self) -> "Settings":
+        if self.lead_sync_enabled and not self.lead_sync_webhook_url.strip():
+            raise ValueError(
+                "LEAD_SYNC_WEBHOOK_URL must be set when LEAD_SYNC_ENABLED is true -- "
+                "otherwise emit_institution_upserted() silently no-ops on every call, and "
+                "with no retry/outbox, every event is lost with no indication anything is wrong."
+            )
+        return self
+
     def load_job_config(self) -> None:
         if self.job_config_path:
             import yaml

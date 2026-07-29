@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from lead_harvester.models.resolution import MatchDecision
@@ -46,11 +46,14 @@ class ResolutionSummarySchema(BaseSchema):
 
 
 class ResolutionDecisionRequest(BaseSchema):
-    # One of "merge" (same branch -- enrich in place), "branch" (a distinct
-    # physical location of the same institution), or "separate" (confidently
-    # distinct entities) -- matches the buttons in
+    # "merge" (same branch -- enrich in place), "branch" (a distinct physical
+    # location of the same institution), or "separate" (confidently distinct
+    # entities) -- matches the buttons in
     # frontend/src/pages/ResolutionDetail.tsx ("Merge Entities", "Shared
-    # Parent (Branches)", "Keep Separate").
-    decision: str
+    # Parent (Branches)", "Keep Separate"). Constrained here (rather than a
+    # bare str) so a typo or obsolete value is rejected as a 422 by request
+    # validation instead of reaching make_decision() and raising a plain
+    # ValueError, which the generic exception handler turns into a 500.
+    decision: Literal["merge", "branch", "separate"]
     feedback: str
     expected_version: int

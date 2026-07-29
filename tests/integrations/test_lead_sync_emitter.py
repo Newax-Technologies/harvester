@@ -82,7 +82,13 @@ async def test_noop_when_disabled():
 
 @pytest.mark.asyncio
 async def test_noop_when_url_not_configured():
-    settings = _settings(lead_sync_webhook_url="")
+    # Settings itself now refuses to construct with lead_sync_enabled=True
+    # and an empty URL (see test_config.py), so this exercises the emitter's
+    # own belt-and-suspenders check directly by mutating a validly-constructed
+    # Settings instance after the fact (model_validator only runs at
+    # construction time, not on attribute assignment).
+    settings = _settings()
+    settings.lead_sync_webhook_url = ""
     emitter = LeadSyncEmitter(settings)
     institution = _institution()
 

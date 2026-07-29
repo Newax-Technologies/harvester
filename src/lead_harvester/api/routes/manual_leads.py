@@ -30,7 +30,9 @@ from lead_harvester.models.canonical import (
     ContactPoint,
     OperatingStatus,
 )
+from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
+from lead_harvester.resolution.normalize import normalize_domain, normalize_name, normalize_phone
 
 router = APIRouter(prefix="/leads", tags=["Manual Lead Entry"])
 
@@ -172,18 +174,17 @@ async def create_manual_lead(
         "submitted_at": datetime.now(UTC).isoformat(),
     }
 
-    # Extract first phone/email for normalized index fields
+    # Extract first phone/email for normalized index fields. Normalized with
+    # the same helpers used by every other ingestion path (resolution/
+    # normalize.py) -- otherwise a manual entry's phone/domain are stored in
+    # a different format (e.g. "+92 300 1234567" vs the digits-only form, or
+    # "www.example.edu" vs the stripped host), and the resolution blocker's
+    # exact-string comparisons can never match them against a later scraped
+    # record for the same institution.
     first_phone = next(
         (c.contact_value for c in payload.contacts if c.contact_type == "phone"), None
     )
-    domain = None
-    if payload.website:
-        from urllib.parse import urlparse
-
-        parsed = urlparse(
-            payload.website if payload.website.startswith("http") else f"https://{payload.website}"
-        )
-        domain = parsed.netloc or None
+    domain = normalize_domain(payload.website) if payload.website else None
 
     # 3. Raw source record
     source_id = f"manual:{uuid.uuid4().hex[:12]}"
@@ -192,9 +193,9 @@ async def create_manual_lead(
         source_type=SourceType.MANUAL,
         source_id=source_id,
         raw_payload=raw_payload,
-        normalized_name=payload.institution_name.strip().lower(),
-        normalized_phone=first_phone,
-        normalized_domain=domain,
+        normalized_name=normalize_name(payload.institution_name),
+        normalized_phone=normalize_phone(first_phone) if first_phone else None,
+        normalized_domain=domain or None,
         location=None,
     )
     session.add(record)
@@ -217,6 +218,22 @@ async def create_manual_lead(
     )
     session.add(institution)
     await session.flush()
+
+    # Same "branch_membership" FieldProvenance link canonical/merger.py's
+    # merge_records() always writes. Without it, find_canonical_for_raw_record
+    # can never discover that this raw record already produced a canonical
+    # institution -- a later scraped record matching this one as a resolution
+    # candidate would create a second, duplicate institution instead of
+    # attaching to this one.
+    session.add(
+        FieldProvenance(
+            canonical_id=institution.id,
+            raw_record_id=record.id,
+            field_name="branch_membership",
+            asserted_value=source_id,
+            assertion_trust=1.0,
+        )
+    )
 
     # 5. Branch (physical location)
     branch = Branch(

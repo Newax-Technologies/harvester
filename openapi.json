@@ -1318,6 +1318,11 @@
         "properties": {
           "decision": {
             "type": "string",
+            "enum": [
+              "merge",
+              "branch",
+              "separate"
+            ],
             "title": "Decision"
           },
           "feedback": {

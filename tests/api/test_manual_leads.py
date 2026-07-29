@@ -12,10 +12,12 @@ from lead_harvester.api.dependencies import (
     get_db_session,
     get_lead_sync_emitter,
 )
+from lead_harvester.canonical.merger import find_canonical_for_raw_record
 from lead_harvester.database import engine as manual_leads_engine
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.models.canonical import ContactPoint
 from lead_harvester.models.source import RawSourceRecord
+from lead_harvester.resolution.normalize import normalize_domain, normalize_phone
 
 VALID_PAYLOAD = {
     "institution_name": "Riverside Academy",
@@ -164,6 +166,72 @@ async def test_create_manual_lead_preserves_country_code_in_raw_payload(
         )
     ).scalar_one()
     assert record.raw_payload["country_code"] == "PK"
+
+
+@pytest.mark.asyncio
+async def test_create_manual_lead_normalizes_phone_and_domain_with_shared_helpers(
+    manual_leads_client, db_session
+):
+    # Manual entries must use the same normalize_phone/normalize_domain
+    # helpers as every other ingestion path -- otherwise the resolution
+    # blocker's exact-string comparisons can never match a manual entry
+    # against a later scraped record for the same institution, since a
+    # formatted phone ("+92 300 1234567") or a "www."-prefixed domain won't
+    # equal the stripped forms scraped records already use.
+    payload = {
+        **VALID_PAYLOAD,
+        "institution_name": "Normalization Test School",
+        "website": "https://www.normtest.example.edu/contact-us",
+        "contacts": [
+            {
+                "contact_type": "phone",
+                "contact_value": "+92 300 111 2222",
+                "person_name": "Test Person",
+                "role": "Admin",
+            }
+        ],
+    }
+    response = await manual_leads_client.post("/api/v1/leads/manual", json=payload)
+    assert response.status_code == 201
+
+    record = (
+        await db_session.execute(
+            select(RawSourceRecord).where(
+                RawSourceRecord.normalized_name == "normalization test school"
+            )
+        )
+    ).scalar_one()
+
+    assert record.normalized_phone == normalize_phone("+92 300 111 2222")
+    assert record.normalized_domain == normalize_domain(payload["website"])
+    # Sanity: the raw, unnormalized value must actually differ from the
+    # normalized one, or this test wouldn't be exercising anything.
+    assert record.normalized_phone != "+92 300 111 2222"
+    assert record.normalized_domain != payload["website"]
+
+
+@pytest.mark.asyncio
+async def test_create_manual_lead_writes_branch_membership_provenance(
+    manual_leads_client, db_session
+):
+    # Without this link, a later scraped record matching this manual entry
+    # as a resolution candidate could never discover that it's already
+    # canonicalized, and would create a duplicate institution instead of
+    # attaching to this one.
+    response = await manual_leads_client.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
+    assert response.status_code == 201
+    institution_id = response.json()["id"]
+
+    record = (
+        await db_session.execute(
+            select(RawSourceRecord).where(
+                RawSourceRecord.normalized_name == VALID_PAYLOAD["institution_name"].lower()
+            )
+        )
+    ).scalar_one()
+
+    canonical_id = await find_canonical_for_raw_record(db_session, record.id)
+    assert str(canonical_id) == institution_id
 
 
 @pytest.mark.asyncio

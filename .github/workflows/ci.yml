@@ -87,7 +87,6 @@ jobs:
       - uses: semgrep/semgrep-action@v1
         with:
           config: p/python
-        continue-on-error: true
 
   snyk:
     name: Snyk (dependency vulnerability scan)

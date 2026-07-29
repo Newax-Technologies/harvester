@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import select
 
 from lead_harvester.canonical.merger import find_canonical_for_raw_record
-from lead_harvester.models.canonical import Branch
+from lead_harvester.models.canonical import Branch, CanonicalInstitution, OperatingStatus
 from lead_harvester.models.resolution import (
     MatchAssessment,
     MatchDecision,
@@ -317,3 +317,80 @@ async def test_resolved_candidate_disappears_from_pending_list(client_a, db_sess
     response = await client_a.get("/api/v1/resolution-reviews")
     ids = [r["id"] for r in response.json()]
     assert str(candidate.id) not in ids
+
+
+@pytest.mark.asyncio
+async def test_invalid_decision_value_returns_422(client_a, db_session):
+    candidate, _record, _target = await _seed_pending_pair(db_session)
+
+    response = await client_a.post(
+        f"/api/v1/resolution-reviews/{candidate.id}/decision",
+        json={"decision": "obsolete_typo_value", "feedback": "oops", "expected_version": 1},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_decision_against_canonical_target_attaches_record(client_a, db_session):
+    # ResolutionCandidate/the schema explicitly support target_canonical_id
+    # (a candidate matched directly against an existing institution, not a
+    # specific prior raw record) even though blocking.py never generates
+    # this shape today -- must not 500 if it's ever encountered.
+    run = SourceRun(source_type=SourceType.GOOGLE_PLACES, run_metadata={}, status=RunStatus.STARTED)
+    db_session.add(run)
+    await db_session.flush()
+
+    record = _record(run.id, "Canonical Target School", "+923004445555", "gp-canon-record")
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = CanonicalInstitution(
+        canonical_name="Canonical Target School",
+        institution_type="school",
+        status=OperatingStatus.OPERATIONAL,
+        confidence_score=50.0,
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    candidate = ResolutionCandidate(
+        raw_record_id=record.id,
+        target_canonical_id=institution.id,
+        blocking_strategy="manual_review",
+        version=1,
+    )
+    db_session.add(candidate)
+    await db_session.flush()
+
+    db_session.add(
+        MatchAssessment(
+            candidate_id=candidate.id,
+            name_similarity=0.7,
+            distance_meters=None,
+            phone_match=False,
+            domain_match=False,
+            total_score=65.0,
+            decision=MatchDecision.PENDING,
+        )
+    )
+    await db_session.commit()
+
+    response = await client_a.post(
+        f"/api/v1/resolution-reviews/{candidate.id}/decision",
+        json={
+            "decision": "branch",
+            "feedback": "confirmed same institution",
+            "expected_version": 1,
+        },
+    )
+    assert response.status_code == 200
+
+    canonical_id = await find_canonical_for_raw_record(db_session, record.id)
+    assert canonical_id == institution.id
+
+    branches = (
+        (await db_session.execute(select(Branch).where(Branch.institution_id == institution.id)))
+        .scalars()
+        .all()
+    )
+    assert len(branches) == 1

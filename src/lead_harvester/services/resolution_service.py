@@ -252,8 +252,22 @@ async def _apply_decision(
         return
 
     if matched_record is None:
+        if candidate.target_canonical_id:
+            # The candidate's target is a canonical institution directly
+            # (not a specific prior raw record) -- the model/schema support
+            # this shape even though blocking.py never actually generates
+            # it today. There's no specific prior raw record here to match
+            # branches against, so always attach as a new branch (the
+            # "branch" semantics) rather than guessing which existing
+            # branch a "merge" would enrich in place.
+            institution = await session.get(CanonicalInstitution, candidate.target_canonical_id)
+            if institution is None:
+                raise ResourceNotFoundError(str(candidate.target_canonical_id))
+            await attach_record_to_institution(session, record, institution, target_branch=None)
+            return
+
         # "merge"/"branch" both require something to attach to; without a
-        # raw-record match there is nothing to merge or branch onto.
+        # raw-record or canonical match there is nothing to merge or branch onto.
         raise ValueError(f"Cannot apply decision {decision!r} without a matched record")
 
     existing_canonical_id = await find_canonical_for_raw_record(session, matched_record.id)
