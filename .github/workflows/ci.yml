@@ -32,6 +32,13 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      # The runner image's bundled pip (24.0) has known CVEs (see the snyk
+      # job below, which flagged it via pip-audit's own pip-api dependency)
+      # -- upgrade before installing anything else so nothing in this job
+      # runs through the vulnerable version.
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
       - name: Install package with dev extras
         run: pip install -e ".[dev]"
 
@@ -109,6 +116,15 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+
+      # See the matching step in the backend job: the runner's bundled
+      # pip (24.0) has known CVEs (including a High-severity arbitrary
+      # code injection), pulled into the scanned dependency graph via
+      # pip-audit's own pip-api dependency -- upgrade before Snyk snapshots
+      # the environment so that vulnerability doesn't keep getting flagged.
+      - name: Upgrade pip
+        if: steps.token-check.outputs.configured == 'true'
+        run: python -m pip install --upgrade pip
 
       - name: Install package with dev extras
         if: steps.token-check.outputs.configured == 'true'
