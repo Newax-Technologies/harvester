@@ -140,12 +140,30 @@ def parse_authorized_import_csv(
             skipped.append(f"row {row_number}: {e}")
             continue
 
-        key = (
-            normalize_name(institution_fields["institution_name"]),
-            normalize_domain(institution_fields["website"])
-            if institution_fields["website"]
-            else normalize_address(institution_fields["address"]),
-        )
+        if institution_fields["website"]:
+            key_suffix = normalize_domain(institution_fields["website"])
+        elif institution_fields["address"]:
+            key_suffix = normalize_address(institution_fields["address"])
+        elif institution_fields["city"]:
+            # No website or address, but a city is still a real
+            # distinguishing signal -- e.g. two rows for the same
+            # institution (a phone-only row and an email-only row) neither
+            # of which happens to list an address. Falls through to the
+            # row-number branch below only when even this is missing.
+            key_suffix = f"city:{institution_fields['city'].strip().lower()}"
+        else:
+            # Nothing distinguishes this institution from another row with
+            # the same name at all -- every such row previously grouped
+            # under the same (name, "") key, silently collapsing two
+            # genuinely distinct institutions (e.g. same-named campuses in
+            # different, unrecorded cities) into one: the later row's
+            # location/contacts overwrote the first's, and both rows'
+            # contacts landed on a single canonical entity. A bare row like
+            # this can't safely be grouped with anything -- key it by its
+            # own row number so it always gets its own institution instead
+            # of gambling on a name-only match.
+            key_suffix = f"row:{row_number}"
+        key = (normalize_name(institution_fields["institution_name"]), key_suffix)
         existing = groups.get(key)
         if existing is None:
             existing = AuthorizedImportInstitution(

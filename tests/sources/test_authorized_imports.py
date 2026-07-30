@@ -132,6 +132,58 @@ def test_distinct_institutions_with_same_name_different_address_stay_separate():
     assert len(result.institutions) == 2
 
 
+def test_groups_by_city_when_no_website_or_address():
+    # Two rows for the same institution (one phone-only, one email-only)
+    # neither of which happens to list a website or address -- city alone
+    # is still a real distinguishing signal and must still let them group,
+    # matching the whole point of grouping rows by institution identity.
+    csv_text = (
+        "institution_name,city,contact_type,contact_value\n"
+        "Beacon House School,Karachi,phone,+923001234567\n"
+        "Beacon House School,Karachi,email,admissions@beaconhouse.example.edu\n"
+    )
+
+    result = parse_authorized_import_csv(csv_text, source_reference="license-2026")
+
+    assert len(result.institutions) == 1
+    assert len(result.institutions[0].contacts) == 2
+
+
+def test_distinct_institutions_with_same_name_different_city_stay_separate_without_address():
+    # Two DIFFERENT institutions sharing a name (e.g. same-brand campuses
+    # in different cities) with neither a website nor an address previously
+    # both fell back to the same (normalized_name, "") key and silently
+    # collapsed into one institution -- the second row's city/contacts
+    # overwrote the first's data instead of producing two institutions.
+    csv_text = (
+        "institution_name,city,contact_type,contact_value\n"
+        "Beacon House School,Karachi,phone,+923001111111\n"
+        "Beacon House School,Lahore,phone,+923002222222\n"
+    )
+
+    result = parse_authorized_import_csv(csv_text, source_reference="license-2026")
+
+    assert len(result.institutions) == 2
+    assert {i.city for i in result.institutions} == {"Karachi", "Lahore"}
+
+
+def test_bare_rows_with_no_distinguishing_field_never_collapse():
+    # Two rows with the same name and NOTHING else (no website, address,
+    # or city) carry no evidence they describe the same institution --
+    # erring on the side of two separate institutions is safer than
+    # gambling on a name-only match and silently merging two possibly
+    # distinct schools.
+    csv_text = (
+        "institution_name,contact_type,contact_value\n"
+        "Beacon House School,phone,+923001111111\n"
+        "Beacon House School,phone,+923002222222\n"
+    )
+
+    result = parse_authorized_import_csv(csv_text, source_reference="license-2026")
+
+    assert len(result.institutions) == 2
+
+
 def test_source_id_is_stable_regardless_of_row_order():
     csv_a = (
         "institution_name,website,contact_type,contact_value\n"
