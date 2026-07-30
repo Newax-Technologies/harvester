@@ -9,6 +9,7 @@ import {
   Loader2,
   CheckCircle2,
 } from "lucide-react";
+import { authHeaders } from "../api/client";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -190,6 +191,7 @@ export function ManualLeadDrawer({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...authHeaders(),
         },
         body: JSON.stringify(payload),
       });

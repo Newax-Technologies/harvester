@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.intelligence.researcher import ResearchBrain
 from lead_harvester.models.canonical import CanonicalInstitution, OperatingStatus
-from lead_harvester.models.research import JobStatus, ResearchJob
 from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
 
 
@@ -97,8 +96,12 @@ async def test_research_record_does_not_mark_processed_when_ai_call_fails(db_ses
     # into a fake zero-score analysis by _call_ai, so _research_record
     # persisted a COMPLETED job + READY_FOR_REVIEW brief containing the
     # failure text and marked the record processed -- permanently excluding
-    # it from retry via process_all_pending's exclusion query. It must
-    # instead record a FAILED job and leave the record retryable.
+    # it from retry via process_all_pending's exclusion query. Later, once
+    # the AI call was allowed to raise instead, the provisional institution
+    # created before the try-block was left behind on every failure with no
+    # FieldProvenance link back to it, so every failed retry minted another
+    # orphan CanonicalInstitution forever. Neither must happen: the record
+    # must stay retryable AND no orphan institution may survive the failure.
     run = SourceRun(source_type=SourceType.LINKEDIN, run_metadata={}, status=RunStatus.STARTED)
     db_session.add(run)
     await db_session.flush()
@@ -124,14 +127,8 @@ async def test_research_record_does_not_mark_processed_when_ai_call_fails(db_ses
                 CanonicalInstitution.canonical_name == "Failed Profile"
             )
         )
-    ).scalar_one()
-
-    job = (
-        await db_session.execute(
-            select(ResearchJob).where(ResearchJob.institution_id == institution.id)
-        )
-    ).scalar_one()
-    assert job.status == JobStatus.FAILED
+    ).scalar_one_or_none()
+    assert institution is None
 
     from lead_harvester.canonical.merger import find_canonical_for_raw_record
 

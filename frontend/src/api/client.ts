@@ -9,9 +9,18 @@ import type { paths } from "./schema";
 const DEV_AUTH_TOKEN = import.meta.env.VITE_DEV_AUTH_TOKEN as
   string | undefined;
 
+// Every backend route under /api/v1 requires get_current_user (see
+// api/app.py's api_router), including ones not yet covered by the
+// generated openapi schema/apiClient (e.g. /api/v1/leads/manual) that
+// still have to call fetch() directly -- exported so those call sites
+// send the same conditional bearer header instead of silently omitting it.
+export function authHeaders(): Record<string, string> {
+  return DEV_AUTH_TOKEN ? { Authorization: `Bearer ${DEV_AUTH_TOKEN}` } : {};
+}
+
 export const apiClient = createClient<paths>({
   baseUrl: "http://localhost:8000",
-  headers: DEV_AUTH_TOKEN ? { Authorization: `Bearer ${DEV_AUTH_TOKEN}` } : {},
+  headers: authHeaders(),
 });
 
 // Helper for extracting exactly the error schema structure from the backend

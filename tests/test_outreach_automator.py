@@ -108,7 +108,7 @@ async def test_concurrent_claims_never_double_claim_the_same_draft(async_engine)
             await cleanup_conn.close()
 
 
-def test_apply_persisted_message_budget_uses_warmup_limit_and_todays_usage(tmp_path):
+def test_reserve_message_budget_uses_warmup_limit_and_todays_usage(tmp_path):
     # Previously every invocation started a fresh ActionBudget with a flat
     # 15-message allowance regardless of the account's actual warmup phase
     # or how many messages an earlier invocation already sent today.
@@ -126,14 +126,41 @@ def test_apply_persisted_message_budget_uses_warmup_limit_and_todays_usage(tmp_p
     path.write_text(json.dumps(payload))
 
     automator = OutreachAutomator(account_id="burner_01")
-    automator._apply_persisted_message_budget(sm)
+    granted = automator._reserve_message_budget(sm, requested=10)
 
-    assert automator.budget.DAILY_LIMITS["message"] == 2
-    # One message already sent today -- only one more should be allowed
-    # before charge() raises.
+    # Week 3 limit is 2/day, 1 already sent today -- only 1 more available,
+    # regardless of how many were requested.
+    assert granted == 1
+    assert automator.budget.DAILY_LIMITS["message"] == 1
     automator.budget.charge("message")
     with pytest.raises(RuntimeError, match="Daily limit reached"):
         automator.budget.charge("message")
+
+
+def test_reserve_message_budget_is_logged_immediately_not_after_send(tmp_path):
+    # The reservation itself must be visible to a second concurrent caller
+    # before any message is actually sent -- otherwise two overlapping
+    # runs could both read "0 used today" and each be granted the full
+    # remaining allowance, since logging only after sending can't undo an
+    # already-sent overage.
+    from lead_harvester.sources.session_manager import SessionManager
+
+    sm = SessionManager(tmp_path)
+    sm.save_cookies("burner_02", [{"name": "x", "value": "y"}], first_login=True)
+    path = tmp_path / "burner_02.json"
+    payload = json.loads(path.read_text())
+    payload["warmup_started_at"] = (datetime.now(UTC).date() - timedelta(days=18)).isoformat()
+    path.write_text(json.dumps(payload))
+
+    first_run = OutreachAutomator(account_id="burner_02")
+    second_run = OutreachAutomator(account_id="burner_02")
+
+    first_granted = first_run._reserve_message_budget(sm, requested=2)
+    second_granted = second_run._reserve_message_budget(sm, requested=2)
+
+    # Week 3 limit is 2/day total, split across the two overlapping runs --
+    # neither call may see the other's grant as still-available headroom.
+    assert first_granted + second_granted == 2
 
 
 @pytest.mark.asyncio

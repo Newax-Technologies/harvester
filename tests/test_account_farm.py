@@ -1,4 +1,7 @@
 import contextlib
+import multiprocessing
+import threading
+import time
 from unittest.mock import patch
 
 import pytest
@@ -6,12 +9,29 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.source import RawSourceRecord, SourceType
-from lead_harvester.sources.account_farm import AccountFarm, AccountResult
+from lead_harvester.sources.account_farm import AccountFarm, AccountResult, _drain_result_queue
 
 
 @contextlib.asynccontextmanager
 async def _fake_get_session(session: AsyncSession):
     yield session
+
+
+def _put_large_payload(result_queue: multiprocessing.Queue) -> None:
+    # A payload comfortably larger than a typical OS pipe buffer (~64KB on
+    # Linux) -- large enough that queue.put() blocks until something reads
+    # from the pipe, reproducing the condition under which draining only
+    # after p.join() would deadlock.
+    result_queue.put(
+        {
+            "account_id": "big_account",
+            "profiles_scraped": 1,
+            "errors": [],
+            "city": "Karachi",
+            "warmup_phase": 5,
+            "profiles": [{"raw_html_snippet": "x" * 5_000_000}],
+        }
+    )
 
 
 @pytest.mark.asyncio
@@ -79,3 +99,68 @@ async def test_persist_profiles_no_ops_when_nothing_scraped(db_session):
         select(RawSourceRecord).where(RawSourceRecord.source_type == SourceType.LINKEDIN)
     )
     assert count is None
+
+
+def test_drain_result_queue_collects_items_while_producer_still_running():
+    # The drainer must pick up results as they arrive, not only once every
+    # producer has finished -- proves AccountFarm.run() no longer needs to
+    # wait for every p.join() before consuming from result_queue.
+    result_queue: multiprocessing.Queue = multiprocessing.Queue()
+    results: list[AccountResult] = []
+    stop_event = threading.Event()
+    drainer = threading.Thread(target=_drain_result_queue, args=(result_queue, results, stop_event))
+    drainer.start()
+
+    def producer():
+        for i in range(3):
+            result_queue.put(
+                {
+                    "account_id": f"acc_{i}",
+                    "profiles_scraped": i,
+                    "errors": [],
+                    "city": "",
+                    "warmup_phase": 0,
+                    "profiles": [],
+                }
+            )
+            time.sleep(0.2)
+
+    producer_thread = threading.Thread(target=producer)
+    producer_thread.start()
+    producer_thread.join()
+
+    # Give the drainer a moment to pick up the last item before stopping it.
+    time.sleep(0.6)
+    stop_event.set()
+    drainer.join(timeout=5)
+
+    assert not drainer.is_alive()
+    assert {r.account_id for r in results} == {"acc_0", "acc_1", "acc_2"}
+
+
+def test_drain_result_queue_prevents_deadlock_on_large_payload():
+    # Regression test for the reported deadlock: previously
+    # AccountFarm.run() only read from result_queue after every p.join()
+    # returned. A worker whose result dict is larger than the OS pipe
+    # buffer blocks inside queue.put() until something reads from the
+    # queue -- so the parent's p.join() and the worker's put() waited on
+    # each other forever (until the 7200s timeout terminated the worker
+    # and discarded its data). Draining concurrently via a background
+    # thread means the worker's put() unblocks immediately and join()
+    # returns promptly.
+    result_queue: multiprocessing.Queue = multiprocessing.Queue()
+    results: list[AccountResult] = []
+    stop_event = threading.Event()
+    drainer = threading.Thread(target=_drain_result_queue, args=(result_queue, results, stop_event))
+    drainer.start()
+
+    proc = multiprocessing.Process(target=_put_large_payload, args=(result_queue,))
+    proc.start()
+    proc.join(timeout=30)
+    assert not proc.is_alive(), "worker deadlocked writing a large payload to the queue"
+
+    stop_event.set()
+    drainer.join(timeout=5)
+
+    assert len(results) == 1
+    assert results[0].account_id == "big_account"

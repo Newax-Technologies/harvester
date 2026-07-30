@@ -150,25 +150,26 @@ class OutreachAutomator:
     # LinkedIn batch
     # ------------------------------------------------------------------
 
-    def _apply_persisted_message_budget(self, sm: SessionManager) -> None:
+    def _reserve_message_budget(self, sm: SessionManager, requested: int) -> int:
         """
-        Every invocation previously started a fresh in-memory ActionBudget
-        with a flat 15-message allowance, ignoring both the account's real
-        warmup-phase limit (a day 1-14 account is limited to 0-2 messages,
-        not 15) and any messages already sent today by an earlier
-        invocation (run_log is append-only and never consulted here) -- a
-        warmup-limited account could send immediately, and repeated
-        invocations in the same day could each get their own fresh 15,
-        blowing past even a mature account's real daily limit. Overrides
-        the class default with today's actual warmup limit, seeded with
-        what's already been sent today, so charge() enforces the real
-        cumulative daily cap. Same pattern as
-        sources/linkedin_stealth.py's LinkedInStealthCrawler.
+        Reserve this run's message allowance atomically (SessionManager.
+        reserve_action), rather than separately reading today's usage and
+        setting a local budget -- reading and later logging as two
+        unlocked steps let two overlapping runs for the same account both
+        see the same "nothing used yet" snapshot and each get the full
+        remaining allowance, since logging only after sending cannot undo
+        an already-sent overage. The granted amount becomes this run's
+        entire DAILY_LIMITS["message"], starting from zero, since
+        reserve_action already accounted for everything used earlier
+        today. Same pattern as sources/linkedin_stealth.py's
+        LinkedInStealthCrawler for the reservation call itself; unused
+        units must be given back via sm.release_action once the real send
+        outcome is known (see the `finally` block in _send_linkedin_batch).
         """
-        warmup = sm.get_today_limits(self.account_id)
-        already_sent_today = sm.actions_taken_today(self.account_id).get("message", 0)
-        self.budget.DAILY_LIMITS = {**self.budget.DAILY_LIMITS, "message": warmup["message"]}
-        self.budget._counts["message"] = already_sent_today
+        granted = sm.reserve_action(self.account_id, "message", requested)
+        self.budget.DAILY_LIMITS = {**self.budget.DAILY_LIMITS, "message": granted}
+        self.budget._counts["message"] = 0
+        return granted
 
     async def _send_linkedin_batch(self, drafts: list[OutreachDraft]) -> None:
         try:
@@ -182,7 +183,7 @@ class OutreachAutomator:
             print("[Automator] No LinkedIn session saved. Cannot send LinkedIn messages.")
             return
 
-        self._apply_persisted_message_budget(sm)
+        reserved = self._reserve_message_budget(sm, len(drafts))
         messages_sent_this_run = 0
 
         cookies = sm.load_cookies(self.account_id)
@@ -214,12 +215,15 @@ class OutreachAutomator:
                 sm.save_cookies(self.account_id, updated)
                 await context.close()
         finally:
-            # Logged as this run's own delta (not the seeded cumulative
-            # count) since run_log entries are summed across the whole day
-            # by actions_taken_today -- logging the cumulative total here
-            # too would double-count on the next invocation.
-            if messages_sent_this_run:
-                sm.log_run(self.account_id, {"message": messages_sent_this_run})
+            # reserve_action already logged the full `reserved` amount up
+            # front (see _reserve_message_budget) so a concurrent run sees
+            # it immediately -- give back whatever portion of that
+            # reservation this run didn't actually use (fewer drafts sent
+            # than granted, a missing Message button, a per-message
+            # failure, or an exception aborting the loop early).
+            unused = reserved - messages_sent_this_run
+            if unused > 0:
+                sm.release_action(self.account_id, "message", unused)
 
     async def _send_linkedin_message(self, page: Any, draft: OutreachDraft) -> bool:
         """Returns True only if a real (non-dry-run) message was actually sent."""

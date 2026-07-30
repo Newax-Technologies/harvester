@@ -292,6 +292,35 @@ async def _add_contact_if_present(
     )
 
 
+def _aggregate_institution_status(statuses: list[OperatingStatus]) -> OperatingStatus:
+    """
+    Combines every raw record's operating status into a single
+    institution-level status. merge_records groups records describing
+    DISTINCT physical branches just as often as it groups records
+    describing the same location (same_location=False is the default,
+    used whenever a reviewer creates separate branches for a multi-campus
+    institution) -- picking whichever record's non-UNKNOWN status came
+    first in raw_records order previously promoted one arbitrary campus's
+    status to represent the whole institution, so a closed incoming
+    campus could mark an otherwise-thriving multi-branch institution
+    closed, while an operational first campus could conceal a closed
+    sibling entirely. An institution with at least one OPERATIONAL branch
+    is still a live lead overall (reach out to that branch specifically);
+    it's only CLOSED_PERMANENTLY once every branch that reported a status
+    agrees, and CLOSED_TEMPORARILY is treated as the more optimistic
+    reading of a permanent/temporary mix since a temporary closure can
+    still reopen.
+    """
+    non_unknown = [s for s in statuses if s != OperatingStatus.UNKNOWN]
+    if not non_unknown:
+        return OperatingStatus.UNKNOWN
+    if OperatingStatus.OPERATIONAL in non_unknown:
+        return OperatingStatus.OPERATIONAL
+    if OperatingStatus.CLOSED_TEMPORARILY in non_unknown:
+        return OperatingStatus.CLOSED_TEMPORARILY
+    return OperatingStatus.CLOSED_PERMANENTLY
+
+
 def _synthesize_institution_fields(raw_records: list[RawSourceRecord]) -> dict:
     """
     website/domain/institution_type/status previously came only from
@@ -302,15 +331,18 @@ def _synthesize_institution_fields(raw_records: list[RawSourceRecord]) -> dict:
     businessStatus), that evidence was silently dropped even though it's
     right there in the merge group, leaving a null domain/UNKNOWN status on
     the resulting institution despite the raw ledger having the answer.
-    First non-empty value wins, in record order -- canonical_name is
-    deliberately NOT synthesized this way (kept from the primary record
-    only), since picking a "best" display name across sources is a
-    separate, more subjective concern than backfilling a missing field.
+    First non-empty value wins, in record order, for website/domain/
+    institution_type -- canonical_name is deliberately NOT synthesized
+    this way (kept from the primary record only), since picking a "best"
+    display name across sources is a separate, more subjective concern
+    than backfilling a missing field. status is synthesized differently
+    (see _aggregate_institution_status): first-non-empty-wins is wrong for
+    a per-location fact that can span multiple distinct branches.
     """
     website = None
     domain = None
     institution_type = ""
-    status = OperatingStatus.UNKNOWN
+    statuses = []
     for r in raw_records:
         fields = display_fields(r)
         if not website and fields["website"]:
@@ -319,15 +351,12 @@ def _synthesize_institution_fields(raw_records: list[RawSourceRecord]) -> dict:
             domain = r.normalized_domain
         if not institution_type and fields["institution_type"]:
             institution_type = fields["institution_type"]
-        if status == OperatingStatus.UNKNOWN:
-            record_status = _operating_status(r)
-            if record_status != OperatingStatus.UNKNOWN:
-                status = record_status
+        statuses.append(_operating_status(r))
     return {
         "website": website,
         "domain": domain,
         "institution_type": institution_type,
-        "status": status,
+        "status": _aggregate_institution_status(statuses),
     }
 
 

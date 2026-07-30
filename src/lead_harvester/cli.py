@@ -134,7 +134,6 @@ async def linkedin_run(args: argparse.Namespace) -> int:
         target_urls=urls,
         captcha_api_key=captcha_key or None,
         proxy=proxy or None,
-        addons=[],
     )
     profiles = await crawler.run()
 

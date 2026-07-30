@@ -45,6 +45,56 @@ async def test_merge_records_maps_google_places_closed_status(db_session, source
 
 
 @pytest.mark.asyncio
+async def test_merge_records_multi_branch_status_is_not_first_record_wins(db_session, source_run):
+    # These two records describe DISTINCT campuses (same_location=False,
+    # the default -- each gets its own Branch). Picking whichever record's
+    # non-UNKNOWN status happened to come first in the list previously let
+    # one arbitrary campus's status represent the whole institution: a
+    # closed incoming campus listed first would mark an otherwise-thriving
+    # multi-branch institution closed, while an operational campus listed
+    # first would conceal a closed sibling entirely. An institution with
+    # at least one operational branch is still a live lead overall.
+    closed_first = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone="+923001111111",
+        business_status="CLOSED_PERMANENTLY",
+    )
+    operational_second = google_places_record(
+        source_run.id,
+        name="Riverside Academy Annex",
+        phone="+923002222222",
+        business_status="OPERATIONAL",
+    )
+    db_session.add_all([closed_first, operational_second])
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [closed_first, operational_second])
+
+    assert institution.status == OperatingStatus.OPERATIONAL
+
+    # Order flipped, and with no operational branch at all, every closed
+    # branch must agree before the institution is marked closed.
+    closed_a = google_places_record(
+        source_run.id,
+        name="Sunrise School",
+        phone="+923003333333",
+        business_status="CLOSED_PERMANENTLY",
+    )
+    closed_b = google_places_record(
+        source_run.id,
+        name="Sunrise School Annex",
+        phone="+923004444444",
+        business_status="CLOSED_PERMANENTLY",
+    )
+    db_session.add_all([closed_a, closed_b])
+    await db_session.flush()
+
+    all_closed_institution = await merge_records(db_session, [closed_a, closed_b])
+    assert all_closed_institution.status == OperatingStatus.CLOSED_PERMANENTLY
+
+
+@pytest.mark.asyncio
 async def test_merge_records_defaults_to_unknown_status_without_source_signal(
     db_session, source_run
 ):

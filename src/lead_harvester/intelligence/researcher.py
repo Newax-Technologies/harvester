@@ -289,18 +289,18 @@ class ResearchBrain:
             # A timed-out/rejected/malformed AI call must not be recorded
             # the same way a real analysis is -- no FieldProvenance
             # "processed" marker (so process_all_pending retries this
-            # record next time), and a real FAILED job instead of a
-            # COMPLETED one with a fake zero-score brief.
+            # record next time). It also must not leave the provisional
+            # institution behind: research_profile's own _call_ai step
+            # fails before any ResearchJob/finding/brief ever gets created
+            # for it, so a surviving institution would be a bare, empty
+            # orphan with no FieldProvenance link -- and since nothing ties
+            # it back to this raw record, every future failed retry would
+            # mint another one, permanently polluting canonical APIs with
+            # placeholder institutions. Roll it back instead; the failure
+            # itself is still visible via this log line.
             print(f"[ResearchBrain] research failed for record {record.id}: {e}")
-            session.add(
-                ResearchJob(
-                    institution_id=institution.id,
-                    status=JobStatus.FAILED,
-                    objectives=["linkedin_profile_analysis"],
-                    execution_logs=[f"AI call failed: {e}"],
-                    completed_at=datetime.now(UTC),
-                )
-            )
+            await session.delete(institution)
+            await session.flush()
             return
 
         # Marks this record as processed for process_all_pending's own

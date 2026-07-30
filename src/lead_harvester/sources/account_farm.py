@@ -32,7 +32,9 @@ from __future__ import annotations
 
 import asyncio
 import multiprocessing
+import queue as queue_module
 import random
+import threading
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -176,6 +178,35 @@ def _run_account_worker(
     result_queue.put(result)
 
 
+def _drain_result_queue(
+    result_queue: multiprocessing.Queue,
+    results: list[AccountResult],
+    stop_event: threading.Event,
+) -> None:
+    """
+    Continuously pulls finished-worker payloads off result_queue while
+    account subprocesses are still running, instead of waiting until every
+    p.join() has returned. A worker's result dict (profile lists can
+    include experience/raw_html_snippet data) is large enough to fill the
+    queue's underlying OS pipe buffer; multiprocessing.Queue.put() then
+    blocks the worker until the pipe is read from. Draining only after all
+    joins meant the parent could be stuck in p.join() waiting for a worker
+    that itself was stuck in put() waiting for the parent to read -- a
+    deadlock resolved only by the 7200s per-process timeout, which then
+    terminates the worker and discards everything it harvested. Runs in a
+    background thread so it can drain concurrently with the (blocking)
+    process launches/joins in AccountFarm.run().
+    """
+    while True:
+        try:
+            data = result_queue.get(timeout=0.5)
+        except queue_module.Empty:
+            if stop_event.is_set():
+                return
+            continue
+        results.append(AccountResult(**data))
+
+
 # ---------------------------------------------------------------------------
 # Main orchestrator
 # ---------------------------------------------------------------------------
@@ -296,6 +327,19 @@ class AccountFarm:
             )
             processes.append(p)
 
+        # Drain the queue concurrently with launching/joining workers below
+        # -- see _drain_result_queue's docstring for why draining only
+        # after every p.join() had returned could deadlock and silently
+        # discard harvested profiles on large payloads.
+        results: list[AccountResult] = []
+        stop_draining = threading.Event()
+        drainer = threading.Thread(
+            target=_drain_result_queue,
+            args=(result_queue, results, stop_draining),
+            daemon=True,
+        )
+        drainer.start()
+
         # Stagger launches 30–120s — all accounts opening at the same second
         # is a coordination signal (cross-account schedule correlation)
         for p in processes:
@@ -310,12 +354,12 @@ class AccountFarm:
             if p.is_alive():
                 print(f"[Farm] {p.name} timed out. Terminating.")
                 p.terminate()
+                p.join()
 
-        # Collect results
-        results: list[AccountResult] = []
-        while not result_queue.empty():
-            data = result_queue.get_nowait()
-            results.append(AccountResult(**data))
+        # Every process has exited by now, so nothing further will ever be
+        # put on the queue -- safe to stop the drainer once it empties.
+        stop_draining.set()
+        drainer.join()
 
         await self._persist_profiles(results)
 

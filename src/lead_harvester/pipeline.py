@@ -2,11 +2,15 @@ import datetime
 import uuid
 from typing import Any
 
+from sqlalchemy import select
+
 from .config import Settings
 from .database import get_session
 from .integrations.lead_sync_emitter import LeadSyncEmitter
 from .integrations.lead_sync_resync import resync_institution
 from .models import RawSourceRecord, RunStatus, SourceRun, SourceType
+from .models.provenance import FieldProvenance
+from .models.resolution import ResolutionCandidate
 from .resolution.normalize import normalize_domain, normalize_name, normalize_phone
 from .resolution.orchestrator import resolve_incoming_record
 from .sources.geographic_tiling import build_queries_for_tile, generate_tiles
@@ -77,6 +81,8 @@ class LeadPipeline:
                 await session.flush()
 
                 try:
+                    await self._retry_stranded_records(session, run, resync_ids)
+
                     for lead in leads:
                         record = RawSourceRecord(
                             source_run_id=run.id,
@@ -143,6 +149,8 @@ class LeadPipeline:
                 await session.flush()
 
                 try:
+                    await self._retry_stranded_records(session, run, resync_ids)
+
                     for tile in tiles:
                         queries = build_queries_for_tile(tile, categories)
                         for query in queries:
@@ -208,6 +216,49 @@ class LeadPipeline:
         session.add(record)
         await session.flush()
         await self._resolve_or_log(session, run, record, resync_ids)
+
+    async def _retry_stranded_records(
+        self,
+        session,
+        run: SourceRun,
+        resync_ids: set[uuid.UUID] | None = None,
+    ) -> None:
+        """
+        Retries resolution for every raw record a previous run's
+        _resolve_or_log caught an exception for. That failure was
+        previously only ever logged into that earlier run's own
+        run_metadata['unresolved_records'] -- nothing outside that dict
+        ever read it back, so the record stayed permanently stranded: no
+        canonical institution, and (since the failure aborts
+        resolve_incoming_record before any ResolutionCandidate row from
+        this attempt survives the savepoint rollback) no entry in the
+        resolution-reviews queue either, with no way for a human or any
+        later process to ever notice or retry it.
+
+        "Stranded" means neither canonicalized (no FieldProvenance link at
+        all, the same general check find_canonical_for_raw_record uses)
+        nor already sitting in the pending human-review queue (a live
+        ResolutionCandidate with review_outcome unset means a human, not
+        this retry, owns resolving it -- re-running resolve_incoming_record
+        against it would just create duplicate candidates for the same
+        ambiguity). Runs at the start of every pipeline invocation so a
+        transient failure (a DB hiccup, a since-fixed bug) self-heals on
+        the next run instead of needing a dedicated backfill script.
+        """
+        canonicalized = select(FieldProvenance.raw_record_id)
+        pending_review = select(ResolutionCandidate.raw_record_id).where(
+            ResolutionCandidate.review_outcome.is_(None)
+        )
+        stmt = (
+            select(RawSourceRecord)
+            .where(RawSourceRecord.id.not_in(canonicalized))
+            .where(RawSourceRecord.id.not_in(pending_review))
+        )
+        stranded = list(await session.scalars(stmt))
+        if stranded:
+            print(f"Retrying resolution for {len(stranded)} previously-stranded record(s)...")
+        for record in stranded:
+            await self._resolve_or_log(session, run, record, resync_ids)
 
     @staticmethod
     async def _resolve_or_log(

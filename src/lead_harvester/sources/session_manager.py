@@ -29,6 +29,8 @@ Usage:
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 from datetime import UTC, date, datetime
 from pathlib import Path
@@ -167,6 +169,26 @@ class SessionManager:
     # Warmup schedule
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _account_age_days(payload: dict[str, Any]) -> int:
+        warmup_str = payload.get("warmup_started_at")
+        if not warmup_str:
+            # Session exists but warmup date was never set — treat as day 0
+            return 0
+        warmup_start = date.fromisoformat(warmup_str)
+        return (datetime.now(UTC).date() - warmup_start).days
+
+    @staticmethod
+    def _sum_actions_for_today(payload: dict[str, Any]) -> dict[str, int]:
+        today = datetime.now(UTC).date().isoformat()
+        totals: dict[str, int] = {}
+        for entry in payload.get("run_log", []):
+            if entry.get("date") != today:
+                continue
+            for action, count in entry.get("actions", {}).items():
+                totals[action] = totals.get(action, 0) + count
+        return totals
+
     def get_today_limits(self, account_id: str) -> dict[str, Any]:
         """
         Return today's allowed action limits for this account based on
@@ -177,14 +199,7 @@ class SessionManager:
             raise FileNotFoundError(f"No session for '{account_id}'.")
 
         payload = json.loads(path.read_text())
-        warmup_str = payload.get("warmup_started_at")
-
-        if not warmup_str:
-            # Session exists but warmup date was never set — treat as day 0
-            account_age_days = 0
-        else:
-            warmup_start = date.fromisoformat(warmup_str)
-            account_age_days = (datetime.now(UTC).date() - warmup_start).days
+        account_age_days = self._account_age_days(payload)
 
         limits = _warmup_limits(account_age_days)
         limits["account_age_days"] = account_age_days
@@ -203,14 +218,7 @@ class SessionManager:
         if not path.exists():
             return {}
         payload = json.loads(path.read_text())
-        today = datetime.now(UTC).date().isoformat()
-        totals: dict[str, int] = {}
-        for entry in payload.get("run_log", []):
-            if entry.get("date") != today:
-                continue
-            for action, count in entry.get("actions", {}).items():
-                totals[action] = totals.get(action, 0) + count
-        return totals
+        return self._sum_actions_for_today(payload)
 
     def log_run(self, account_id: str, actions: dict[str, int]) -> None:
         """
@@ -228,6 +236,81 @@ class SessionManager:
             }
         )
         path.write_text(json.dumps(payload, indent=2))
+
+    # ------------------------------------------------------------------
+    # Atomic per-account budget reservation
+    # ------------------------------------------------------------------
+
+    @contextlib.contextmanager
+    def _locked_session_file(self, account_id: str):
+        """
+        Holds an exclusive OS-level advisory lock (fcntl.flock) on the
+        account's session file for the duration of the block, serializing
+        concurrent OutreachAutomator/LinkedInStealthCrawler invocations for
+        the SAME account_id across separate processes -- draft-row locking
+        in Postgres only ever guarantees two overlapping runs get disjoint
+        *drafts*, never that they see a consistent, up-to-date view of
+        today's already-used warmup budget for this file-backed ledger.
+        """
+        path = self._path(account_id)
+        if not path.exists():
+            raise FileNotFoundError(f"No session for '{account_id}'.")
+        with open(path, "r+", encoding="utf-8") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                yield f
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
+
+    def reserve_action(self, account_id: str, action: str, requested: int) -> int:
+        """
+        Atomically reserve up to `requested` units of `action` against
+        today's warmup limit, logging the reservation before releasing the
+        file lock. Returns how many units were actually granted (<=
+        requested, >= 0).
+
+        Without this, two overlapping runs for the same account (e.g. two
+        `linkedin-send` invocations, or a crashed run retried while a
+        second copy is still in flight) could both call
+        actions_taken_today() before either one appended its own send
+        count, each see the same "nothing used yet today" snapshot, and
+        each receive the full remaining allowance -- collectively blowing
+        past the account's real daily limit with no way to undo it after
+        the fact. Logging the reservation as part of the same locked
+        read-modify-write means the second run's own reservation call
+        immediately sees the first run's reservation. Pair with
+        release_action once the real send outcome is known, to give back
+        any granted-but-unused portion (e.g. fewer drafts than granted, a
+        missing Message button, or a per-message failure).
+        """
+        if requested <= 0:
+            return 0
+        with self._locked_session_file(account_id) as f:
+            payload = json.loads(f.read())
+            limit = _warmup_limits(self._account_age_days(payload)).get(action, 0)
+            already_used = self._sum_actions_for_today(payload).get(action, 0)
+            granted = max(0, min(requested, limit - already_used))
+            if granted > 0:
+                payload.setdefault("run_log", []).append(
+                    {"date": datetime.now(UTC).date().isoformat(), "actions": {action: granted}}
+                )
+                f.seek(0)
+                f.write(json.dumps(payload, indent=2))
+                f.truncate()
+            return granted
+
+    def release_action(self, account_id: str, action: str, unused: int) -> None:
+        """Give back the unused portion of a prior reserve_action grant."""
+        if unused <= 0:
+            return
+        with self._locked_session_file(account_id) as f:
+            payload = json.loads(f.read())
+            payload.setdefault("run_log", []).append(
+                {"date": datetime.now(UTC).date().isoformat(), "actions": {action: -unused}}
+            )
+            f.seek(0)
+            f.write(json.dumps(payload, indent=2))
+            f.truncate()
 
     def print_status(self, account_id: str) -> None:
         """Print a human-readable warmup status report."""

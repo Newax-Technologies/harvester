@@ -6,6 +6,10 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.config import Settings
+from lead_harvester.models.canonical import CanonicalInstitution, OperatingStatus
+from lead_harvester.models.provenance import FieldProvenance
+from lead_harvester.models.resolution import ResolutionCandidate
+from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
 from lead_harvester.pipeline import LeadPipeline
 from lead_harvester.sources.web import Lead
 
@@ -99,3 +103,70 @@ async def test_run_web_crawler_emits_resync_events_even_when_run_fails(db_sessio
         await pipeline._run_web_crawler()
 
     emit_mock.assert_awaited_once_with({fake_institution_id})
+
+
+@pytest.mark.asyncio
+async def test_retry_stranded_records_retries_only_neither_canonicalized_nor_queued(db_session):
+    # A resolution failure previously only got logged into that run's own
+    # run_metadata -- nothing ever read it back, so the record stayed
+    # permanently stranded with no canonical institution and no
+    # resolution-reviews queue entry. _retry_stranded_records must pick up
+    # exactly the records in that stranded state: not a record that's
+    # already canonicalized (has a FieldProvenance link), and not a record
+    # already correctly sitting in the pending human-review queue (a live
+    # ResolutionCandidate with review_outcome unset).
+    run = SourceRun(source_type=SourceType.WEBSITE, run_metadata={}, status=RunStatus.STARTED)
+    db_session.add(run)
+    await db_session.flush()
+
+    def _record(source_id: str) -> RawSourceRecord:
+        return RawSourceRecord(
+            source_run_id=run.id,
+            source_type=SourceType.WEBSITE,
+            source_id=source_id,
+            raw_payload={},
+            normalized_name=source_id,
+        )
+
+    stranded = _record("stranded.example.edu")
+    canonicalized = _record("canonicalized.example.edu")
+    pending_review = _record("pending.example.edu")
+    db_session.add_all([stranded, canonicalized, pending_review])
+    await db_session.flush()
+
+    institution = CanonicalInstitution(
+        canonical_name="Canonicalized School",
+        status=OperatingStatus.OPERATIONAL,
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    db_session.add(
+        FieldProvenance(
+            canonical_id=institution.id,
+            raw_record_id=canonicalized.id,
+            field_name="canonical_name",
+            asserted_value="Canonicalized School",
+            assertion_trust=1.0,
+        )
+    )
+    db_session.add(
+        ResolutionCandidate(
+            raw_record_id=pending_review.id,
+            blocking_strategy="domain",
+            review_outcome=None,
+        )
+    )
+    await db_session.flush()
+
+    retried_ids: set[uuid.UUID] = set()
+
+    async def fake_resolve_or_log(session, run, record, resync_ids=None):
+        retried_ids.add(record.id)
+
+    pipeline = LeadPipeline(Settings(google_places_api_key="dummy-test-key"))
+
+    with patch.object(LeadPipeline, "_resolve_or_log", new=staticmethod(fake_resolve_or_log)):
+        await pipeline._retry_stranded_records(db_session, run)
+
+    assert retried_ids == {stranded.id}
