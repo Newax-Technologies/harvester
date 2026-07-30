@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from lead_harvester.canonical.merger import find_canonical_for_raw_record, merge_records
 from lead_harvester.models.canonical import Branch
+from lead_harvester.models.profile import LeadProfile
 from lead_harvester.models.resolution import MatchAssessment, MatchDecision
 from lead_harvester.resolution.orchestrator import resolve_incoming_record
 
@@ -280,6 +281,29 @@ async def test_merge_blocked_when_target_has_its_own_pending_conflict(db_session
     # a human to actually decide.
     await db_session.refresh(existing_candidate)
     assert existing_candidate.review_outcome is None
+
+
+@pytest.mark.asyncio
+async def test_resolve_incoming_record_refreshes_the_lead_profile(db_session, source_run):
+    # Every institution-producing branch of resolve_incoming_record must
+    # call refresh_lead_profile so a new/attached record's contactability
+    # is reflected immediately, not left stale until something else happens
+    # to touch this institution.
+    record = google_places_record(
+        source_run.id, name="Profiled School", phone="+923004445555", lat=1.0, lng=1.0
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await resolve_incoming_record(db_session, record)
+
+    profile = (
+        await db_session.execute(
+            select(LeadProfile).where(LeadProfile.institution_id == institution.id)
+        )
+    ).scalar_one_or_none()
+    assert profile is not None
+    assert profile.has_phone is True
 
 
 @pytest.mark.asyncio

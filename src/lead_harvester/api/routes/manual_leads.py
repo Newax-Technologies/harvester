@@ -34,6 +34,7 @@ from lead_harvester.models.canonical import (
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
 from lead_harvester.resolution.normalize import normalize_domain, normalize_name, normalize_phone
+from lead_harvester.services.lead_profile_service import refresh_lead_profile
 
 router = APIRouter(prefix="/leads", tags=["Manual Lead Entry"])
 
@@ -306,6 +307,12 @@ async def create_manual_lead(
     # should claim one was.
     if settings.lead_sync_enabled:
         institution.lead_synced_at = datetime.now(UTC)
+
+    # Gives a manually-entered lead an initial LeadProfile immediately
+    # (contactability from the contacts just entered, a baseline score)
+    # instead of leaving it profile-less until some later automated pass
+    # happens to touch this institution.
+    await refresh_lead_profile(session, institution.id)
 
     # Commit explicitly here (rather than relying solely on get_db_session's
     # own commit-on-teardown) so the background task below is only ever

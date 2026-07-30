@@ -25,6 +25,7 @@ from lead_harvester.models.resolution import MatchAssessment, MatchDecision, Res
 from lead_harvester.models.source import RawSourceRecord
 from lead_harvester.resolution.blocking import generate_candidates
 from lead_harvester.resolution.scoring import score_candidate
+from lead_harvester.services.lead_profile_service import refresh_lead_profile
 
 _ScoredCandidate = tuple[ResolutionCandidate, MatchAssessment]
 
@@ -82,6 +83,12 @@ async def resolve_incoming_record(
     sync. A freshly merge_records()-created institution is never added
     here: it has no lead_synced_at yet (nothing has offered it to the
     webhook before), so there's nothing to keep in sync.
+
+    Every branch that produces or attaches to an institution calls
+    services/lead_profile_service.py::refresh_lead_profile before
+    returning, so a lead's score/contactability/summary reflect this
+    record's evidence immediately rather than going stale until some
+    separate process recomputes them.
     """
     candidates = await generate_candidates(session, record)
     for candidate in candidates:
@@ -113,6 +120,7 @@ async def resolve_incoming_record(
             )
             if resync_ids is not None and institution.lead_synced_at is not None:
                 resync_ids.add(institution.id)
+            await refresh_lead_profile(session, institution.id)
             return institution
 
         # matched_record (B) is itself still unresolved -- unlike the
@@ -132,9 +140,15 @@ async def resolve_incoming_record(
         if await _has_other_pending_candidate(session, matched_record.id, exclude_id=candidate.id):
             raise TargetHasPendingConflictError(str(matched_record.id))
 
-        return await merge_records(session, [record, matched_record], same_location=True)
+        merged_institution = await merge_records(
+            session, [record, matched_record], same_location=True
+        )
+        await refresh_lead_profile(session, merged_institution.id)
+        return merged_institution
 
-    return await merge_records(session, [record])
+    new_institution = await merge_records(session, [record])
+    await refresh_lead_profile(session, new_institution.id)
+    return new_institution
 
 
 def _best_merge_pair(scored: list[_ScoredCandidate]) -> _ScoredCandidate | None:

@@ -1,6 +1,7 @@
 from .audit import AuditLog
 from .canonical import Branch, CanonicalInstitution, ContactPoint, OperatingStatus
 from .outreach import AccountBrief, BriefStatus, DraftStatus, OutreachDraft, OutreachOutcome
+from .profile import LeadProfile, LeadScoreSnapshot
 from .provenance import FieldProvenance
 from .qualification import QualificationAssessment, QualificationStatus
 from .research import FindingType, JobStatus, ResearchFinding, ResearchJob
@@ -18,6 +19,8 @@ __all__ = [
     "FieldProvenance",
     "FindingType",
     "JobStatus",
+    "LeadProfile",
+    "LeadScoreSnapshot",
     "MatchAssessment",
     "MatchDecision",
     "OperatingStatus",

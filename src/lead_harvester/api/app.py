@@ -10,6 +10,7 @@ from lead_harvester.api.routes import (
     dashboard,
     drafts,
     institutions,
+    lead_profiles,
     manual_leads,
     resolution_reviews,
 )
@@ -84,5 +85,6 @@ api_router.include_router(institutions.router)
 api_router.include_router(drafts.router)
 api_router.include_router(resolution_reviews.router)
 api_router.include_router(manual_leads.router)
+api_router.include_router(lead_profiles.router)
 
 app.include_router(api_router)

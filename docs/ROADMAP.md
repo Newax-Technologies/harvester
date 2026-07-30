@@ -124,9 +124,25 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   social_resolver/technology_detector/decision_maker_discovery as distinct pieces yet.
 - **Business Intelligence**: partial (`intelligence/pain_detection.py`, `researcher.py`,
   `taxonomy.py`); not fully separated into the 7 planned sub-concerns.
-- **Lead Scoring**: MVP-only (`scoring.py`, keyword-based per the README); no
-  score_explanation/score_history/evidence_score breakdown yet.
-- **Persistent Lead Profiles**: doesn't exist as a unified entity yet.
+- **Lead Scoring**: done against live data (`profiles/scoring.py::compute_lead_score`) --
+  evidence-backed 0-100 score with a per-category breakdown (scale, contactability,
+  category_fit, qualification, research_signal, freshness, confidence), not an opaque single
+  number. `intelligence/scoring.py` (the older MVP referenced here previously) scores the dead
+  Phase-1 `entities/` dataclasses that nothing in the live pipeline constructs -- superseded,
+  not reused, per `docs/CODE_REVIEW_LESSONS.md` pattern 2 (don't let a second implementation of
+  "the same" concept diverge from the live one).
+- **Persistent Lead Profiles**: done. `models/profile.py`'s `LeadProfile` (current-state,
+  one row per institution) and `LeadScoreSnapshot` (append-only score_history) are kept fresh
+  by `services/lead_profile_service.py::refresh_lead_profile`, called from every path that
+  changes score-relevant data: `resolution/orchestrator.py::resolve_incoming_record` (all three
+  institution-producing branches), `intelligence/researcher.py::research_profile` (new AI
+  findings), and `api/routes/manual_leads.py::create_manual_lead`. `qualification/agent.py`'s
+  `QualificationAgent` (previously built but never called from any live path) is now wired in
+  via `qualify_and_refresh`/`qualify_all_unassessed`, invokable through the `qualify-leads` CLI
+  command or the `GET /api/v1/lead-profiles*` read API. Known v1 limitation: `qualify-leads`
+  only ever assesses an institution once (no re-assessment policy for institutions whose data
+  changed after their first qualification) -- revisiting that is separate follow-up work, not
+  silently unhandled.
 - **Ranking and Daily Selection**: doesn't exist yet.
 - **Compliance and Source Governance**: principles only (README's "Compliance guardrails"),
   not implemented as code.

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.intelligence.researcher import ResearchBrain, _validate_analysis_schema
 from lead_harvester.models.canonical import CanonicalInstitution, OperatingStatus
+from lead_harvester.models.profile import LeadProfile
 from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
 
 _VALID_ANALYSIS = {
@@ -341,6 +342,37 @@ async def test_research_record_savepoint_isolates_a_db_level_failure(db_session)
         )
     ).scalar_one_or_none()
     assert bad_institution is None
+
+
+@pytest.mark.asyncio
+async def test_research_profile_refreshes_the_lead_profile(db_session):
+    # New research findings (lead_score, pain_points, buying_signals,
+    # summary) change what an institution's LeadProfile should say --
+    # research_profile must refresh it, not leave the profile reflecting
+    # only whatever branch/contact data existed before this research ran.
+    institution = CanonicalInstitution(
+        canonical_name="Researched School", status=OperatingStatus.OPERATIONAL
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    brain = ResearchBrain(api_key="fake-key-for-test")
+    brain._call_ai = AsyncMock(return_value=dict(_VALID_ANALYSIS))
+
+    await brain.research_profile(
+        db_session,
+        {"full_name": "Jane Doe", "profile_url": "https://linkedin.com/in/jane"},
+        institution.id,
+    )
+
+    profile = (
+        await db_session.execute(
+            select(LeadProfile).where(LeadProfile.institution_id == institution.id)
+        )
+    ).scalar_one_or_none()
+    assert profile is not None
+    assert profile.organization_summary == _VALID_ANALYSIS["summary"]
+    assert profile.evidence_count > 0
 
 
 @pytest.mark.asyncio

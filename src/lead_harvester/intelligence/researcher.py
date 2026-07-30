@@ -36,6 +36,7 @@ from lead_harvester.models import (
 )
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, SourceType
+from lead_harvester.services.lead_profile_service import refresh_lead_profile
 
 SYSTEM_PROMPT = """You are an elite B2B sales intelligence analyst.
 You receive raw LinkedIn profile data and return a structured JSON analysis.
@@ -240,6 +241,11 @@ class ResearchBrain:
 
         if institution_id:
             await self._persist_findings(session, institution_id, profile_data, analysis)
+            # New research findings (lead_score, pain_points, buying_signals,
+            # summary) change what this institution's LeadProfile should say
+            # -- refresh it now rather than leaving it reflecting only
+            # whatever branch/contact data existed before this research ran.
+            await refresh_lead_profile(session, institution_id)
 
         return analysis
 

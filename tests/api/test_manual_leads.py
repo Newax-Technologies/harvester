@@ -20,6 +20,7 @@ from lead_harvester.canonical.merger import (
 from lead_harvester.database import engine as manual_leads_engine
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
+from lead_harvester.models.profile import LeadProfile
 from lead_harvester.models.source import RawSourceRecord
 from lead_harvester.resolution.normalize import normalize_domain, normalize_phone
 
@@ -348,6 +349,21 @@ async def test_create_manual_lead_stores_provider_ids_in_resolver_canonical_shap
     found = await find_branch_for_raw_record(db_session, institution.id, record)
     assert found is not None
     assert found.id == branch.id
+
+
+@pytest.mark.asyncio
+async def test_create_manual_lead_creates_a_lead_profile(manual_leads_client, db_session):
+    response = await manual_leads_client.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
+    assert response.status_code == 201
+    institution_id = response.json()["id"]
+
+    profile = (
+        await db_session.execute(
+            select(LeadProfile).where(LeadProfile.institution_id == uuid.UUID(institution_id))
+        )
+    ).scalar_one_or_none()
+    assert profile is not None
+    assert profile.has_phone is True
 
 
 @pytest.mark.asyncio

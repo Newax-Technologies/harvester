@@ -238,6 +238,25 @@ async def linkedin_research(args: argparse.Namespace) -> int:
     return 0
 
 
+async def qualify_leads(args: argparse.Namespace) -> int:
+    """
+    Run QualificationAgent against every institution that has never been
+    assessed, then refresh each one's LeadProfile. Previously
+    QualificationAgent existed but had no caller anywhere in the live
+    pipeline -- this is the first invokable path for it.
+    """
+    from .database import get_session
+    from .services.lead_profile_service import qualify_all_unassessed
+
+    async with get_session() as session:
+        count = await qualify_all_unassessed(
+            session, criteria_version=args.criteria_version, limit=args.limit
+        )
+
+    print(f"\n✓ Qualified {count} institution(s). Check lead profiles for updated scores.\n")
+    return 0
+
+
 async def linkedin_send(args: argparse.Namespace) -> int:
     """
     Send all approved OutreachDraft records (LinkedIn messages or emails).
@@ -343,6 +362,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     li_research.add_argument("--model", default="gpt-4o-mini", help="OpenAI model name")
 
+    # -- qualify-leads --------------------------------------------------------
+    qualify = subparsers.add_parser(
+        "qualify-leads",
+        help="Run QualificationAgent against every institution never assessed, and refresh profiles",
+    )
+    qualify.add_argument(
+        "--criteria-version", type=int, default=1, help="Qualification criteria version to record"
+    )
+    qualify.add_argument(
+        "--limit", type=int, default=200, help="Max unassessed institutions to process this run"
+    )
+
     # -- linkedin-send ------------------------------------------------------
     li_send = subparsers.add_parser(
         "linkedin-send",
@@ -441,6 +472,7 @@ def main() -> None:
         "linkedin-login": lambda: sys.exit(asyncio.run(linkedin_login(args))),
         "linkedin-run": lambda: sys.exit(asyncio.run(linkedin_run(args))),
         "linkedin-research": lambda: sys.exit(asyncio.run(linkedin_research(args))),
+        "qualify-leads": lambda: sys.exit(asyncio.run(qualify_leads(args))),
         "linkedin-send": lambda: sys.exit(asyncio.run(linkedin_send(args))),
         "linkedin-status": lambda: _linkedin_status(args),
         "linkedin-farm-run": lambda: sys.exit(asyncio.run(_linkedin_farm_run(args))),
