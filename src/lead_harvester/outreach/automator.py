@@ -94,14 +94,25 @@ class OutreachAutomator:
         if self.dry_run:
             print("[Automator] DRY RUN MODE — messages will be typed but NOT sent.")
 
+        # Atomically claim a batch: lock candidate rows (skipping any another
+        # concurrent run() already has locked) and flip them to SENDING in
+        # the SAME transaction before it commits, so two overlapping
+        # invocations (or overlapping cron triggers) can never both read and
+        # send the same APPROVED drafts. Known v1 limitation: a crash after
+        # this commits but before the send completes leaves the draft
+        # permanently stuck in SENDING with no automatic requeue -- a
+        # stale-SENDING sweep is separate follow-up work, not solved here.
         async with get_session() as session:
             drafts = list(
                 await session.scalars(
                     select(OutreachDraft)
                     .where(OutreachDraft.status == DraftStatus.APPROVED)
                     .limit(10)
+                    .with_for_update(skip_locked=True)
                 )
             )
+            for draft in drafts:
+                draft.status = DraftStatus.SENDING
 
         if not drafts:
             print("[Automator] No approved drafts to send.")

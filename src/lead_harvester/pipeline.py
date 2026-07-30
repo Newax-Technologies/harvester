@@ -1,8 +1,11 @@
 import datetime
+import uuid
 from typing import Any
 
 from .config import Settings
 from .database import get_session
+from .integrations.lead_sync_emitter import LeadSyncEmitter
+from .integrations.lead_sync_resync import resync_institution
 from .models import RawSourceRecord, RunStatus, SourceRun, SourceType
 from .resolution.normalize import normalize_domain, normalize_name, normalize_phone
 from .resolution.orchestrator import resolve_incoming_record
@@ -14,6 +17,7 @@ class LeadPipeline:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.places_connector = GooglePlacesConnector(api_key=settings.google_places_api_key)
+        self.lead_sync_emitter = LeadSyncEmitter(settings)
 
     async def run(self) -> None:
         if "seeds" in self.settings.job_config:
@@ -34,6 +38,14 @@ class LeadPipeline:
         print(f"Starting WebCrawler with {len(seeds)} seeds...")
         crawler = WebCrawler(self.settings)
         leads = await crawler.crawl(seeds)
+
+        # Populated by _resolve_or_log whenever a record in this run attaches
+        # to an already lead_synced institution -- collected across the
+        # whole run and re-emitted only after the transaction below commits
+        # (see the comment at the bottom of this method), never mid-loop:
+        # emitting before the outer commit could tell core-newax about data
+        # that a later error in this same run rolls back.
+        resync_ids: set[uuid.UUID] = set()
 
         async with get_session() as session:
             run = SourceRun(
@@ -59,13 +71,20 @@ class LeadPipeline:
                         # like "https://www.example.edu" while Google
                         # Places' normalized_domain is "example.edu".
                         normalized_name=normalize_name(lead.organization or lead.name),
-                        normalized_phone=normalize_phone(lead.phone) if lead.phone else None,
+                        normalized_phone=(
+                            normalize_phone(
+                                lead.phone,
+                                default_region=self.settings.lead_sync_default_country_code,
+                            )
+                            if lead.phone
+                            else None
+                        ),
                         normalized_domain=normalize_domain(lead.website) if lead.website else None,
                         location=None,
                     )
                     session.add(record)
                     await session.flush()
-                    await self._resolve_or_log(session, run, record)
+                    await self._resolve_or_log(session, run, record, resync_ids)
 
                 run.status = RunStatus.COMPLETED
                 run.completed_at = datetime.datetime.now(datetime.UTC)
@@ -76,11 +95,18 @@ class LeadPipeline:
                 raise
             finally:
                 await session.commit()
+        # Only after the commit above succeeds -- see the comment where
+        # resync_ids is created.
+        await self._emit_resync_events(resync_ids)
         print(f"WebCrawler finished. Found {len(leads)} leads.")
 
     async def _run_google_places(self) -> None:
         tiles = generate_tiles(self.settings.job_config)
         categories = self.settings.job_config.get("categories", ["FORMAL_EDUCATION"])
+
+        # See the matching comment in _run_web_crawler: collected across the
+        # whole run, emitted only after the commit below succeeds.
+        resync_ids: set[uuid.UUID] = set()
 
         async with get_session() as session:
             run = SourceRun(
@@ -100,7 +126,7 @@ class LeadPipeline:
                         places = self.places_connector.search(query)
 
                         for place in places:
-                            await self.process_place(session, run, place)
+                            await self.process_place(session, run, place, resync_ids)
 
                 run.status = RunStatus.COMPLETED
                 run.completed_at = datetime.datetime.now(datetime.UTC)
@@ -111,14 +137,26 @@ class LeadPipeline:
                 raise
             finally:
                 await session.commit()
+        await self._emit_resync_events(resync_ids)
 
-    async def process_place(self, session, run: SourceRun, place: dict[str, Any]) -> None:
+    async def process_place(
+        self,
+        session,
+        run: SourceRun,
+        place: dict[str, Any],
+        resync_ids: set[uuid.UUID] | None = None,
+    ) -> None:
         source_id = place.get("id")
         if not source_id:
             return
 
         name = place.get("displayName", {}).get("text", "")
-        phone = place.get("nationalPhoneNumber", "")
+        # internationalPhoneNumber is always "+"-prefixed (unambiguous on
+        # its own); nationalPhoneNumber never is, so it needs a region hint
+        # to normalize consistently -- prefer the international form when
+        # Places supplies one (it's requested in the connector's field
+        # mask) and only fall back to national+region-hint otherwise.
+        phone = place.get("internationalPhoneNumber") or place.get("nationalPhoneNumber", "")
         website = place.get("websiteUri", "")
 
         loc_dict = place.get("location", {})
@@ -135,16 +173,23 @@ class LeadPipeline:
             source_id=source_id,
             raw_payload=place,
             normalized_name=normalize_name(name),
-            normalized_phone=normalize_phone(phone),
+            normalized_phone=normalize_phone(
+                phone, default_region=self.settings.lead_sync_default_country_code
+            ),
             normalized_domain=normalize_domain(website),
             location=location_wkt,
         )
         session.add(record)
         await session.flush()
-        await self._resolve_or_log(session, run, record)
+        await self._resolve_or_log(session, run, record, resync_ids)
 
     @staticmethod
-    async def _resolve_or_log(session, run: SourceRun, record: RawSourceRecord) -> None:
+    async def _resolve_or_log(
+        session,
+        run: SourceRun,
+        record: RawSourceRecord,
+        resync_ids: set[uuid.UUID] | None = None,
+    ) -> None:
         # A resolution failure for one record must never abort the rest of
         # the run -- the outer per-run except/finally would otherwise mark
         # the whole run FAILED and stop processing every remaining
@@ -159,7 +204,7 @@ class LeadPipeline:
         # later record's flush, and the run's own final commit, broken.
         try:
             async with session.begin_nested():
-                await resolve_incoming_record(session, record)
+                await resolve_incoming_record(session, record, resync_ids=resync_ids)
         except Exception as e:
             unresolved = list(run.run_metadata.get("unresolved_records", []))
             unresolved.append({"raw_record_id": str(record.id), "error": str(e)})
@@ -169,3 +214,13 @@ class LeadPipeline:
             # actually marks `run` dirty.
             run.run_metadata = {**run.run_metadata, "unresolved_records": unresolved}
             print(f"Entity resolution failed for raw record {record.id}: {e}")
+
+    async def _emit_resync_events(self, resync_ids: set[uuid.UUID]) -> None:
+        # Fire-and-forget, same as LeadSyncEmitter itself -- a delivery
+        # failure here must never fail (or be allowed to look like it
+        # failed) the ingestion run that already committed successfully.
+        for institution_id in resync_ids:
+            try:
+                await resync_institution(self.lead_sync_emitter, institution_id)
+            except Exception as e:
+                print(f"lead_sync resync failed for institution {institution_id}: {e}")

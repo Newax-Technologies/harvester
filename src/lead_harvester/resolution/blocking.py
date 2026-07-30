@@ -53,10 +53,21 @@ class _MatchInfo:
         self.name_similarity = name_similarity
 
     def sort_key(self) -> tuple[int, float, float]:
+        # name_similarity ranks before distance -- it's the dominant signal
+        # across every branch of scoring.py's decision logic (the MERGE
+        # gate requires similarity>0.8 explicitly; the phone/domain
+        # PENDING-vs-LINK_ONLY split is ALSO purely gated on similarity>0.8;
+        # distance only ever matters as MERGE's secondary confirming
+        # condition). Ranking distance first would let a geographically
+        # close-by-coincidence but otherwise unrelated match (finite
+        # distance, low similarity) outrank an exact-name match that simply
+        # has no location data (distance=None), keeping the worse
+        # representative (would score LINK_ONLY) over the better one
+        # (would score PENDING and actually surface for review).
         return (
             _STRATEGY_PRIORITY[self.strategy],
-            self.distance_meters if self.distance_meters is not None else float("inf"),
             -(self.name_similarity if self.name_similarity is not None else 0.0),
+            self.distance_meters if self.distance_meters is not None else float("inf"),
         )
 
     def is_better_than(self, other: "_MatchInfo") -> bool:

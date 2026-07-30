@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from fastapi import BackgroundTasks
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -17,6 +18,8 @@ from lead_harvester.canonical.merger import (
     find_canonical_for_raw_record,
     merge_records,
 )
+from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
+from lead_harvester.integrations.lead_sync_resync import resync_institution
 from lead_harvester.models.audit import AuditLog
 from lead_harvester.models.canonical import CanonicalInstitution
 from lead_harvester.models.provenance import FieldProvenance
@@ -104,12 +107,20 @@ class ResolutionService:
 
     @staticmethod
     async def make_decision(
-        session: AsyncSession, review_id: UUID, req: ResolutionDecisionRequest, actor: str
+        session: AsyncSession,
+        review_id: UUID,
+        req: ResolutionDecisionRequest,
+        actor: str,
+        *,
+        background_tasks: BackgroundTasks | None = None,
+        lead_sync_emitter: LeadSyncEmitter | None = None,
     ) -> dict:
         if req.decision not in _OUTCOME_BY_DECISION:
             raise ValueError(
                 f"Invalid decision {req.decision!r}: must be one of {sorted(_OUTCOME_BY_DECISION)}"
             )
+
+        resync_institution_id: UUID | None = None
 
         async with session.begin():
             stmt = (
@@ -173,7 +184,7 @@ class ResolutionService:
             if await find_canonical_for_raw_record(session, candidate.raw_record_id) is not None:
                 raise RecordAlreadyCanonicalizedError(str(candidate.raw_record_id))
 
-            await _apply_decision(session, candidate, req.decision)
+            resync_institution_id = await _apply_decision(session, candidate, req.decision)
 
             candidate.review_outcome = _OUTCOME_BY_DECISION[req.decision]
             candidate.version += 1
@@ -198,6 +209,20 @@ class ResolutionService:
             # request sharing this session, as happens under the test
             # client's shared-session dependency override.
             detail = await _assemble_detail(session, candidate)
+
+        # Scheduled only after the transaction above has committed -- a
+        # reviewer's merge/branch decision can update a branch/institution
+        # that was already synced to core-newax via
+        # api/routes/manual_leads.py; without this, that mirror silently
+        # goes stale after the decision. Uses a fresh session/query (see
+        # resync_institution) rather than the objects touched above, since
+        # this runs after `session`'s own transaction has ended.
+        if (
+            resync_institution_id is not None
+            and background_tasks is not None
+            and lead_sync_emitter is not None
+        ):
+            background_tasks.add_task(resync_institution, lead_sync_emitter, resync_institution_id)
 
         return detail
 
@@ -257,11 +282,19 @@ async def _assemble_detail(session: AsyncSession, candidate: ResolutionCandidate
 
 async def _apply_decision(
     session: AsyncSession, candidate: ResolutionCandidate, decision: str
-) -> None:
+) -> UUID | None:
     """
     Mutates the actual entity data per the human's decision -- until this
     was added, make_decision only wrote an AuditLog row and never touched
     any CanonicalInstitution/Branch/ContactPoint.
+
+    Returns the id of an institution that needs a lead_sync re-emit --
+    i.e. one this decision attached new evidence to (via
+    attach_record_to_institution) that was already offered to the webhook
+    before (CanonicalInstitution.lead_synced_at is set) -- or None when no
+    re-sync is needed (a "separate" decision touches no existing
+    institution; a "merge"/"branch" against a brand-new record creates a
+    fresh institution via merge_records that has never been synced).
     """
     record = await session.get(RawSourceRecord, candidate.raw_record_id)
     matched_record = None
@@ -272,7 +305,7 @@ async def _apply_decision(
         # Confidently distinct: the incoming record gets its own institution.
         # The matched record (if any) is left untouched.
         await merge_records(session, [record])
-        return
+        return None
 
     if matched_record is None:
         if candidate.target_canonical_id:
@@ -287,7 +320,7 @@ async def _apply_decision(
             if institution is None:
                 raise ResourceNotFoundError(str(candidate.target_canonical_id))
             await attach_record_to_institution(session, record, institution, target_branch=None)
-            return
+            return institution.id if institution.lead_synced_at is not None else None
 
         # "merge"/"branch" both require something to attach to; without a
         # raw-record or canonical match there is nothing to merge or branch onto.
@@ -306,6 +339,7 @@ async def _apply_decision(
         await attach_record_to_institution(
             session, record, institution, target_branch=target_branch
         )
-        return
+        return institution.id if institution.lead_synced_at is not None else None
 
     await merge_records(session, [record, matched_record], same_location=same_location)
+    return None

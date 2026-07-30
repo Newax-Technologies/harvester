@@ -1,3 +1,6 @@
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from sqlalchemy import select
 
@@ -749,3 +752,138 @@ async def test_decision_against_canonical_target_attaches_record(client_a, db_se
         .all()
     )
     assert len(branches) == 1
+
+
+@pytest.mark.asyncio
+async def test_decision_against_already_synced_institution_schedules_resync(client_a, db_session):
+    # Same shape as test_decision_against_canonical_target_attaches_record,
+    # but the target institution has already been offered to lead_sync once
+    # (e.g. it originated from a manual lead) -- a reviewer's decision must
+    # schedule a re-sync so the core-newax mirror doesn't go stale after
+    # this attach, per services/resolution_service.py::_apply_decision's
+    # resync-id return value.
+    run = SourceRun(source_type=SourceType.GOOGLE_PLACES, run_metadata={}, status=RunStatus.STARTED)
+    db_session.add(run)
+    await db_session.flush()
+
+    record = _record(run.id, "Resync Target School", "+923004446666", "gp-resync-record")
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = CanonicalInstitution(
+        canonical_name="Resync Target School",
+        institution_type="school",
+        status=OperatingStatus.OPERATIONAL,
+        confidence_score=50.0,
+        lead_synced_at=datetime.now(UTC),
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    candidate = ResolutionCandidate(
+        raw_record_id=record.id,
+        target_canonical_id=institution.id,
+        blocking_strategy="manual_review",
+        version=1,
+    )
+    db_session.add(candidate)
+    await db_session.flush()
+
+    db_session.add(
+        MatchAssessment(
+            candidate_id=candidate.id,
+            name_similarity=0.7,
+            distance_meters=None,
+            phone_match=False,
+            domain_match=False,
+            total_score=65.0,
+            decision=MatchDecision.PENDING,
+        )
+    )
+    await db_session.commit()
+
+    with patch(
+        "lead_harvester.services.resolution_service.resync_institution",
+        new=AsyncMock(),
+    ) as mock_resync:
+        response = await client_a.post(
+            f"/api/v1/resolution-reviews/{candidate.id}/decision",
+            json={
+                "decision": "branch",
+                "feedback": "confirmed same institution",
+                "expected_version": 1,
+            },
+        )
+    assert response.status_code == 200
+
+    mock_resync.assert_awaited_once()
+    args, _ = mock_resync.call_args
+    _emitter, resynced_institution_id = args
+    assert resynced_institution_id == institution.id
+
+
+@pytest.mark.asyncio
+async def test_decision_against_never_synced_institution_does_not_schedule_resync(
+    client_a, db_session
+):
+    # The mirror-image of the test above: an institution that has never
+    # been offered to lead_sync (lead_synced_at is None, e.g. it originated
+    # entirely from automated ingestion) must not be introduced into
+    # core-newax for the first time just because a reviewer attached a new
+    # record to it -- see the matching orchestrator.py-level test for the
+    # automated-pipeline path.
+    run = SourceRun(source_type=SourceType.GOOGLE_PLACES, run_metadata={}, status=RunStatus.STARTED)
+    db_session.add(run)
+    await db_session.flush()
+
+    record = _record(run.id, "Unsynced Target School", "+923004447777", "gp-unsynced-record")
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = CanonicalInstitution(
+        canonical_name="Unsynced Target School",
+        institution_type="school",
+        status=OperatingStatus.OPERATIONAL,
+        confidence_score=50.0,
+    )
+    db_session.add(institution)
+    await db_session.flush()
+    assert institution.lead_synced_at is None
+
+    candidate = ResolutionCandidate(
+        raw_record_id=record.id,
+        target_canonical_id=institution.id,
+        blocking_strategy="manual_review",
+        version=1,
+    )
+    db_session.add(candidate)
+    await db_session.flush()
+
+    db_session.add(
+        MatchAssessment(
+            candidate_id=candidate.id,
+            name_similarity=0.7,
+            distance_meters=None,
+            phone_match=False,
+            domain_match=False,
+            total_score=65.0,
+            decision=MatchDecision.PENDING,
+        )
+    )
+    await db_session.commit()
+
+    with patch(
+        "lead_harvester.services.resolution_service.resync_institution",
+        new=AsyncMock(),
+    ) as mock_resync:
+        response = await client_a.post(
+            f"/api/v1/resolution-reviews/{candidate.id}/decision",
+            json={
+                "decision": "branch",
+                "feedback": "confirmed same institution",
+                "expected_version": 1,
+            },
+        )
+    assert response.status_code == 200
+
+    mock_resync.assert_not_awaited()

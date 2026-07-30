@@ -219,6 +219,59 @@ async def test_generate_candidates_ranks_domain_siblings_by_name_similarity(db_s
 
 
 @pytest.mark.asyncio
+async def test_generate_candidates_prefers_name_similarity_over_coincidental_proximity(
+    db_session, source_run
+):
+    # Both siblings share the incoming record's domain (same tier). One is
+    # geographically close to the incoming record purely by coincidence but
+    # has a completely unrelated name; the other has an exact name match
+    # but no location data at all (distance always None/inf for it). A
+    # distance-first tiebreak would wrongly keep the coincidentally-close,
+    # name-unrelated sibling (would score LINK_ONLY) over the exact-name
+    # one (would score PENDING and actually reach human review).
+    unrelated_nearby = google_places_record(
+        source_run.id,
+        name="Totally Different Name",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=24.8607,
+        lng=67.0011,
+    )
+    exact_no_location = google_places_record(
+        source_run.id,
+        name="Shared Name School",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=None,
+        lng=None,
+    )
+    db_session.add_all([unrelated_nearby, exact_no_location])
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [unrelated_nearby, exact_no_location])
+    await db_session.flush()
+
+    d = google_places_record(
+        source_run.id,
+        name="Shared Name School",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=24.8607,
+        lng=67.0011,
+    )
+    db_session.add(d)
+    await db_session.flush()
+
+    candidates = await generate_candidates(db_session, d)
+
+    assert len(candidates) == 1
+    assert candidates[0].target_raw_record_id == exact_no_location.id
+
+    surviving_canonical_id = await find_canonical_for_raw_record(db_session, exact_no_location.id)
+    assert surviving_canonical_id == institution.id
+
+
+@pytest.mark.asyncio
 async def test_generate_candidates_does_not_dedupe_unresolved_matches(db_session, source_run):
     # Two records sharing a phone that have NOT yet been canonicalized are
     # each a genuine, independent candidate (a human may need to review

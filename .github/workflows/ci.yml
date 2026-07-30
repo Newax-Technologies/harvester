@@ -117,6 +117,5 @@ jobs:
       - name: Run Snyk to check for vulnerabilities
         if: steps.token-check.outputs.configured == 'true'
         uses: snyk/actions/python-3.11@master
-        continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

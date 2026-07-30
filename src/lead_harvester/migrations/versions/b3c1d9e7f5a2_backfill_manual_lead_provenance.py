@@ -60,6 +60,7 @@ def upgrade() -> None:
     )
     branches = sa.table(
         "branches",
+        sa.column("id", postgresql.UUID),
         sa.column("institution_id", postgresql.UUID),
         sa.column("provider_ids", postgresql.JSONB),
     )
@@ -85,7 +86,7 @@ def upgrade() -> None:
 
     for record_id, source_id in orphaned:
         branch_row = conn.execute(
-            sa.select(branches.c.institution_id)
+            sa.select(branches.c.id, branches.c.institution_id, branches.c.provider_ids)
             .where(branches.c.provider_ids["manual_record_id"].astext == source_id)
             .limit(1)
         ).first()
@@ -105,6 +106,34 @@ def upgrade() -> None:
                 assertion_trust=1.0,
                 created_at=sa.func.now(),
             )
+        )
+
+        # The branch itself still carries the legacy "manual_record_id"
+        # scalar shape -- find_branch_for_raw_record (canonical/merger.py)
+        # only ever reads the current {"manual": [source_id, ...]} list
+        # shape (record.source_type.value == "manual"). Left unrewritten, a
+        # later merge decision that reaches this institution via the
+        # provenance row just inserted above would still fail to locate
+        # THIS specific branch via find_branch_for_raw_record, and create a
+        # spurious "Additional Campus" instead of enriching it. Rewrite the
+        # legacy key into the current shape here, folding it in rather than
+        # overwriting so any other source_type entries already on this
+        # branch are preserved.
+        current_provider_ids = dict(branch_row.provider_ids or {})
+        manual_ids = current_provider_ids.get("manual", [])
+        if isinstance(manual_ids, str):
+            manual_ids = [manual_ids]
+        else:
+            manual_ids = list(manual_ids)
+        if source_id not in manual_ids:
+            manual_ids.append(source_id)
+        current_provider_ids["manual"] = manual_ids
+        current_provider_ids.pop("manual_record_id", None)
+
+        conn.execute(
+            branches.update()
+            .where(branches.c.id == branch_row.id)
+            .values(provider_ids=current_provider_ids)
         )
 
 

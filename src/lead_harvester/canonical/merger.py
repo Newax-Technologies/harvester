@@ -155,18 +155,44 @@ def _provider_ids_for(records: list[RawSourceRecord]) -> dict[str, list[str]]:
     return provider_ids
 
 
+def _synthesize_branch_fields(records: list[RawSourceRecord]) -> dict:
+    """
+    address/location previously came only from records[0] -- fine for the
+    single-record case (_create_branches' same_location=False path, and
+    attach_record_to_institution's "Additional Campus" path, both always
+    call this with a one-element list), but same_location=True collapses
+    the ENTIRE merge group into one shared Branch, and records[0] there is
+    just whichever record _apply_decision happened to pass first. If that
+    record is sparse (e.g. a website-crawled lead with no location) while
+    another record in the same group has better data (e.g. the matched
+    Places record's formattedAddress/location), that evidence was silently
+    dropped even though same_location=True means they all describe the
+    exact same physical location. First non-empty value wins, in record
+    order -- same policy as _synthesize_institution_fields.
+    """
+    address = None
+    location = None
+    for r in records:
+        if not address:
+            fields = display_fields(r)
+            if fields["address"]:
+                address = fields["address"]
+        if location is None and r.location is not None:
+            location = r.location
+    return {"address": address, "location": location}
+
+
 def _build_branch(
     records: list[RawSourceRecord], institution_id: uuid.UUID, *, branch_name: str
 ) -> Branch:
-    primary = records[0]
-    fields = display_fields(primary)
+    synthesized = _synthesize_branch_fields(records)
     return Branch(
         institution_id=institution_id,
         branch_name=branch_name,
-        address=fields["address"] or "",
+        address=synthesized["address"] or "",
         city=_UNKNOWN_CITY,
         country_code=_UNKNOWN_COUNTRY_CODE,
-        location=primary.location,
+        location=synthesized["location"],
         provider_ids=_provider_ids_for(records),
     )
 

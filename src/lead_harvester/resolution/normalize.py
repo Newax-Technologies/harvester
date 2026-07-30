@@ -1,6 +1,8 @@
 import re
 from urllib.parse import urlparse
 
+import phonenumbers
+
 
 def normalize_domain(url: str) -> str:
     """
@@ -23,17 +25,37 @@ def normalize_domain(url: str) -> str:
         return ""
 
 
-def normalize_phone(phone: str) -> str:
+def normalize_phone(phone: str, default_region: str | None = None) -> str:
     """
-    Strips all non-digit characters.
-    If E.164 formatting is desired, we can add a country code prefix if missing.
+    Normalizes to E.164 (e.g. "+923001234567") via the phonenumbers library,
+    so the SAME physical number normalizes identically whether it was
+    entered/reported in national format ("0300 1234567") or international
+    format ("+92 300 1234567") -- a real, live mismatch: manual leads
+    commonly use the "+"-prefixed form while Google Places' own
+    nationalPhoneNumber field never includes one, so exact-match phone
+    blocking silently missed a manual lead and its matching scraped record
+    for the same institution.
+
+    default_region is an ISO-2 country hint (e.g. "PK") used only when the
+    input has no explicit "+" country code of its own -- without a region
+    hint AND no "+", a bare national-format number is genuinely ambiguous
+    and this falls back to the old strip-to-digits behavior rather than
+    guessing a country.
     """
     if not phone:
         return ""
 
-    # Extract only digits and the plus sign
-    cleaned = re.sub(r"[^\d+]", "", phone)
-    return cleaned
+    try:
+        parsed = phonenumbers.parse(phone, default_region)
+        if phonenumbers.is_valid_number(parsed):
+            return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+    except phonenumbers.NumberParseException:
+        pass
+
+    # Not parseable as a real number (invalid, or ambiguous without a
+    # region hint) -- fall back to a best-effort digits/plus-only string
+    # rather than dropping the value entirely.
+    return re.sub(r"[^\d+]", "", phone)
 
 
 def normalize_name(name: str) -> str:

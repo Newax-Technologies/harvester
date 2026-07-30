@@ -8,6 +8,8 @@ CanonicalInstitution; resolve_incoming_record decides which.
 
 from __future__ import annotations
 
+import uuid
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.canonical.merger import (
@@ -26,7 +28,10 @@ _ScoredCandidate = tuple[ResolutionCandidate, MatchAssessment]
 
 
 async def resolve_incoming_record(
-    session: AsyncSession, record: RawSourceRecord
+    session: AsyncSession,
+    record: RawSourceRecord,
+    *,
+    resync_ids: set[uuid.UUID] | None = None,
 ) -> CanonicalInstitution | None:
     """
     Runs blocking + scoring for one newly ingested record and decides its
@@ -65,6 +70,16 @@ async def resolve_incoming_record(
     CanonicalInstitutions if their runs overlap. Documented, not solved,
     here -- a full fix (advisory locks, per-record commits, or a unique
     constraint on some normalized key) is separate follow-up work.
+
+    resync_ids: when given, the id of any institution this call attaches
+    new evidence to (via attach_record_to_institution) is added to it if
+    that institution has previously been offered to the lead_sync webhook
+    (CanonicalInstitution.lead_synced_at is set) -- letting the caller
+    re-emit a sync event for it once the enclosing transaction commits,
+    instead of the core-newax mirror silently going stale after the first
+    sync. A freshly merge_records()-created institution is never added
+    here: it has no lead_synced_at yet (nothing has offered it to the
+    webhook before), so there's nothing to keep in sync.
     """
     candidates = await generate_candidates(session, record)
     for candidate in candidates:
@@ -94,6 +109,8 @@ async def resolve_incoming_record(
             await attach_record_to_institution(
                 session, record, institution, target_branch=target_branch
             )
+            if resync_ids is not None and institution.lead_synced_at is not None:
+                resync_ids.add(institution.id)
             return institution
 
         return await merge_records(session, [record, matched_record], same_location=True)

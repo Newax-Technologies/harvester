@@ -106,6 +106,33 @@ async def test_merge_records_same_location_collapses_to_one_branch(db_session, s
 
 
 @pytest.mark.asyncio
+async def test_merge_records_same_location_synthesizes_branch_fields_from_all_records(
+    db_session, source_run
+):
+    # Mirrors test_merge_records_synthesizes_fields_from_all_merged_records,
+    # but for the collapsed Branch's own address/location -- these used to
+    # come only from records[0] even when same_location=True collapses the
+    # WHOLE group into one shared branch. If the first record in the list
+    # is the sparse one (no address text, no location), a richer sibling
+    # later in the same group must still supply the branch's address and
+    # location instead of silently leaving them blank/null.
+    sparse = website_record(source_run.id, name="Riverside Academy", location_text="")
+    assert sparse.location is None  # sanity check on the factory
+    rich = google_places_record(source_run.id, name="Riverside Academy", lat=24.8607, lng=67.0011)
+    db_session.add_all([sparse, rich])
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [sparse, rich], same_location=True)
+    await db_session.flush()
+
+    result = await db_session.execute(select(Branch).where(Branch.institution_id == institution.id))
+    branches = result.scalars().all()
+    assert len(branches) == 1
+    assert branches[0].address == "12 River Road, Lahore"
+    assert branches[0].location is not None
+
+
+@pytest.mark.asyncio
 async def test_merge_records_writes_provenance_even_without_phone(db_session, source_run):
     # A non-primary record with no phone number used to get zero
     # FieldProvenance rows at all, breaking find_canonical_for_raw_record.

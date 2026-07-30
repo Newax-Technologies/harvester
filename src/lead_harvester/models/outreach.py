@@ -21,6 +21,12 @@ class DraftStatus(str, enum.Enum):
     GENERATED = "generated"
     NEEDS_REVISION = "needs_revision"
     APPROVED = "approved"
+    # Claimed by an OutreachAutomator.run() call that has committed this
+    # transition but hasn't finished sending yet -- the intermediate state
+    # that lets two concurrent run() invocations (or overlapping cron
+    # triggers) atomically split an APPROVED batch instead of both reading
+    # and sending the same drafts.
+    SENDING = "sending"
     SENT = "sent"
 
 

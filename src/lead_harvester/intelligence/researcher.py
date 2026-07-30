@@ -269,7 +269,7 @@ class ResearchBrain:
         # Upsert a minimal CanonicalInstitution if one doesn't exist
         institution = CanonicalInstitution(
             canonical_name=payload.get("full_name", "Unknown"),
-            operating_status=OperatingStatus.ACTIVE,
+            status=OperatingStatus.OPERATIONAL,
         )
         session.add(institution)
         await session.flush()

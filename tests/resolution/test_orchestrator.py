@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -87,6 +88,65 @@ async def test_merge_with_already_resolved_target_attaches_to_existing(db_sessio
     assert len(branches) == 1
     assert b.source_id in branches[0].provider_ids.get("google_places", [])
     assert a.source_id in branches[0].provider_ids.get("google_places", [])
+
+
+@pytest.mark.asyncio
+async def test_attach_to_already_synced_institution_adds_resync_id(db_session, source_run):
+    # An institution that went through the manual-lead route (and so has
+    # lead_synced_at set -- see api/routes/manual_leads.py) must be flagged
+    # for re-sync when a later automated resolution attaches new evidence to
+    # it, or the core-newax mirror silently goes stale after the first sync.
+    a = google_places_record(
+        source_run.id, name="Synced School", phone="+923005551111", lat=31.5, lng=74.3
+    )
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    institution.lead_synced_at = datetime.now(UTC)
+    await db_session.flush()
+
+    b = google_places_record(
+        source_run.id, name="Synced School", phone="+923005552222", lat=31.5, lng=74.3
+    )
+    db_session.add(b)
+    await db_session.flush()
+
+    resync_ids: set = set()
+    result = await resolve_incoming_record(db_session, b, resync_ids=resync_ids)
+
+    assert result is not None
+    assert result.id == institution.id
+    assert resync_ids == {institution.id}
+
+
+@pytest.mark.asyncio
+async def test_attach_to_never_synced_institution_does_not_add_resync_id(db_session, source_run):
+    # The common case: an institution that originated from automated
+    # ingestion (never offered to lead_sync at all, lead_synced_at is None)
+    # shouldn't be introduced into core-newax for the first time just
+    # because a later automated record attaches to it -- that's a separate,
+    # bigger scope decision (see docs/ROADMAP.md), not this fix.
+    a = google_places_record(
+        source_run.id, name="Unsynced School", phone="+923005553333", lat=31.5, lng=74.3
+    )
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+    assert institution.lead_synced_at is None
+
+    b = google_places_record(
+        source_run.id, name="Unsynced School", phone="+923005554444", lat=31.5, lng=74.3
+    )
+    db_session.add(b)
+    await db_session.flush()
+
+    resync_ids: set = set()
+    result = await resolve_incoming_record(db_session, b, resync_ids=resync_ids)
+
+    assert result is not None
+    assert result.id == institution.id
+    assert resync_ids == set()
 
 
 @pytest.mark.asyncio

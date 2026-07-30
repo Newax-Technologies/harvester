@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.api.dependencies import get_db_session, get_lead_sync_emitter
+from lead_harvester.config import settings
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.models.canonical import (
     Branch,
@@ -205,7 +206,11 @@ async def create_manual_lead(
         source_id=source_id,
         raw_payload=raw_payload,
         normalized_name=normalize_name(payload.institution_name),
-        normalized_phone=normalize_phone(first_phone) if first_phone else None,
+        normalized_phone=(
+            normalize_phone(first_phone, default_region=payload.country_code)
+            if first_phone
+            else None
+        ),
         normalized_domain=domain or None,
         location=None,
     )
@@ -276,7 +281,7 @@ async def create_manual_lead(
             # lookup can never recognize a later scraped record sharing this
             # same phone (normalized to "+923001112222"), creating a
             # duplicate ContactPoint instead of reusing this one.
-            contact_value = normalize_phone(contact_value)
+            contact_value = normalize_phone(contact_value, default_region=payload.country_code)
         cp = ContactPoint(
             institution_id=institution.id,
             contact_type=c.contact_type,
@@ -291,6 +296,16 @@ async def create_manual_lead(
     # 7. Mark run as complete
     run.status = RunStatus.COMPLETED
     run.completed_at = datetime.now(UTC)
+
+    # Marks this institution as having had a sync attempted, so a later
+    # resolution-driven update (automated pipeline attach, or a reviewer
+    # merge/branch decision) knows to re-emit rather than letting the
+    # core-newax mirror silently go stale after this first sync. Gated on
+    # the same lead_sync_enabled flag the emitter itself checks -- when
+    # sync is disabled, no delivery is ever attempted here, so nothing
+    # should claim one was.
+    if settings.lead_sync_enabled:
+        institution.lead_synced_at = datetime.now(UTC)
 
     # Commit explicitly here (rather than relying solely on get_db_session's
     # own commit-on-teardown) so the background task below is only ever

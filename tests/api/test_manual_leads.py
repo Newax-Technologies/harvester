@@ -215,6 +215,47 @@ async def test_create_manual_lead_normalizes_phone_and_domain_with_shared_helper
 
 
 @pytest.mark.asyncio
+async def test_create_manual_lead_normalizes_national_format_phone_to_e164(
+    manual_leads_client, db_session
+):
+    # A manual lead's phone entered in bare national format ("0300
+    # 1234567", how Pakistani mobile numbers are commonly written)
+    # previously normalized to "03001234567", while the same physical
+    # number from a Google Places record (which supplies an
+    # internationalPhoneNumber like "+92 300 1234567") normalized to
+    # "+923001234567" -- two different strings for one real phone number,
+    # silently breaking exact-match phone blocking between them. Using
+    # payload.country_code as phonenumbers' region hint makes both forms
+    # converge on the same E.164 value.
+    payload = {
+        **VALID_PAYLOAD,
+        "institution_name": "National Format Test School",
+        "country_code": "pk",
+        "contacts": [
+            {
+                "contact_type": "phone",
+                "contact_value": "0300 1234567",
+                "person_name": "Test Person",
+                "role": "Admin",
+            }
+        ],
+    }
+    response = await manual_leads_client.post("/api/v1/leads/manual", json=payload)
+    assert response.status_code == 201
+
+    record = (
+        await db_session.execute(
+            select(RawSourceRecord).where(
+                RawSourceRecord.normalized_name == "national format test school"
+            )
+        )
+    ).scalar_one()
+
+    assert record.normalized_phone == normalize_phone("+92 300 1234567")
+    assert record.normalized_phone == "+923001234567"
+
+
+@pytest.mark.asyncio
 async def test_create_manual_lead_normalizes_contact_type_casing(
     manual_leads_client, db_session, fake_emitter
 ):

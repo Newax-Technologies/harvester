@@ -50,6 +50,22 @@ class CanonicalInstitution(Base):
         onupdate=lambda: datetime.now(UTC),
     )
 
+    # Set the first time integrations/lead_sync_emitter.py's
+    # emit_institution_upserted is attempted for this institution (currently
+    # only from api/routes/manual_leads.py::create_manual_lead). Gates
+    # whether a LATER resolution-driven update (automated pipeline
+    # attach, or a reviewer's merge/branch decision) bothers re-emitting a
+    # sync event -- without this, an institution that was already mirrored
+    # into core-newax silently goes stale on every subsequent enrichment,
+    # since only the original manual-lead creation ever synced it. Marking
+    # this optimistically when delivery is *attempted* (not confirmed
+    # delivered) matches the emitter's own fire-and-forget contract --
+    # requiring confirmed delivery would need a callback from the
+    # background task, which is disproportionate machinery for what this
+    # flag is for (deciding whether a re-sync attempt is worth making at
+    # all).
+    lead_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     branches: Mapped[list["Branch"]] = relationship(
         "Branch", back_populates="institution", cascade="all, delete-orphan"
     )
