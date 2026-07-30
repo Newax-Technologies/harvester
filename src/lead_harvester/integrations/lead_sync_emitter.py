@@ -50,16 +50,7 @@ class LeadSyncEmitter:
         if not self.settings.lead_sync_enabled or not self.settings.lead_sync_webhook_url:
             return
 
-        supported_contacts = []
-        for contact in contact_points:
-            if contact.contact_type in SUPPORTED_CONTACT_TYPES:
-                supported_contacts.append(contact)
-            else:
-                print(
-                    f"lead_sync: skipping contact {contact.id} with unsupported "
-                    f"contact_type={contact.contact_type!r} for institution {institution.id}"
-                )
-
+        supported_contacts = self._filter_supported_contacts(institution.id, contact_points)
         payload = self._build_payload(institution, branches, supported_contacts)
         body = json.dumps(payload, separators=(",", ":"))
         timestamp = str(int(time.time()))
@@ -81,6 +72,28 @@ class LeadSyncEmitter:
                 response.raise_for_status()
         except httpx.HTTPError as e:
             print(f"lead_sync webhook delivery failed for institution {institution.id}: {e}")
+
+    @staticmethod
+    def _filter_supported_contacts(
+        institution_id: uuid.UUID, contact_points: list[ContactPoint]
+    ) -> list[ContactPoint]:
+        """
+        Shared by emit_institution_upserted and
+        services/outbox_service.py's enqueue_and_attempt_delivery so both
+        delivery paths build the exact same envelope contents -- an
+        unsupported contact type must never ride along in either path,
+        since neither has a way to un-sync a contact core-newax rejects.
+        """
+        supported = []
+        for contact in contact_points:
+            if contact.contact_type in SUPPORTED_CONTACT_TYPES:
+                supported.append(contact)
+            else:
+                print(
+                    f"lead_sync: skipping contact {contact.id} with unsupported "
+                    f"contact_type={contact.contact_type!r} for institution {institution_id}"
+                )
+        return supported
 
     def _build_payload(
         self,

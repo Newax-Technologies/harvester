@@ -1,8 +1,11 @@
 import contextlib
+import json
 import uuid
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.config import Settings
@@ -14,6 +17,7 @@ from lead_harvester.models.canonical import (
     ContactPoint,
     OperatingStatus,
 )
+from lead_harvester.models.outbox import EventOutbox, OutboxStatus
 
 
 @contextlib.asynccontextmanager
@@ -72,31 +76,47 @@ async def test_resync_institution_emits_current_branches_and_contacts(db_session
     await db_session.flush()
 
     emitter = LeadSyncEmitter(_enabled_settings())
-    emitter.emit_institution_upserted = AsyncMock()
+    mock_response = httpx.Response(
+        200, request=httpx.Request("POST", emitter.settings.lead_sync_webhook_url)
+    )
 
-    with patch(
-        "lead_harvester.integrations.lead_sync_resync.get_session",
-        new=lambda: _fake_get_session(db_session),
+    with (
+        patch(
+            "lead_harvester.integrations.lead_sync_resync.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch(
+            "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_response
+        ) as mock_post,
     ):
         await resync_institution(emitter, institution.id)
 
-    emitter.emit_institution_upserted.assert_awaited_once()
-    args, _ = emitter.emit_institution_upserted.call_args
-    resynced_institution, branches, contacts = args
-    assert resynced_institution.id == institution.id
-    assert [b.id for b in branches] == [branch.id]
-    assert [c.id for c in contacts] == [contact.id]
+    mock_post.assert_awaited_once()
+    payload = json.loads(mock_post.call_args.kwargs["content"])
+    assert payload["institution"]["id"] == str(institution.id)
+    assert [b["id"] for b in payload["branches"]] == [str(branch.id)]
+    assert [c["id"] for c in payload["contactPoints"]] == [str(contact.id)]
+
+    outbox_row = (
+        await db_session.execute(
+            select(EventOutbox).where(EventOutbox.institution_id == institution.id)
+        )
+    ).scalar_one()
+    assert outbox_row.status == OutboxStatus.DELIVERED
 
 
 @pytest.mark.asyncio
 async def test_resync_institution_no_ops_for_missing_institution(db_session):
     emitter = LeadSyncEmitter(_enabled_settings())
-    emitter.emit_institution_upserted = AsyncMock()
 
-    with patch(
-        "lead_harvester.integrations.lead_sync_resync.get_session",
-        new=lambda: _fake_get_session(db_session),
+    with (
+        patch(
+            "lead_harvester.integrations.lead_sync_resync.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post,
     ):
         await resync_institution(emitter, uuid.uuid4())
 
-    emitter.emit_institution_upserted.assert_not_awaited()
+    mock_post.assert_not_awaited()
+    assert (await db_session.execute(select(EventOutbox))).scalar_one_or_none() is None

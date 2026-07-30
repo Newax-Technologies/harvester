@@ -17,6 +17,7 @@ from sqlalchemy import select
 from lead_harvester.database import get_session
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
+from lead_harvester.services.outbox_service import enqueue_and_attempt_delivery
 
 
 async def resync_institution(emitter: LeadSyncEmitter, institution_id: uuid.UUID) -> None:
@@ -39,4 +40,6 @@ async def resync_institution(emitter: LeadSyncEmitter, institution_id: uuid.UUID
             .scalars()
             .all()
         )
-        await emitter.emit_institution_upserted(institution, list(branches), list(contact_points))
+        await enqueue_and_attempt_delivery(
+            session, emitter, institution, list(branches), list(contact_points)
+        )

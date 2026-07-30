@@ -8,6 +8,7 @@ from .compliance import (
     SuppressionEntry,
     SuppressionReason,
 )
+from .outbox import EventOutbox, OutboxStatus
 from .outreach import AccountBrief, BriefStatus, DraftStatus, OutreachDraft, OutreachOutcome
 from .profile import LeadProfile, LeadScoreSnapshot
 from .provenance import FieldProvenance
@@ -29,6 +30,7 @@ __all__ = [
     "DeletionRequestStatus",
     "DeletionSubjectType",
     "DraftStatus",
+    "EventOutbox",
     "FieldProvenance",
     "FindingType",
     "FlagStatus",
@@ -40,6 +42,7 @@ __all__ = [
     "MatchAssessment",
     "MatchDecision",
     "OperatingStatus",
+    "OutboxStatus",
     "OutreachDraft",
     "OutreachOutcome",
     "QualificationAssessment",

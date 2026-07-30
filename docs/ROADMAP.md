@@ -18,12 +18,21 @@ explicitly requested, in whatever order is asked for. This is a reference, not a
 These are gaps identified while building the harvester → core-newax lead sync (`lead_sync_emitter.py`,
 `manual_leads.py`'s webhook hook). Each was deliberately scoped out of that work, not forgotten:
 
-1. **Outbox/retry durability.** `LeadSyncEmitter` is currently fire-and-forget: a failed webhook
-   delivery is logged and lost, with no retry. The fix is a persisted delivery ledger in
-   harvester (record every attempt, retry with backoff, dead-letter after a threshold) paired
-   with an `event_id`-keyed inbox on core-newax's side for idempotent replay. This is the
-   "Export and Integration" module's `event_outbox`/`delivery_status` pieces (see module 13
-   above) — not yet built.
+1. **Outbox/retry durability. DONE (harvester side).** `LeadSyncEmitter.emit_institution_upserted`
+   is still fire-and-forget on its own and stays that way (its public signature/behavior is
+   relied on by its own existing test suite) — but `api/routes/manual_leads.py` and
+   `integrations/lead_sync_resync.py` (the two production call sites) no longer call it
+   directly. Both now go through `services/outbox_service.py::enqueue_and_attempt_delivery`,
+   which persists an `EventOutbox` row (its `id` *is* the envelope's `eventId`, extracted once at
+   enqueue time so every retry of that row reuses the identical id) before attempting delivery,
+   so a failed delivery becomes a retryable PENDING row instead of a lost event. Retries use
+   exponential backoff (`process_pending_deliveries`, claimed via `SELECT ... FOR UPDATE SKIP
+   LOCKED` — the same pattern used everywhere else in this codebase — with each row's attempt
+   isolated in its own savepoint) up to `MAX_ATTEMPTS` (6), after which a row moves to
+   `DEAD_LETTER` and needs an explicit `requeue_dead_letter` call to try again. Invokable via the
+   `process-outbox` CLI command or `GET/POST /api/v1/outbox/*`. An `event_id`-keyed inbox on
+   core-newax's side for idempotent replay is still unbuilt — that half of this follow-up
+   remains open.
 2. **Wire up the dormant auto-resolution pipeline. DONE.** `resolution/orchestrator.py::resolve_incoming_record`
    now runs blocking + scoring for every `RawSourceRecord` created by `pipeline.py` (both
    `process_place` and `_run_web_crawler`), and decides: attach to an already-resolved
@@ -213,8 +222,18 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   only ever recorded manually via `flag_contact_unreachable`; `source_comparison` isn't a
   separate abstraction, it's what the conflicting-field check already does for the one field
   it covers.
-- **Export and Integration**: partial. `lead_sync_emitter.py` implements signed delivery;
-  no durable outbox, no core-side inbox yet (tracked follow-up, not forgotten).
+- **Export and Integration**: mostly built. `lead_sync_emitter.py` implements signed delivery;
+  `services/outbox_service.py` now sits in front of it (both live call sites route through it)
+  giving harvester's side a durable, retried, dead-letterable delivery ledger (see the tracked
+  follow-up above) — the still-missing piece is a core-newax-side `event_id`-keyed inbox for
+  idempotent replay. `exports/lead_export.py` adds the CSV/JSON export piece: one row per
+  `ContactPoint` (the actual contactable unit), carrying its institution's identity/score fields
+  (reusing `LeadProfile` rather than recomputing) and an `is_suppressed` flag (reusing
+  `services/compliance_service.py`'s suppression lookup) so a downstream consumer can't
+  accidentally treat a suppressed contact as safe to message. Invokable via the `export-leads`
+  CLI command or `GET /api/v1/exports/leads`. Known v1 limitation: a `ContactPoint` has no direct
+  link to a specific `Branch` (contacts are institution-wide in this schema), so branch info is
+  summarized per-institution (primary city/country, branch count) rather than joined per-row.
 - **Manual Lead Intake**: exists and correctly scoped — `manual_leads.py::create_manual_lead`
   is the one connected, live write path today.
 - **Operations and Administration**: partial (`services/dashboard_service.py` and dashboard

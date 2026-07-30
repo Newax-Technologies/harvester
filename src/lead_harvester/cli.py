@@ -353,6 +353,58 @@ async def purge_expired_records(args: argparse.Namespace) -> int:
     return 0
 
 
+async def process_outbox(args: argparse.Namespace) -> int:
+    """
+    Retry PENDING event_outbox rows whose next_attempt_at has passed
+    (docs/ROADMAP.md module 13). Intended to run on a schedule (e.g. cron
+    every few minutes) alongside the immediate delivery attempt every
+    enqueue already makes, so a delivery that failed on its first attempt
+    still gets retried without a human doing anything.
+    """
+    from .api.dependencies import get_lead_sync_emitter
+    from .database import get_session
+    from .services.outbox_service import process_pending_deliveries
+
+    emitter = get_lead_sync_emitter()
+    async with get_session() as session:
+        processed = await process_pending_deliveries(session, emitter, limit=args.limit)
+
+    print(f"\n[Outbox] Attempted delivery for {processed} pending event(s).\n")
+    return 0
+
+
+async def export_leads(args: argparse.Namespace) -> int:
+    """
+    Export institutions/contacts as CSV or JSON (docs/ROADMAP.md module 13).
+    Writes to --output if given, otherwise prints to stdout.
+    """
+    from .database import get_session
+    from .exports import build_lead_export_rows, rows_to_csv, rows_to_json
+    from .models.canonical import OperatingStatus
+    from .models.qualification import QualificationStatus
+
+    async with get_session() as session:
+        rows = await build_lead_export_rows(
+            session,
+            status=OperatingStatus(args.status) if args.status else None,
+            min_score=args.min_score,
+            qualification_status=(
+                QualificationStatus(args.qualification_status)
+                if args.qualification_status
+                else None
+            ),
+            limit=args.limit,
+        )
+
+    content = rows_to_csv(rows) if args.format == "csv" else rows_to_json(rows)
+    if args.output:
+        Path(args.output).write_text(content)
+        print(f"\n[Export] Wrote {len(rows)} row(s) to {args.output}.\n")
+    else:
+        print(content)
+    return 0
+
+
 async def linkedin_send(args: argparse.Namespace) -> int:
     """
     Send all approved OutreachDraft records (LinkedIn messages or emails).
@@ -532,6 +584,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="Delete unreferenced records older than this",
     )
 
+    # -- process-outbox -----------------------------------------------------
+    process_outbox_parser = subparsers.add_parser(
+        "process-outbox",
+        help="Retry PENDING lead_sync outbox rows whose next_attempt_at has passed",
+    )
+    process_outbox_parser.add_argument(
+        "--limit", type=int, default=50, help="Max outbox rows to attempt this run"
+    )
+
+    # -- export-leads ---------------------------------------------------------
+    export_leads_parser = subparsers.add_parser(
+        "export-leads",
+        help="Export institutions/contacts as CSV or JSON",
+    )
+    export_leads_parser.add_argument("--format", choices=["csv", "json"], default="csv")
+    export_leads_parser.add_argument(
+        "--output", default=None, help="File to write to (default: print to stdout)"
+    )
+    export_leads_parser.add_argument(
+        "--status",
+        choices=["operational", "closed_temporarily", "closed_permanently", "unknown"],
+        default=None,
+        help="Filter to institutions with this operating status",
+    )
+    export_leads_parser.add_argument(
+        "--min-score", type=int, default=None, help="Minimum LeadProfile.overall_score"
+    )
+    export_leads_parser.add_argument(
+        "--qualification-status",
+        choices=["pending", "qualified", "disqualified", "needs_review"],
+        default=None,
+    )
+    export_leads_parser.add_argument(
+        "--limit", type=int, default=1000, help="Max institutions to include"
+    )
+
     # -- linkedin-send ------------------------------------------------------
     li_send = subparsers.add_parser(
         "linkedin-send",
@@ -635,6 +723,8 @@ def main() -> None:
         "verify-data-quality": lambda: sys.exit(asyncio.run(verify_data_quality(args))),
         "suppress-contact": lambda: sys.exit(asyncio.run(suppress_contact(args))),
         "purge-expired-records": lambda: sys.exit(asyncio.run(purge_expired_records(args))),
+        "process-outbox": lambda: sys.exit(asyncio.run(process_outbox(args))),
+        "export-leads": lambda: sys.exit(asyncio.run(export_leads(args))),
         "linkedin-send": lambda: sys.exit(asyncio.run(linkedin_send(args))),
         "linkedin-status": lambda: _linkedin_status(args),
         "linkedin-farm-run": lambda: sys.exit(asyncio.run(_linkedin_farm_run(args))),

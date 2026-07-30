@@ -1,6 +1,9 @@
+import contextlib
+import json
 import uuid
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -17,9 +20,10 @@ from lead_harvester.canonical.merger import (
     find_branch_for_raw_record,
     find_canonical_for_raw_record,
 )
+from lead_harvester.config import Settings
 from lead_harvester.database import engine as manual_leads_engine
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
-from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
+from lead_harvester.models.canonical import Branch, CanonicalInstitution
 from lead_harvester.models.profile import LeadProfile
 from lead_harvester.models.source import RawSourceRecord
 from lead_harvester.resolution.normalize import normalize_domain, normalize_phone
@@ -59,8 +63,55 @@ async def dispose_manual_leads_engine():
 
 @pytest.fixture
 def fake_emitter():
-    emitter = AsyncMock(spec=LeadSyncEmitter)
-    return emitter
+    # A real LeadSyncEmitter (not a Mock) is required now that delivery goes
+    # through services/outbox_service.py: enqueue_and_attempt_delivery calls
+    # the emitter's real _build_payload/_filter_supported_contacts/_sign to
+    # build the outbox row's payload, which a Mock's auto-generated return
+    # values can't stand in for (json.dumps would fail on a MagicMock). The
+    # actual outbound HTTP call is intercepted by mock_webhook_post below,
+    # so nothing here makes a real network request.
+    settings = Settings(
+        lead_sync_enabled=True,
+        lead_sync_webhook_url="https://core-newax.test/api/integrations/lead-harvester/webhook",
+        lead_sync_webhook_secret="test-secret-with-more-than-32-characters",
+    )
+    return LeadSyncEmitter(settings)
+
+
+@pytest.fixture(autouse=True)
+def mock_webhook_post():
+    # Autouse so every test in this module is protected from making a real
+    # outbound HTTP call -- the manual-lead route always schedules a
+    # lead_sync outbox delivery attempt as a background task, whether or not
+    # a given test cares about it.
+    #
+    # manual_leads_client is ITSELF an httpx.AsyncClient (over ASGITransport,
+    # see the fixture above), so a blanket patch of AsyncClient.post would
+    # also intercept the test client's own request to the app under test,
+    # not just the outbound lead_sync webhook call this fixture exists to
+    # mock -- dispatch on the target URL instead, and pass every other call
+    # (i.e. the test client's own requests) through to the real method.
+    original_post = httpx.AsyncClient.post
+    mock_response = httpx.Response(
+        200,
+        request=httpx.Request(
+            "POST", "https://core-newax.test/api/integrations/lead-harvester/webhook"
+        ),
+    )
+    mock_post = AsyncMock(return_value=mock_response)
+
+    async def dispatch(self, url, *args, **kwargs):
+        if str(url).startswith("https://core-newax.test/"):
+            return await mock_post(url, *args, **kwargs)
+        return await original_post(self, url, *args, **kwargs)
+
+    with patch.object(httpx.AsyncClient, "post", new=dispatch):
+        yield mock_post
+
+
+@contextlib.asynccontextmanager
+async def _fake_get_session(session):
+    yield session
 
 
 @pytest.fixture
@@ -73,7 +124,23 @@ def override_manual_lead_dependencies(db_session, fake_emitter):
     app.dependency_overrides[get_current_user] = lambda: User(
         id="usr_test", username="test-user", role="admin"
     )
-    yield
+    # _deliver_lead_sync_event's background task opens its OWN session via
+    # database.get_session() (deliberately -- in production the request
+    # session has already committed and closed by the time a background
+    # task runs, see manual_leads.py's docstring there). db_session here is
+    # a single connection wrapped in an outer transaction that's rolled back
+    # at test end (see conftest.py) rather than truly committed -- a
+    # separate real get_session() call would open an unrelated connection
+    # that can never see this test's uncommitted institution row (and, in
+    # this test environment, points at a different database entirely).
+    # Patched the same way test_lead_sync_resync.py already does for
+    # resync_institution, so the background task's "fresh session" is
+    # actually this same session/transaction.
+    with patch(
+        "lead_harvester.api.routes.manual_leads.get_session",
+        new=lambda: _fake_get_session(db_session),
+    ):
+        yield
     app.dependency_overrides.clear()
 
 
@@ -85,7 +152,7 @@ async def manual_leads_client(override_manual_lead_dependencies):
 
 @pytest.mark.asyncio
 async def test_create_manual_lead_persists_and_normalizes_country_code(
-    manual_leads_client, fake_emitter
+    manual_leads_client, fake_emitter, mock_webhook_post
 ):
     response = await manual_leads_client.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
 
@@ -94,10 +161,10 @@ async def test_create_manual_lead_persists_and_normalizes_country_code(
     assert body["institution_name"] == "Riverside Academy"
     assert body["contacts_saved"] == 1
 
-    args, _ = fake_emitter.emit_institution_upserted.call_args
-    _, branches, _ = args
-    assert branches[0].city == "Lahore"
-    assert branches[0].country_code == "PK"  # normalized to uppercase
+    mock_webhook_post.assert_awaited_once()
+    payload = json.loads(mock_webhook_post.call_args.kwargs["content"])
+    assert payload["branches"][0]["city"] == "Lahore"
+    assert payload["branches"][0]["countryCode"] == "PK"  # normalized to uppercase
 
 
 @pytest.mark.asyncio
@@ -140,20 +207,20 @@ async def test_create_manual_lead_rejects_country_code_that_expands_when_upperca
 
 
 @pytest.mark.asyncio
-async def test_create_manual_lead_invokes_emitter_after_commit(manual_leads_client, fake_emitter):
+async def test_create_manual_lead_invokes_emitter_after_commit(
+    manual_leads_client, fake_emitter, mock_webhook_post
+):
     response = await manual_leads_client.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
     assert response.status_code == 201
 
-    fake_emitter.emit_institution_upserted.assert_awaited_once()
-    args, _ = fake_emitter.emit_institution_upserted.call_args
-    institution, branches, contact_points = args
+    mock_webhook_post.assert_awaited_once()
+    payload = json.loads(mock_webhook_post.call_args.kwargs["content"])
 
-    assert institution.canonical_name == "Riverside Academy"
-    assert len(branches) == 1
-    assert branches[0].city == "Lahore"
-    assert len(contact_points) == 1
-    assert isinstance(contact_points[0], ContactPoint)
-    assert contact_points[0].person_name == "Ayesha Malik"
+    assert payload["institution"]["canonicalName"] == "Riverside Academy"
+    assert len(payload["branches"]) == 1
+    assert payload["branches"][0]["city"] == "Lahore"
+    assert len(payload["contactPoints"]) == 1
+    assert payload["contactPoints"][0]["personName"] == "Ayesha Malik"
 
 
 @pytest.mark.asyncio
@@ -258,7 +325,7 @@ async def test_create_manual_lead_normalizes_national_format_phone_to_e164(
 
 @pytest.mark.asyncio
 async def test_create_manual_lead_normalizes_contact_type_casing(
-    manual_leads_client, db_session, fake_emitter
+    manual_leads_client, db_session, fake_emitter, mock_webhook_post
 ):
     # contact_type is compared exact-match against "phone" (this route's own
     # normalized_phone extraction, ContactPoint value normalization) and
@@ -287,9 +354,9 @@ async def test_create_manual_lead_normalizes_contact_type_casing(
     ).scalar_one()
     assert record.normalized_phone == normalize_phone("+92 300 111 2222")
 
-    args, _ = fake_emitter.emit_institution_upserted.call_args
-    _, _, contact_points = args
-    assert contact_points[0].contact_type == "phone"
+    mock_webhook_post.assert_awaited_once()
+    payload = json.loads(mock_webhook_post.call_args.kwargs["content"])
+    assert payload["contactPoints"][0]["contactType"] == "phone"
 
 
 @pytest.mark.asyncio
@@ -385,11 +452,16 @@ async def test_create_manual_lead_sets_a_high_confidence_score_on_the_0_to_100_s
 async def test_create_manual_lead_does_not_fail_when_emitter_raises(
     manual_leads_client, fake_emitter
 ):
-    # The emitter's own contract is "never raise" (it swallows delivery
-    # failures internally) -- but this endpoint's "a webhook problem never
-    # fails a lead submission" guarantee shouldn't depend on trusting that.
-    # Force a raise here (e.g. a bug in the emitter, or an unexpected error
-    # like a signing failure) and confirm the route still succeeds.
-    fake_emitter.emit_institution_upserted.side_effect = RuntimeError("boom")
-    response = await manual_leads_client.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
+    # The outbox enqueue's own contract is "never raise" (it swallows
+    # delivery failures internally) -- but this endpoint's "a webhook
+    # problem never fails a lead submission" guarantee shouldn't depend on
+    # trusting that. Force a raise here (e.g. a bug in the outbox service)
+    # from the route's own belt-and-suspenders try/except (see
+    # _deliver_lead_sync_event) and confirm the route still succeeds.
+    with patch(
+        "lead_harvester.api.routes.manual_leads.enqueue_and_attempt_delivery",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError("boom"),
+    ):
+        response = await manual_leads_client.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
     assert response.status_code == 201

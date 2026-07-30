@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.api.dependencies import get_db_session, get_lead_sync_emitter
 from lead_harvester.config import settings
+from lead_harvester.database import get_session
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.models.canonical import (
     Branch,
@@ -35,6 +36,7 @@ from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
 from lead_harvester.resolution.normalize import normalize_domain, normalize_name, normalize_phone
 from lead_harvester.services.lead_profile_service import refresh_lead_profile
+from lead_harvester.services.outbox_service import enqueue_and_attempt_delivery
 
 router = APIRouter(prefix="/leads", tags=["Manual Lead Entry"])
 
@@ -130,16 +132,25 @@ async def _deliver_lead_sync_event(
     branch: Branch,
     contact_points: list[ContactPoint],
 ) -> None:
-    # The emitter itself never raises on delivery failure, but this endpoint's
-    # contract ("a webhook problem never fails a lead submission") shouldn't
-    # depend on trusting that implementation detail -- belt and suspenders.
-    # Scheduled as a background task (runs after the response is sent) so a
-    # slow or unavailable downstream never delays the caller's own response,
-    # matching the emitter's fire-and-forget contract.
+    # Routed through the durable outbox (services/outbox_service.py) rather
+    # than calling the emitter directly, so a delivery failure becomes a
+    # PENDING row that gets retried instead of a lost event. enqueue_and_
+    # attempt_delivery/the emitter itself never raise on delivery failure,
+    # but this endpoint's contract ("a webhook problem never fails a lead
+    # submission") shouldn't depend on trusting that implementation detail
+    # -- belt and suspenders. Scheduled as a background task (runs after the
+    # response is sent) so a slow or unavailable downstream never delays the
+    # caller's own response. institution/branch/contact_points come from the
+    # now-closed request session -- expire_on_commit=False keeps their
+    # already-loaded attributes readable, so a fresh session here is only
+    # needed to persist the new EventOutbox row, not to re-read them.
     try:
-        await lead_sync_emitter.emit_institution_upserted(institution, [branch], contact_points)
+        async with get_session() as session:
+            await enqueue_and_attempt_delivery(
+                session, lead_sync_emitter, institution, [branch], contact_points
+            )
     except Exception as e:
-        print(f"lead_sync emitter raised unexpectedly for institution {institution.id}: {e}")
+        print(f"lead_sync outbox enqueue raised unexpectedly for institution {institution.id}: {e}")
 
 
 @router.post(
