@@ -3,7 +3,7 @@ import contextlib
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
@@ -200,3 +200,63 @@ async def test_run_releases_unsent_draft_back_to_approved(db_session):
 
     await db_session.refresh(draft)
     assert draft.status == DraftStatus.APPROVED
+
+
+@pytest.mark.asyncio
+async def test_run_does_not_requeue_draft_after_email_send_succeeds_but_mark_sent_fails(
+    db_session,
+):
+    # sendmail() succeeding but the subsequent _mark_sent() DB write then
+    # hitting a transient error previously left the draft counted as "not
+    # sent" -- _release_unsent_drafts would revert it from SENDING back to
+    # APPROVED, and the next run would email the same recipient a second
+    # time even though the first email already went out.
+    institution = CanonicalInstitution(
+        canonical_name="Mark Sent Failure School",
+        institution_type="school",
+        status=OperatingStatus.OPERATIONAL,
+        confidence_score=0.7,
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    brief = AccountBrief(institution_id=institution.id)
+    db_session.add(brief)
+    await db_session.flush()
+
+    draft = _draft(brief.id, "Mark Sent Failure Contact")
+    db_session.add(draft)
+    await db_session.flush()
+
+    automator = OutreachAutomator(
+        account_id="test-account",
+        smtp_host="smtp.example.com",
+        smtp_user="sender@example.com",
+        smtp_password="secret",
+    )
+    automator._mark_sent = AsyncMock(side_effect=RuntimeError("transient db error"))
+
+    with (
+        patch(
+            "lead_harvester.outreach.automator.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch("lead_harvester.outreach.automator.within_working_hours", return_value=True),
+        patch("smtplib.SMTP") as mock_smtp,
+    ):
+        server = mock_smtp.return_value.__enter__.return_value
+        await automator.run()
+
+    server.sendmail.assert_called_once()
+    automator._mark_sent.assert_awaited_once()
+
+    # The email genuinely went out -- must stay claimed (SENDING), not be
+    # silently reverted to APPROVED where a future run would send it again.
+    # (The real get_session() commits the claim-to-SENDING transition when
+    # its `async with` block exits; _fake_get_session doesn't, and neither
+    # the mocked _mark_sent nor the short-circuited _release_unsent_drafts
+    # touch the session again here, so an explicit flush stands in for that
+    # commit before reloading from the database.)
+    await db_session.flush()
+    await db_session.refresh(draft)
+    assert draft.status == DraftStatus.SENDING
