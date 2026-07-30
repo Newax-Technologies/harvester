@@ -160,7 +160,25 @@ async def linkedin_run(args: argparse.Namespace) -> int:
         captcha_api_key=captcha_key or None,
         proxy=proxy or None,
     )
-    profiles = await crawler.run()
+    crawl_aborted = False
+    try:
+        profiles = await crawler.run()
+    except Exception as e:
+        # A CAPTCHA-triggered abort, a search-budget exhaustion, or any
+        # other browser-level failure escaping run() after earlier URLs
+        # already succeeded previously lost every profile harvested so
+        # far -- this method never reached the persistence block below at
+        # all. run() attaches whatever it collected before the exception
+        # to partial_profiles; persist that instead of discarding it.
+        profiles = getattr(e, "partial_profiles", None)
+        if profiles is None:
+            raise
+        print(
+            f"[LinkedIn] Crawl aborted ({e}) -- persisting {len(profiles)} "
+            "profile(s) collected before the abort.",
+            file=sys.stderr,
+        )
+        crawl_aborted = True
 
     # Persist raw profiles to database
     async with get_session() as session:
@@ -196,7 +214,7 @@ async def linkedin_run(args: argparse.Namespace) -> int:
 
     print(f"\n✓ Saved {len(profiles)} profiles to database.")
     print("  Run `linkedin-research` next to analyse them with AI.\n")
-    return 0
+    return 1 if crawl_aborted else 0
 
 
 async def linkedin_research(args: argparse.Namespace) -> int:

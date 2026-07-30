@@ -2,15 +2,21 @@ import contextlib
 import multiprocessing
 import threading
 import time
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.source import RawSourceRecord, SourceType
-from lead_harvester.sources.account_farm import AccountFarm, AccountResult, _drain_result_queue
+from lead_harvester.sources.account_farm import (
+    AccountFarm,
+    AccountResult,
+    _drain_result_queue,
+    _run_account_worker,
+)
 from lead_harvester.sources.breadth_tracker import BreadthTracker
+from lead_harvester.sources.linkedin_stealth import LinkedInProfile
 
 
 @contextlib.asynccontextmanager
@@ -165,6 +171,65 @@ def test_drain_result_queue_prevents_deadlock_on_large_payload():
 
     assert len(results) == 1
     assert results[0].account_id == "big_account"
+
+
+def test_run_account_worker_preserves_partial_profiles_on_crawler_abort(tmp_path):
+    # A CAPTCHA-triggered abort (or any other browser-level failure) after
+    # earlier URLs already succeeded previously discarded every profile
+    # harvested so far by unconditionally returning an empty profile list
+    # here. crawler.run() attaches whatever it collected before the
+    # exception to partial_profiles -- must be persisted, not dropped.
+    fake_profile = LinkedInProfile(profile_url="https://linkedin.com/in/alice", full_name="Alice")
+    abort = RuntimeError("CaptchaTriggered:burner_01")
+    abort.partial_profiles = [fake_profile]
+
+    fake_sm = MagicMock()
+    fake_sm.has_session.return_value = True
+    fake_sm.get_today_limits.return_value = {"phase": 3, "phase_label": "Week 3"}
+
+    fake_device = MagicMock()
+    fake_device.city_name = "Karachi"
+    fake_dpm = MagicMock()
+    fake_dpm.get.return_value = fake_device
+
+    fake_crawler = MagicMock()
+    fake_crawler.run = AsyncMock(side_effect=abort)
+
+    result_queue: multiprocessing.Queue = multiprocessing.Queue()
+
+    with (
+        patch("lead_harvester.sources.session_manager.SessionManager", return_value=fake_sm),
+        patch("lead_harvester.sources.device_profile.DeviceProfileManager", return_value=fake_dpm),
+        patch(
+            "lead_harvester.sources.linkedin_stealth.LinkedInStealthCrawler",
+            return_value=fake_crawler,
+        ),
+    ):
+        _run_account_worker(
+            "burner_01", ["https://linkedin.com/in/alice"], None, None, result_queue
+        )
+
+    result = result_queue.get(timeout=5)
+    assert result["profiles_scraped"] == 1
+    assert result["profiles"] == [
+        {
+            "profile_url": "https://linkedin.com/in/alice",
+            "full_name": "Alice",
+            "headline": "",
+            "company": "",
+            "location": "",
+            "about": "",
+            "connection_degree": "",
+            "has_email": False,
+            "email": "",
+            "skills": [],
+            "experience": [],
+            "education": [],
+            "recent_activity": [],
+            "raw_html_snippet": "",
+        }
+    ]
+    assert result["errors"] == ["CaptchaTriggered:burner_01"]
 
 
 def test_record_farm_visits_logs_every_scraped_profile(tmp_path):

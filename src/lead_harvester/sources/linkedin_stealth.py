@@ -434,6 +434,22 @@ class LinkedInStealthCrawler:
                         else:
                             await between_profiles_pause()
 
+                except Exception as e:
+                    # A CAPTCHA-triggered abort (_check_for_captcha's own
+                    # intentional RuntimeError), a search-budget exhaustion,
+                    # or any other browser-level failure previously escaped
+                    # this method entirely once earlier URLs had already
+                    # succeeded -- run() never reached `return results`, so
+                    # cli.py's linkedin_run never reached its persistence
+                    # block, and account_farm.py's worker caught the
+                    # exception and explicitly returned an empty profile
+                    # list, discarding every profile harvested before the
+                    # abort. Attach what was collected so far to the
+                    # exception (still re-raised as-is, so anything
+                    # matching its type/message elsewhere is unaffected)
+                    # and let callers decide how to persist it.
+                    e.partial_profiles = results
+                    raise
                 finally:
                     # Save cookies AND localStorage back to disk
                     updated_cookies = await context.cookies()

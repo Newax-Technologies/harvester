@@ -168,13 +168,20 @@ def _run_account_worker(
                 "profiles": [dataclasses.asdict(p) for p in profiles],
             }
         except Exception as e:
+            # A CAPTCHA-triggered abort, a search-budget exhaustion, or any
+            # other browser-level failure escaping crawler.run() after
+            # earlier URLs already succeeded previously discarded every
+            # profile harvested so far by unconditionally returning an
+            # empty list here. run() attaches whatever it collected before
+            # the exception to partial_profiles -- persist that instead.
+            partial_profiles = getattr(e, "partial_profiles", None) or []
             return {
                 "account_id": account_id,
-                "profiles_scraped": 0,
+                "profiles_scraped": len(partial_profiles),
                 "errors": [str(e)],
                 "city": device.city_name,
                 "warmup_phase": limits.get("phase", 0),
-                "profiles": [],
+                "profiles": [dataclasses.asdict(p) for p in partial_profiles],
             }
 
     result = _asyncio.run(_inner())

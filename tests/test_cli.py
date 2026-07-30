@@ -52,6 +52,51 @@ async def test_linkedin_run_constructs_crawler_without_unsupported_kwargs(tmp_pa
 
 
 @pytest.mark.asyncio
+async def test_linkedin_run_persists_partial_profiles_when_crawler_aborts(tmp_path, db_session):
+    # A CAPTCHA-triggered abort (or any other browser-level failure) after
+    # earlier URLs already succeeded previously lost every profile
+    # harvested so far -- crawler.run() raising meant this method never
+    # reached its persistence block at all. run() attaches whatever it
+    # collected before the exception to partial_profiles.
+    from lead_harvester import cli
+
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("https://linkedin.com/in/alice\nhttps://linkedin.com/in/bob\n")
+
+    args = argparse.Namespace(
+        account="burner_01",
+        urls_file=str(urls_file),
+        proxy="",
+        captcha_key="",
+    )
+
+    fake_profile = LinkedInProfile(profile_url="https://linkedin.com/in/alice", full_name="Alice")
+    abort = RuntimeError("CaptchaTriggered:burner_01")
+    abort.partial_profiles = [fake_profile]
+
+    with (
+        patch("lead_harvester.sources.linkedin_stealth.LinkedInStealthCrawler") as mock_crawler_cls,
+        patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)),
+    ):
+        mock_crawler_cls.return_value.run = AsyncMock(side_effect=abort)
+        result = await cli.linkedin_run(args)
+
+    assert result == 1
+
+    records = (
+        (
+            await db_session.execute(
+                select(RawSourceRecord).where(RawSourceRecord.source_type == SourceType.LINKEDIN)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(records) == 1
+    assert records[0].source_id == "https://linkedin.com/in/alice"
+
+
+@pytest.mark.asyncio
 async def test_import_authorized_returns_error_for_missing_file(tmp_path):
     from lead_harvester import cli
 
