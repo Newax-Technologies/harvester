@@ -135,10 +135,15 @@ def compute_lead_score(
     # 7. Data confidence -- how corroborated is this institution's identity
     # itself (see resolution/scoring.py -- this is a different confidence
     # signal, about resolution match quality feeding into merger.py's
-    # confidence_score, not about the research above).
-    if institution.confidence_score > 0.8:
+    # confidence_score, not about the research above). confidence_score is
+    # a 0-100 scale (verification/confidence.py, canonical/merger.py's own
+    # +10-per-source/capped-at-100 convention) -- thresholds here were
+    # previously 0.8/0.5, wrongly assuming a 0-1 fraction, which meant
+    # every institution with even a single corroborating source (score
+    # 10.0) always hit the top tier regardless of real corroboration.
+    if institution.confidence_score > 80:
         breakdown["confidence"] = _MAX_CONFIDENCE
-    elif institution.confidence_score > 0.5:
+    elif institution.confidence_score > 50:
         breakdown["confidence"] = 2
     else:
         breakdown["confidence"] = 0

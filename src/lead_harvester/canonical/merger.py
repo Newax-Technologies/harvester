@@ -13,6 +13,7 @@ from lead_harvester.models.canonical import (
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, SourceType
 from lead_harvester.resolution.normalize import normalize_phone
+from lead_harvester.verification.confidence import bump_confidence, confidence_for_source_count
 
 # Google Places' response (the only live raw-record source today) does not
 # request structured address components, only a free-text formattedAddress --
@@ -487,7 +488,7 @@ async def merge_records(
         domain=synthesized["domain"],
         website=synthesized["website"],
         status=synthesized["status"],
-        confidence_score=len(raw_records) * 10.0,  # simple confidence metric
+        confidence_score=confidence_for_source_count(len(raw_records)),
     )
     session.add(institution)
 
@@ -676,8 +677,6 @@ async def attach_record_to_institution(
 
     await _add_contacts_and_provenance(session, institution, record)
     if is_new_evidence:
-        # Capped so confidence_score (an API/UI-facing percentage) can never
-        # exceed 100 regardless of how many distinct sources contribute.
-        institution.confidence_score = min(institution.confidence_score + 10.0, 100.0)
+        institution.confidence_score = bump_confidence(institution.confidence_score)
 
     return branch

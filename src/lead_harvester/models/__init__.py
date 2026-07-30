@@ -8,6 +8,7 @@ from .qualification import QualificationAssessment, QualificationStatus
 from .research import FindingType, JobStatus, ResearchFinding, ResearchJob
 from .resolution import MatchAssessment, MatchDecision, ResolutionCandidate, ReviewOutcome
 from .source import RawSourceRecord, RunStatus, SourceRun, SourceType
+from .verification import DataQualityFlag, FlagStatus, FlagType
 
 __all__ = [
     "AccountBrief",
@@ -16,9 +17,12 @@ __all__ = [
     "BriefStatus",
     "CanonicalInstitution",
     "ContactPoint",
+    "DataQualityFlag",
     "DraftStatus",
     "FieldProvenance",
     "FindingType",
+    "FlagStatus",
+    "FlagType",
     "JobStatus",
     "LeadProfile",
     "LeadReservation",

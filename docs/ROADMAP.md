@@ -162,7 +162,34 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   boundary-conflict note on `outreach/` below), not silently unhandled.
 - **Compliance and Source Governance**: principles only (README's "Compliance guardrails"),
   not implemented as code.
-- **Verification and Data Quality**: doesn't exist as a distinct module.
+- **Verification and Data Quality**: done for v1 scope. `verification/checks.py` states three
+  checks as pure functions over already-loaded data: `check_confidence_drift` (does
+  `CanonicalInstitution.confidence_score` still match what `verification/confidence.py`'s
+  formula would compute from the institution's actual current `branch_membership`
+  FieldProvenance count -- catches drift from anything that changes the source count without
+  going through `canonical/merger.py`'s own increment), `check_stale_evidence` (no
+  FieldProvenance/ResearchFinding recorded within a configurable freshness window), and
+  `check_conflicting_canonical_name` (two sources asserting meaningfully different names for
+  the same institution after `resolution/normalize.py`'s own `normalize_name` -- v1 scope is
+  exact-after-normalization comparison, not fuzzy/trigram similarity). `services/
+  verification_service.py::run_verification_checks`/`run_verification_sweep` run these and
+  create `DataQualityFlag` rows (the review_queue), deduping against any already-OPEN flag of
+  the same type so re-running a sweep doesn't spam duplicates; the sweep savepoint-isolates
+  each institution (`docs/CODE_REVIEW_LESSONS.md` pattern 3) so one failing check doesn't
+  abort the batch. Invokable via the `verify-data-quality` CLI command or
+  `GET/POST /api/v1/verification/*`. Found and fixed a real pre-existing bug in the same pass:
+  `CanonicalInstitution.confidence_score` is a 0-100 scale everywhere in `canonical/merger.py`
+  (documented there as "an API/UI-facing percentage"), but `api/routes/manual_leads.py` set it
+  to `0.7` (a 0-1 fraction -- effectively the *lowest* possible score, the opposite of its own
+  "high base confidence" comment) and `profiles/scoring.py` (module 9) thresholded it at
+  `>0.8`/`>0.5` (same wrong-scale assumption) -- both fixed, and `merger.py`'s own two inline
+  copies of the "+10 per source, capped at 100" formula extracted into
+  `verification/confidence.py` as a single source of truth. Known v1 limitations: conflict
+  detection only covers `canonical_name` (not every field type); `unreachable_contact_checks`
+  has no automated signal source (no email/phone verification API integration exists) and is
+  only ever recorded manually via `flag_contact_unreachable`; `source_comparison` isn't a
+  separate abstraction, it's what the conflicting-field check already does for the one field
+  it covers.
 - **Export and Integration**: partial. `lead_sync_emitter.py` implements signed delivery;
   no durable outbox, no core-side inbox yet (tracked follow-up, not forgotten).
 - **Manual Lead Intake**: exists and correctly scoped — `manual_leads.py::create_manual_lead`

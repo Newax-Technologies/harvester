@@ -14,6 +14,7 @@ from lead_harvester.api.routes import (
     lead_profiles,
     manual_leads,
     resolution_reviews,
+    verification,
 )
 
 app = FastAPI(
@@ -88,5 +89,6 @@ api_router.include_router(resolution_reviews.router)
 api_router.include_router(manual_leads.router)
 api_router.include_router(lead_profiles.router)
 api_router.include_router(daily_selection.router)
+api_router.include_router(verification.router)
 
 app.include_router(api_router)

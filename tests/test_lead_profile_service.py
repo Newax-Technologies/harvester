@@ -21,7 +21,7 @@ async def _seed_institution(db_session, **overrides) -> CanonicalInstitution:
         "canonical_name": "Riverside Academy",
         "institution_type": "school",
         "website": "https://riverside.edu",
-        "confidence_score": 0.9,
+        "confidence_score": 90.0,  # 0-100 scale -- see verification/confidence.py
     }
     defaults.update(overrides)
     institution = CanonicalInstitution(**defaults)

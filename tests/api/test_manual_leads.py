@@ -367,6 +367,21 @@ async def test_create_manual_lead_creates_a_lead_profile(manual_leads_client, db
 
 
 @pytest.mark.asyncio
+async def test_create_manual_lead_sets_a_high_confidence_score_on_the_0_to_100_scale(
+    manual_leads_client, db_session
+):
+    # confidence_score is a 0-100 scale (canonical/merger.py's own
+    # +10-per-source/capped-at-100 convention) -- this was previously set
+    # to 0.7 here, a 0-1 fraction that was effectively the LOWEST possible
+    # score against the real scale, the opposite of "high base confidence".
+    response = await manual_leads_client.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
+    institution_id = response.json()["id"]
+
+    institution = await db_session.get(CanonicalInstitution, uuid.UUID(institution_id))
+    assert institution.confidence_score == 70.0
+
+
+@pytest.mark.asyncio
 async def test_create_manual_lead_does_not_fail_when_emitter_raises(
     manual_leads_client, fake_emitter
 ):

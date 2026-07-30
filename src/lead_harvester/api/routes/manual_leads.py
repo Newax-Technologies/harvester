@@ -231,7 +231,14 @@ async def create_manual_lead(
         domain=domain,
         website=payload.website,
         status=op_status,
-        confidence_score=0.7,  # Manual entries get a high base confidence
+        # confidence_score is a 0-100 scale (an API/UI-facing percentage --
+        # see verification/confidence.py, canonical/merger.py's own
+        # +10-per-source/capped-at-100 convention), NOT a 0-1 fraction.
+        # This was previously 0.7 -- effectively the lowest possible score
+        # against that scale, the opposite of the "high base confidence"
+        # this comment always intended, since a human directly vouching
+        # for a lead should outscore a single-source scraped record.
+        confidence_score=70.0,
     )
     session.add(institution)
     await session.flush()

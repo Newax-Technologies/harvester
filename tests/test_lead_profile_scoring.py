@@ -11,7 +11,7 @@ def _institution(**overrides) -> CanonicalInstitution:
         "canonical_name": "Riverside Academy",
         "institution_type": "school",
         "website": "https://riverside.edu",
-        "confidence_score": 0.9,
+        "confidence_score": 90.0,  # 0-100 scale -- see verification/confidence.py
     }
     defaults.update(overrides)
     return CanonicalInstitution(**defaults)
@@ -76,6 +76,20 @@ def test_full_evidence_scores_at_or_near_the_ceiling():
     assert result.has_email is True
     assert result.has_named_contact is True
     assert result.evidence_count == 2
+
+
+def test_single_source_confidence_score_does_not_score_max_confidence_points():
+    # confidence_score is a 0-100 scale (canonical/merger.py:
+    # confidence_for_source_count(1) == 10.0). Thresholding at >0.8/>0.5
+    # (a 0-1 fraction assumption) meant ANY institution with even one
+    # corroborating source (10.0 > 0.8) always hit the top confidence
+    # tier -- this proves a single-source institution now correctly
+    # scores the lowest tier instead.
+    institution = _institution(confidence_score=10.0)
+
+    result = compute_lead_score(institution, [], [], None, [])
+
+    assert result.breakdown["confidence"] == 0
 
 
 def test_disqualified_institution_gets_no_qualification_points():

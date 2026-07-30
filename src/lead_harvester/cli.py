@@ -302,6 +302,24 @@ async def select_daily_leads(args: argparse.Namespace) -> int:
     return 0
 
 
+async def verify_data_quality(args: argparse.Namespace) -> int:
+    """
+    Run verification checks (confidence drift, conflicting canonical_name
+    assertions, stale evidence) across a batch of institutions, creating
+    DataQualityFlag rows for anything found (docs/ROADMAP.md module 12).
+    """
+    from .database import get_session
+    from .services.verification_service import run_verification_sweep
+
+    async with get_session() as session:
+        created_count = await run_verification_sweep(
+            session, limit=args.limit, freshness_days=args.freshness_days
+        )
+
+    print(f"\n[Verification] Created {created_count} new data-quality flag(s).\n")
+    return 0
+
+
 async def linkedin_send(args: argparse.Namespace) -> int:
     """
     Send all approved OutreachDraft records (LinkedIn messages or emails).
@@ -440,6 +458,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--batch-label", default=None, help="Label for this batch (default: today's date)"
     )
 
+    # -- verify-data-quality --------------------------------------------------
+    verify = subparsers.add_parser(
+        "verify-data-quality",
+        help="Run verification checks (confidence drift, conflicts, staleness) across institutions",
+    )
+    verify.add_argument("--limit", type=int, default=200, help="Max institutions to check this run")
+    verify.add_argument(
+        "--freshness-days",
+        type=int,
+        default=90,
+        help="Flag an institution with no evidence recorded within this many days",
+    )
+
     # -- linkedin-send ------------------------------------------------------
     li_send = subparsers.add_parser(
         "linkedin-send",
@@ -540,6 +571,7 @@ def main() -> None:
         "linkedin-research": lambda: sys.exit(asyncio.run(linkedin_research(args))),
         "qualify-leads": lambda: sys.exit(asyncio.run(qualify_leads(args))),
         "select-daily-leads": lambda: sys.exit(asyncio.run(select_daily_leads(args))),
+        "verify-data-quality": lambda: sys.exit(asyncio.run(verify_data_quality(args))),
         "linkedin-send": lambda: sys.exit(asyncio.run(linkedin_send(args))),
         "linkedin-status": lambda: _linkedin_status(args),
         "linkedin-farm-run": lambda: sys.exit(asyncio.run(_linkedin_farm_run(args))),
