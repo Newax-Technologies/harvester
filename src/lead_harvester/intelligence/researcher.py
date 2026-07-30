@@ -183,6 +183,20 @@ class ResearchBrain:
                 .where(FieldProvenance.field_name == "branch_membership")
                 .where(RawSourceRecord.source_type == SourceType.LINKEDIN)
             )
+            # FOR UPDATE SKIP LOCKED claims these rows atomically as part of
+            # the SELECT itself, immediately -- not just after this call's
+            # own commit. Without it, the exclusion query above only ever
+            # sees source_ids a PRIOR, already-COMMITTED call researched:
+            # two overlapping process_all_pending invocations (separate
+            # processes, each holding this method's session open across the
+            # whole batch of slow AI calls) would both run that query before
+            # either commits, both see the same "not yet researched"
+            # profiles, and both perform the AI call, mint a ResearchJob,
+            # and create a CanonicalInstitution for the same person. Once
+            # this invocation's SELECT locks a row, a concurrent invocation's
+            # own SKIP LOCKED query silently excludes it and moves on to a
+            # genuinely different row instead of blocking -- same claiming
+            # pattern OutreachAutomator.run() already uses for drafts.
             records = await session.scalars(
                 select(RawSourceRecord)
                 .where(RawSourceRecord.source_type == SourceType.LINKEDIN)
@@ -190,6 +204,7 @@ class ResearchBrain:
                 .where(RawSourceRecord.source_id.not_in(already_researched_source_ids))
                 .order_by(RawSourceRecord.extracted_at.asc())
                 .limit(50)
+                .with_for_update(skip_locked=True)
             )
             # already_researched_source_ids only excludes source_ids a PRIOR,
             # already-committed call already researched -- if the same

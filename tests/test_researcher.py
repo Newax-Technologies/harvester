@@ -1,10 +1,11 @@
+import asyncio
 import contextlib
 import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.intelligence.researcher import ResearchBrain, _validate_analysis_schema
@@ -340,6 +341,98 @@ async def test_research_record_savepoint_isolates_a_db_level_failure(db_session)
         )
     ).scalar_one_or_none()
     assert bad_institution is None
+
+
+@pytest.mark.asyncio
+async def test_process_all_pending_claim_query_never_double_claims_across_connections(
+    async_engine,
+):
+    # already_researched_source_ids only excludes source_ids a PRIOR,
+    # already-COMMITTED call already researched -- two overlapping
+    # process_all_pending invocations (separate processes, each holding
+    # this method's session open across a whole batch of slow AI calls)
+    # previously both ran that query before either committed, both saw the
+    # same "not yet researched" profiles, and both would perform the AI
+    # call, mint a ResearchJob, and create a CanonicalInstitution for the
+    # same person. with_for_update(skip_locked=True) claims rows as part
+    # of the SELECT itself -- this proves two real, concurrent connections
+    # running that exact claim query against the same candidate set never
+    # claim the same row.
+    setup_conn = await async_engine.connect()
+    setup_session = AsyncSession(bind=setup_conn, expire_on_commit=False)
+    run = SourceRun(source_type=SourceType.LINKEDIN, run_metadata={}, status=RunStatus.STARTED)
+    setup_session.add(run)
+    await setup_session.flush()
+
+    records = [
+        RawSourceRecord(
+            source_run_id=run.id,
+            source_type=SourceType.LINKEDIN,
+            source_id=f"https://linkedin.com/in/concurrency-{i}",
+            raw_payload={"full_name": f"Person {i}"},
+            normalized_name=f"person {i}",
+        )
+        for i in range(6)
+    ]
+    setup_session.add_all(records)
+    await setup_session.commit()
+    record_ids = {r.id for r in records}
+    run_id = run.id
+    await setup_session.close()
+    await setup_conn.close()
+
+    # A synchronization barrier forces genuine overlap between the two
+    # transactions regardless of how fast the local test database responds
+    # -- without it, one connection's SELECT-then-commit could race to
+    # completion before the other's SELECT even starts, passing the
+    # assertion below for the wrong reason (never actually exercising
+    # SKIP LOCKED) rather than because claiming is truly race-safe.
+    first_claimed_event = asyncio.Event()
+    second_selected_event = asyncio.Event()
+
+    async def claim(*, first: bool) -> set:
+        conn = await async_engine.connect()
+        session = AsyncSession(bind=conn, expire_on_commit=False)
+        try:
+            if not first:
+                await first_claimed_event.wait()
+            async with session.begin():
+                claimed = list(
+                    await session.scalars(
+                        select(RawSourceRecord)
+                        .where(RawSourceRecord.source_type == SourceType.LINKEDIN)
+                        .where(RawSourceRecord.id.in_(record_ids))
+                        .with_for_update(skip_locked=True)
+                    )
+                )
+                if first:
+                    first_claimed_event.set()
+                    await second_selected_event.wait()
+                else:
+                    second_selected_event.set()
+            return {r.id for r in claimed}
+        finally:
+            await session.close()
+            await conn.close()
+
+    results = await asyncio.gather(claim(first=True), claim(first=False))
+
+    try:
+        claimed_a, claimed_b = results
+        assert claimed_a.isdisjoint(claimed_b), (claimed_a, claimed_b)
+        assert claimed_a | claimed_b == record_ids
+    finally:
+        cleanup_conn = await async_engine.connect()
+        cleanup_session = AsyncSession(bind=cleanup_conn, expire_on_commit=False)
+        try:
+            await cleanup_session.execute(
+                delete(RawSourceRecord).where(RawSourceRecord.id.in_(record_ids))
+            )
+            await cleanup_session.execute(delete(SourceRun).where(SourceRun.id == run_id))
+            await cleanup_session.commit()
+        finally:
+            await cleanup_session.close()
+            await cleanup_conn.close()
 
 
 @pytest.mark.asyncio
