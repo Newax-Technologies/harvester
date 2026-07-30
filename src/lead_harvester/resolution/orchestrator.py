@@ -31,15 +31,23 @@ async def resolve_incoming_record(
     """
     Runs blocking + scoring for one newly ingested record and decides its
     fate:
-      - a confident MERGE match (see resolution/scoring.py: name_similarity
-        >0.8 AND distance<100m, i.e. score_candidate has already confirmed
-        this is the same physical location) against an already-resolved
-        record -> attach to that existing institution's matching branch.
-      - a confident MERGE match against another brand-new (unresolved)
-        record -> merge both into one freshly created institution,
-        collapsed to a single shared branch.
-      - only PENDING candidates (ambiguous, no MERGE) -> leave unresolved
-        for human review via the resolution-reviews queue; returns None.
+      - ANY candidate scored PENDING (ambiguous) -> leave unresolved for
+        human review via the resolution-reviews queue; returns None. This
+        applies even if another candidate ALSO scored a confident MERGE --
+        auto-merging into that target while a genuinely competing,
+        already-canonicalized PENDING match exists would silently hide the
+        ambiguity: both raw records would end up provenanced to the MERGE
+        target, and list_pending()'s already-canonicalized exclusion would
+        then hide the PENDING sibling from the review queue too, leaving no
+        path back to the conflict a human needs to actually resolve.
+      - otherwise, a confident MERGE match (see resolution/scoring.py:
+        name_similarity >0.8 AND distance<100m, i.e. score_candidate has
+        already confirmed this is the same physical location) against an
+        already-resolved record -> attach to that existing institution's
+        matching branch.
+      - otherwise, a confident MERGE match against another brand-new
+        (unresolved) record -> merge both into one freshly created
+        institution, collapsed to a single shared branch.
       - only LINK_ONLY/REJECT candidates, or no candidates at all -> the
         record is confidently its own distinct entity; give it its own
         institution.
@@ -68,6 +76,9 @@ async def resolve_incoming_record(
         assessment = await score_candidate(session, candidate)
         scored.append((candidate, assessment))
 
+    if any(assessment.decision == MatchDecision.PENDING for _candidate, assessment in scored):
+        return None
+
     merge_pair = _best_merge_pair(scored)
 
     if merge_pair is not None:
@@ -86,9 +97,6 @@ async def resolve_incoming_record(
             return institution
 
         return await merge_records(session, [record, matched_record], same_location=True)
-
-    if any(assessment.decision == MatchDecision.PENDING for _candidate, assessment in scored):
-        return None
 
     return await merge_records(session, [record])
 

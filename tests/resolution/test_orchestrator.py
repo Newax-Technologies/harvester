@@ -122,6 +122,48 @@ async def test_pending_leaves_record_unresolved(db_session, source_run):
 
 
 @pytest.mark.asyncio
+async def test_merge_deferred_when_a_pending_candidate_also_exists(db_session, source_run):
+    # incoming matches two unresolved targets sharing its phone: x scores a
+    # confident MERGE, y scores PENDING (ambiguous). Auto-merging into x
+    # while y's ambiguity is unresolved would hide that conflict -- once
+    # merged, list_pending()'s already-canonicalized exclusion would drop
+    # y's own candidate from the review queue too, even though nothing
+    # about y was actually decided by a human.
+    incoming = google_places_record(source_run.id, name="Ambiguous School", phone="+923006667777")
+    x = google_places_record(source_run.id, name="Ambiguous School", phone="+923006667777")
+    y = google_places_record(source_run.id, name="Ambiguous School Two", phone="+923006667777")
+    db_session.add_all([incoming, x, y])
+    await db_session.flush()
+
+    async def fake_score_candidate(session, candidate):
+        if candidate.target_raw_record_id == x.id:
+            decision, score = MatchDecision.MERGE, 100.0
+        else:
+            decision, score = MatchDecision.PENDING, 65.0
+        assessment = MatchAssessment(
+            candidate_id=candidate.id,
+            name_similarity=0.9,
+            distance_meters=None,
+            phone_match=True,
+            domain_match=False,
+            total_score=score,
+            decision=decision,
+        )
+        session.add(assessment)
+        return assessment
+
+    with patch(
+        "lead_harvester.resolution.orchestrator.score_candidate",
+        new=AsyncMock(side_effect=fake_score_candidate),
+    ):
+        result = await resolve_incoming_record(db_session, incoming)
+
+    assert result is None
+    assert await find_canonical_for_raw_record(db_session, incoming.id) is None
+    assert await find_canonical_for_raw_record(db_session, x.id) is None
+
+
+@pytest.mark.asyncio
 async def test_link_only_creates_own_institution(db_session, source_run):
     # Same phone number, but different names and far apart -- shared
     # contact detail, not the same physical entity (e.g. a franchise chain).

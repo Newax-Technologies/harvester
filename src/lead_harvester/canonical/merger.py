@@ -266,6 +266,45 @@ async def _add_contact_if_present(
     )
 
 
+def _synthesize_institution_fields(raw_records: list[RawSourceRecord]) -> dict:
+    """
+    website/domain/institution_type/status previously came only from
+    raw_records[0] (the incoming record, since _apply_decision always
+    passes it first) -- if that record is sparse (e.g. a website-crawled
+    lead with no domain/status) while another record in the same merge
+    group supplies them (e.g. the matched Places record's website and
+    businessStatus), that evidence was silently dropped even though it's
+    right there in the merge group, leaving a null domain/UNKNOWN status on
+    the resulting institution despite the raw ledger having the answer.
+    First non-empty value wins, in record order -- canonical_name is
+    deliberately NOT synthesized this way (kept from the primary record
+    only), since picking a "best" display name across sources is a
+    separate, more subjective concern than backfilling a missing field.
+    """
+    website = None
+    domain = None
+    institution_type = ""
+    status = OperatingStatus.UNKNOWN
+    for r in raw_records:
+        fields = display_fields(r)
+        if not website and fields["website"]:
+            website = fields["website"]
+        if not domain and r.normalized_domain:
+            domain = r.normalized_domain
+        if not institution_type and fields["institution_type"]:
+            institution_type = fields["institution_type"]
+        if status == OperatingStatus.UNKNOWN:
+            record_status = _operating_status(r)
+            if record_status != OperatingStatus.UNKNOWN:
+                status = record_status
+    return {
+        "website": website,
+        "domain": domain,
+        "institution_type": institution_type,
+        "status": status,
+    }
+
+
 async def merge_records(
     session: AsyncSession, raw_records: list[RawSourceRecord], *, same_location: bool = False
 ) -> CanonicalInstitution:
@@ -289,13 +328,14 @@ async def merge_records(
     # most complete/recent record as primary for name/domain/website/type.
     primary_record = raw_records[0]
     fields = display_fields(primary_record)
+    synthesized = _synthesize_institution_fields(raw_records)
 
     institution = CanonicalInstitution(
         canonical_name=fields["name"],
-        institution_type=fields["institution_type"] or "",
-        domain=primary_record.normalized_domain,
-        website=fields["website"],
-        status=_operating_status(primary_record),
+        institution_type=synthesized["institution_type"],
+        domain=synthesized["domain"],
+        website=synthesized["website"],
+        status=synthesized["status"],
         confidence_score=len(raw_records) * 10.0,  # simple confidence metric
     )
     session.add(institution)
@@ -404,19 +444,25 @@ async def attach_record_to_institution(
         institution.website = fields["website"]
     if not institution.domain and record.normalized_domain:
         institution.domain = record.normalized_domain
-    # Unlike website/domain (fill-if-missing, since those don't change once
-    # known), operating status is a point-in-time fact that a rediscovery
-    # can genuinely update in either direction (closed permanently, or
-    # reopened) -- _operating_status was previously only ever consulted
-    # when FIRST creating an institution, so a place that later closed kept
-    # showing OPERATIONAL indefinitely and could still proceed into
-    # qualification/outreach. Always trust the newest record's asserted
-    # status (when it asserts one at all).
-    new_status = _operating_status(record)
-    if new_status != OperatingStatus.UNKNOWN:
-        institution.status = new_status
 
     if target_branch is not None:
+        # Operating status is per-location evidence -- only trust it as the
+        # institution's overall status when this record describes the SAME
+        # branch/location the institution's status is presumably already
+        # tracking (target_branch is not None). target_branch=None means a
+        # DISTINCT new branch (a multi-campus institution): that branch's
+        # own closure (or a newly-added branch being active) must not
+        # overwrite the whole institution's status one way or the other --
+        # unlike website/domain (fill-if-missing, since those don't change
+        # once known), operating status is a point-in-time fact that a
+        # rediscovery can genuinely update in either direction (closed
+        # permanently, or reopened), so this always trusts the newest
+        # same-branch record's asserted status rather than only filling a
+        # gap.
+        new_status = _operating_status(record)
+        if new_status != OperatingStatus.UNKNOWN:
+            institution.status = new_status
+
         if not target_branch.address and fields["address"]:
             target_branch.address = fields["address"]
         # provider_ids is a plain JSONB column (no MutableDict tracking), so

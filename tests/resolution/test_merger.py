@@ -60,6 +60,31 @@ async def test_merge_records_defaults_to_unknown_status_without_source_signal(
 
 
 @pytest.mark.asyncio
+async def test_merge_records_synthesizes_fields_from_all_merged_records(db_session, source_run):
+    # _apply_decision always passes the incoming record first -- if it's
+    # sparse (no website/domain/status) while another record being merged
+    # in the same group supplies them, that evidence must not be dropped
+    # just because it wasn't first in the list.
+    sparse = website_record(source_run.id, name="Sparse Site", website=None)
+    rich = google_places_record(
+        source_run.id,
+        name="Sparse Site",
+        website="https://sparsesite.example.edu",
+        business_status="CLOSED_PERMANENTLY",
+    )
+    db_session.add_all([sparse, rich])
+    await db_session.flush()
+    assert sparse.normalized_domain is None  # sanity check on the factory
+
+    institution = await merge_records(db_session, [sparse, rich])
+
+    assert institution.website == "https://sparsesite.example.edu"
+    assert institution.domain == rich.normalized_domain
+    assert institution.institution_type == "school"
+    assert institution.status == OperatingStatus.CLOSED_PERMANENTLY
+
+
+@pytest.mark.asyncio
 async def test_merge_records_same_location_collapses_to_one_branch(db_session, source_run):
     a = google_places_record(source_run.id, name="Riverside Academy", phone="+923001111111")
     b = google_places_record(source_run.id, name="Riverside Academy", phone="+923002222222")
@@ -256,11 +281,53 @@ async def test_attach_record_to_institution_caps_confidence_score_at_100(db_sess
 
 
 @pytest.mark.asyncio
-async def test_attach_record_to_institution_refreshes_operating_status(db_session, source_run):
+async def test_attach_record_to_institution_refreshes_operating_status_for_same_branch(
+    db_session, source_run
+):
     # A rediscovered Google Place's businessStatus can change between scrapes
     # -- attach_record_to_institution previously only ever consulted
     # _operating_status when FIRST creating an institution, so a place that
-    # later closed permanently kept showing OPERATIONAL indefinitely.
+    # later closed permanently kept showing OPERATIONAL indefinitely. Only
+    # meaningful when the new evidence describes the SAME branch/location
+    # (target_branch set) -- see the next test for why.
+    a = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone="+923001111111",
+        business_status="OPERATIONAL",
+    )
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+    assert institution.status == OperatingStatus.OPERATIONAL
+
+    branch = await find_branch_for_raw_record(db_session, institution.id, a)
+
+    b = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone="+923002222222",
+        business_status="CLOSED_PERMANENTLY",
+    )
+    db_session.add(b)
+    await db_session.flush()
+
+    await attach_record_to_institution(db_session, b, institution, target_branch=branch)
+    await db_session.flush()
+
+    assert institution.status == OperatingStatus.CLOSED_PERMANENTLY
+
+
+@pytest.mark.asyncio
+async def test_attach_record_to_institution_new_branch_does_not_change_institution_status(
+    db_session, source_run
+):
+    # A newly-added DISTINCT branch (target_branch=None) of a multi-campus
+    # institution must not overwrite the whole institution's status either
+    # way -- one closed campus shouldn't mark an otherwise-active
+    # institution closed, and a new active campus shouldn't "reopen" a
+    # closed institution's status either.
     a = google_places_record(
         source_run.id,
         name="Riverside Academy",
@@ -275,7 +342,7 @@ async def test_attach_record_to_institution_refreshes_operating_status(db_sessio
 
     b = google_places_record(
         source_run.id,
-        name="Riverside Academy",
+        name="Riverside Academy Annex",
         phone="+923002222222",
         business_status="CLOSED_PERMANENTLY",
     )
@@ -285,7 +352,7 @@ async def test_attach_record_to_institution_refreshes_operating_status(db_sessio
     await attach_record_to_institution(db_session, b, institution, target_branch=None)
     await db_session.flush()
 
-    assert institution.status == OperatingStatus.CLOSED_PERMANENTLY
+    assert institution.status == OperatingStatus.OPERATIONAL
 
 
 @pytest.mark.asyncio

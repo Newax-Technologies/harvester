@@ -2,7 +2,7 @@ import uuid
 
 from geoalchemy2 import Geography
 from geoalchemy2.functions import ST_Distance, ST_DWithin
-from sqlalchemy import cast, func, select
+from sqlalchemy import cast, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.provenance import FieldProvenance
@@ -29,17 +29,15 @@ _STRATEGY_PRIORITY = {"geo_name": 0, "domain": 1, "phone": 2}
 class _MatchInfo:
     """
     What generate_candidates knows about one matched record: the strongest
-    strategy it qualified under, plus (for geo_name matches only, where the
-    underlying query already computes them) the actual distance/name
-    similarity -- used to break ties WITHIN the geo_name tier itself. Two
-    geo_name matches aren't equally good just because they're both
-    geo_name: a 490m/0.4-similarity match is much weaker evidence than a
-    10m/1.0-similarity match, and picking the DB's arbitrary first row
-    within that tier could keep the weak one and lose the strong one.
-    Phone/domain matches have no comparable graduated quality signal (an
-    exact phone or domain match is categorically binary), so they sort
-    after every geo_name match regardless, and ties among themselves stay
-    in encounter order.
+    strategy it qualified under, plus its actual distance/name similarity
+    to the incoming record -- used to break ties WITHIN a shared strategy
+    tier. Two matches aren't equally good just because they share a
+    strategy label: among two domain-only matches, one with an exact name
+    match is much stronger evidence than one with a completely unrelated
+    name, and among two geo_name matches, a 490m/0.4-similarity match is
+    much weaker than a 10m/1.0-similarity one. Computed uniformly for every
+    matched record regardless of which strategy(ies) surfaced it, so this
+    tiebreak isn't only available within the geo_name tier.
     """
 
     __slots__ = ("distance_meters", "name_similarity", "strategy")
@@ -85,6 +83,37 @@ async def _canonical_ids_by_raw_record(
     return dict(result.all())
 
 
+async def _quality_for_matches(
+    session: AsyncSession, record: RawSourceRecord, raw_record_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, tuple[float | None, float | None]]:
+    """
+    Actual (distance_meters, name_similarity) against `record` for every id
+    in raw_record_ids, computed in one query regardless of which blocking
+    strategy matched them -- so a tie between two phone-only (or two
+    domain-only) matches is still broken by real evidence instead of
+    arbitrary DB row order. Either component is None when `record` itself
+    lacks the corresponding field (no location, or no normalized_name).
+    """
+    if not raw_record_ids:
+        return {}
+
+    distance_expr = (
+        ST_Distance(RawSourceRecord.location, cast(record.location, Geography))
+        if record.location is not None
+        else literal(None)
+    )
+    similarity_expr = (
+        func.similarity(RawSourceRecord.normalized_name, record.normalized_name)
+        if record.normalized_name
+        else literal(None)
+    )
+    stmt = select(RawSourceRecord.id, distance_expr, similarity_expr).where(
+        RawSourceRecord.id.in_(raw_record_ids)
+    )
+    result = await session.execute(stmt)
+    return {rid: (distance, similarity) for rid, distance, similarity in result.all()}
+
+
 async def generate_candidates(
     session: AsyncSession, record: RawSourceRecord
 ) -> list[ResolutionCandidate]:
@@ -101,27 +130,21 @@ async def generate_candidates(
     every other already-represented sibling is pure waste that grows
     unboundedly with repeated ingestion. The kept representative is the one
     with the strongest evidence -- ranked first by strategy (see
-    _STRATEGY_PRIORITY), then by actual distance/name-similarity within the
-    geo_name tier (see _MatchInfo) -- not merely whichever the DB happened
-    to return first. Still-unresolved matches are never deduplicated this
-    way -- each is a genuine, independent candidate that may need its own
-    review/merge decision.
+    _STRATEGY_PRIORITY), then by actual distance/name-similarity computed
+    uniformly for every match (see _MatchInfo/_quality_for_matches) -- not
+    merely whichever the DB happened to return first. Still-unresolved
+    matches are never deduplicated this way -- each is a genuine,
+    independent candidate that may need its own review/merge decision.
     """
-    # record_id -> the strongest match info seen for it, across all three
+    # record_id -> the strongest strategy that matched it, across all three
     # blocking queries (a record can qualify via more than one).
-    matched_info: dict[uuid.UUID, _MatchInfo] = {}
+    matched_strategy: dict[uuid.UUID, str] = {}
 
-    def _note_matches(rows, strategy: str, *, has_quality: bool = False) -> None:
-        for row in rows:
-            if has_quality:
-                rid, distance, similarity = row
-                info = _MatchInfo(strategy, distance, similarity)
-            else:
-                info = _MatchInfo(strategy)
-                rid = row
-            current = matched_info.get(rid)
-            if current is None or info.is_better_than(current):
-                matched_info[rid] = info
+    def _note_matches(ids, strategy: str) -> None:
+        for rid in ids:
+            current = matched_strategy.get(rid)
+            if current is None or _STRATEGY_PRIORITY[strategy] < _STRATEGY_PRIORITY[current]:
+                matched_strategy[rid] = strategy
 
     # Strategy 1: Exact Phone Match
     if record.normalized_phone:
@@ -155,21 +178,23 @@ async def generate_candidates(
         # We only want records that are physically close AND have similar names.
         record_geog = cast(record.location, Geography)
         similarity_col = func.similarity(RawSourceRecord.normalized_name, record.normalized_name)
-        stmt = select(
-            RawSourceRecord.id,
-            ST_Distance(RawSourceRecord.location, record_geog),
-            similarity_col,
-        ).where(
+        stmt = select(RawSourceRecord.id).where(
             RawSourceRecord.id != record.id,
             RawSourceRecord.location.is_not(None),
             ST_DWithin(RawSourceRecord.location, record_geog, GEOGRAPHIC_DISTANCE_METERS),
             similarity_col >= NAME_SIMILARITY_THRESHOLD,
         )
         result = await session.execute(stmt)
-        _note_matches(result.all(), "geo_name", has_quality=True)
+        _note_matches(list(result.scalars()), "geo_name")
 
-    if not matched_info:
+    if not matched_strategy:
         return []
+
+    quality = await _quality_for_matches(session, record, list(matched_strategy))
+    matched_info: dict[uuid.UUID, _MatchInfo] = {
+        rid: _MatchInfo(strategy, *quality.get(rid, (None, None)))
+        for rid, strategy in matched_strategy.items()
+    }
 
     canonical_by_record = await _canonical_ids_by_raw_record(session, list(matched_info))
 

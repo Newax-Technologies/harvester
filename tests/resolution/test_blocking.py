@@ -168,6 +168,57 @@ async def test_generate_candidates_ranks_geo_name_siblings_by_actual_quality(
 
 
 @pytest.mark.asyncio
+async def test_generate_candidates_ranks_domain_siblings_by_name_similarity(db_session, source_run):
+    # Both siblings match via the SAME strategy tier (domain, a shared
+    # portal URL), so strategy priority alone can't distinguish them. good
+    # also has an exact name match to the incoming record -- much stronger
+    # evidence than bad's completely unrelated name -- and that evidence
+    # must be used to rank within the domain tier too, not just within
+    # geo_name.
+    good = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=None,
+        lng=None,
+    )
+    bad = google_places_record(
+        source_run.id,
+        name="Totally Unrelated Name",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=None,
+        lng=None,
+    )
+    db_session.add_all([good, bad])
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [good, bad])
+    await db_session.flush()
+
+    d = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=None,
+        lng=None,
+    )
+    db_session.add(d)
+    await db_session.flush()
+
+    candidates = await generate_candidates(db_session, d)
+
+    assert len(candidates) == 1
+    assert candidates[0].target_raw_record_id == good.id
+    assert candidates[0].blocking_strategy == "domain"
+
+    surviving_canonical_id = await find_canonical_for_raw_record(db_session, good.id)
+    assert surviving_canonical_id == institution.id
+
+
+@pytest.mark.asyncio
 async def test_generate_candidates_does_not_dedupe_unresolved_matches(db_session, source_run):
     # Two records sharing a phone that have NOT yet been canonicalized are
     # each a genuine, independent candidate (a human may need to review
