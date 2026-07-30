@@ -232,6 +232,30 @@ def test_run_account_worker_preserves_partial_profiles_on_crawler_abort(tmp_path
     assert result["errors"] == ["CaptchaTriggered:burner_01"]
 
 
+@pytest.mark.asyncio
+async def test_run_does_not_record_breadth_visits_if_persisting_profiles_fails(tmp_path):
+    # _record_farm_visits writes to breadth_log.json -- once a URL is
+    # marked visited there, assign_partitions permanently excludes it from
+    # every future run, including a rerun meant to recover from a failure.
+    # If _persist_profiles fails (a transient DB/commit error), the
+    # harvested profiles never reached RawSourceRecord/research at all, so
+    # their URLs must not be marked visited either -- persisting has to
+    # happen (and succeed) before recording visits, not after.
+    farm = AccountFarm(accounts=[])
+    farm._persist_profiles = AsyncMock(side_effect=RuntimeError("db unavailable"))
+    farm._record_farm_visits = MagicMock()
+
+    with (
+        patch("lead_harvester.sources.account_farm.within_working_hours", return_value=True),
+        patch("lead_harvester.sources.account_farm.is_weekday", return_value=True),
+        pytest.raises(RuntimeError, match="db unavailable"),
+    ):
+        await farm.run(["https://linkedin.com/in/alice"])
+
+    farm._persist_profiles.assert_awaited_once()
+    farm._record_farm_visits.assert_not_called()
+
+
 def test_fill_missing_worker_results_adds_synthetic_entry_for_unreported_account():
     # A terminated (timed-out) or crashed worker never reaches its own
     # result_queue.put() -- its account_id previously vanished from

@@ -396,8 +396,16 @@ class AccountFarm:
 
         self._fill_missing_worker_results(assignment, results)
 
-        self._record_farm_visits(bt, results, vertical=vertical)
+        # Persist to the database BEFORE recording breadth visits, not
+        # after: _record_farm_visits writes to breadth_log.json, and once a
+        # URL is marked visited there, assign_partitions permanently
+        # excludes it from every future run -- including a rerun meant to
+        # recover from a failure. If _persist_profiles raised here first
+        # (a transient DB/commit error), the harvested profiles would
+        # never reach RawSourceRecord/research, yet their URLs would
+        # already be marked visited and unrecoverable by any future run.
         await self._persist_profiles(results)
+        self._record_farm_visits(bt, results, vertical=vertical)
 
         # Print summary
         print(f"\n{'=' * 55}")
