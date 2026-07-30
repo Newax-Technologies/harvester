@@ -32,4 +32,8 @@ ignore:
     - '*':
         reason: Same root cause as SNYK-PYTHON-PIP-15182639 -- see that entry.
         expires: 2027-01-01T00:00:00.000Z
+  SNYK-PYTHON-PIP-18426311:
+    - '*':
+        reason: Same root cause as SNYK-PYTHON-PIP-15182639 -- see that entry.
+        expires: 2027-01-01T00:00:00.000Z
 patch: {}
