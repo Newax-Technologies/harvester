@@ -313,12 +313,29 @@ class LeadPipeline:
         unchanged rerun and skipped the whole institution, silently
         discarding a newly declared contact or a previously-blank field
         the spreadsheet has since filled in.
+
+        Contacts are compared including person_name/role (not just
+        contact_type + contact_value): a later CSV version that fills in
+        or corrects the decision-maker metadata for an already-declared
+        phone/email must count as new evidence too, not just a brand new
+        contact_type+value pair -- see the matching update in
+        canonical/merger.py's _add_contact_if_present, which now enriches
+        an existing ContactPoint's person_name/role instead of only ever
+        writing them on first creation.
         """
         existing_contacts = {
-            (c.get("contact_type"), c.get("contact_value"))
+            (
+                c.get("contact_type"),
+                c.get("contact_value"),
+                c.get("person_name") or "",
+                c.get("role") or "",
+            )
             for c in existing_payload.get("contacts") or []
         }
-        new_contacts = {(c.contact_type, c.contact_value) for c in institution.contacts}
+        new_contacts = {
+            (c.contact_type, c.contact_value, c.person_name or "", c.role or "")
+            for c in institution.contacts
+        }
         if new_contacts - existing_contacts:
             return True
 

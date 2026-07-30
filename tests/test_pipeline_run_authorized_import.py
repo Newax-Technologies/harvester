@@ -279,6 +279,54 @@ async def test_run_authorized_import_merges_new_contact_into_existing_institutio
 
 
 @pytest.mark.asyncio
+async def test_run_authorized_import_enriches_existing_contact_person_name_and_role(
+    tmp_path, db_session, monkeypatch
+):
+    # _authorized_import_has_new_evidence previously compared contacts only
+    # by (contact_type, contact_value) -- a later CSV version filling in
+    # person_name/role for an already-declared phone/email compared equal
+    # to the existing set, so the whole institution was skipped as
+    # unchanged and the new decision-maker metadata never reached
+    # ContactPoint.
+    csv_path = tmp_path / "leads.csv"
+    csv_path.write_text(
+        "institution_name,website,contact_type,contact_value\n"
+        "Beacon House School,https://beaconhouse.example.edu,phone,+923001234567\n"
+    )
+
+    pipeline = LeadPipeline(
+        _settings(
+            {
+                "authorized_import_file": str(csv_path),
+                "authorized_import_source_reference": "license-2026",
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "lead_harvester.pipeline.get_session", lambda: _fake_get_session(db_session)
+    )
+
+    await pipeline.run()
+
+    contact = (await db_session.execute(select(ContactPoint))).scalar_one()
+    assert contact.person_name is None
+
+    csv_path.write_text(
+        "institution_name,website,contact_type,contact_value,person_name,role\n"
+        "Beacon House School,https://beaconhouse.example.edu,phone,+923001234567,"
+        "Ali Khan,Principal\n"
+    )
+    await pipeline.run()
+
+    institutions = (await db_session.execute(select(CanonicalInstitution))).scalars().all()
+    assert len(institutions) == 1
+
+    contact = (await db_session.execute(select(ContactPoint))).scalar_one()
+    assert contact.person_name == "Ali Khan"
+    assert contact.role == "Principal"
+
+
+@pytest.mark.asyncio
 async def test_run_authorized_import_requires_source_reference(tmp_path, capsys):
     csv_path = tmp_path / "leads.csv"
     csv_path.write_text("institution_name,contact_value\nSchool A,+923001234567\n")

@@ -784,6 +784,59 @@ async def test_merge_records_writes_every_declared_contact_for_authorized_import
 
 
 @pytest.mark.asyncio
+async def test_add_contact_if_present_enriches_existing_contact_person_name_and_role(
+    db_session, source_run
+):
+    # _add_contact_if_present previously only ever wrote person_name/role on
+    # first creation -- a later record supplying (or correcting) that
+    # metadata for an already-known contact_type+value left the existing
+    # ContactPoint's person_name/role stale forever.
+    a = _authorized_import_record(
+        source_run.id,
+        contacts=[
+            {
+                "contact_type": "phone",
+                "contact_value": "+923001234567",
+                "person_name": "",
+                "role": "",
+            }
+        ],
+    )
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+
+    contact = (await db_session.execute(select(ContactPoint))).scalar_one()
+    assert contact.person_name is None
+
+    b = _authorized_import_record(
+        source_run.id,
+        contacts=[
+            {
+                "contact_type": "phone",
+                "contact_value": "+923001234567",
+                "person_name": "Ali Khan",
+                "role": "Principal",
+            }
+        ],
+    )
+    db_session.add(b)
+    await db_session.flush()
+
+    await attach_record_to_institution(db_session, b, institution, target_branch=None)
+    await db_session.flush()
+
+    contact = (
+        await db_session.execute(
+            select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+        )
+    ).scalar_one()
+    assert contact.person_name == "Ali Khan"
+    assert contact.role == "Principal"
+
+
+@pytest.mark.asyncio
 async def test_merge_records_normalizes_declared_phone_contact_to_e164(db_session, source_run):
     # A phone entered in national/formatted form ("0300 1234567") must be
     # stored the same normalized E.164 way record.normalized_phone already

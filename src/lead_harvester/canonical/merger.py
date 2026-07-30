@@ -367,6 +367,16 @@ async def _add_contact_if_present(
                 role=role,
             )
         )
+    else:
+        # A later import/rediscovery can supply (or correct) the
+        # decision-maker metadata for a contact whose type+value were
+        # already known -- update rather than silently leaving the
+        # existing row's person_name/role stale forever (only ever
+        # written here on first creation, previously).
+        if person_name and existing.person_name != person_name:
+            existing.person_name = person_name
+        if role and existing.role != role:
+            existing.role = role
     session.add(
         FieldProvenance(
             canonical_id=institution.id,
