@@ -209,3 +209,99 @@ async def test_retry_stranded_records_never_retries_linkedin_records(db_session)
         await pipeline._retry_stranded_records(db_session, run)
 
     assert retried_ids == set()
+
+
+@pytest.mark.asyncio
+async def test_retry_stranded_records_claim_query_never_double_claims_across_connections(
+    async_engine,
+):
+    # Two overlapping pipeline runs (e.g. an overlapping schedule, or
+    # google_places + web crawler running in parallel -- documented as a
+    # real possibility in resolution/orchestrator.py's own docstring) could
+    # both select the same stranded record here before either commits, and
+    # both call resolve_incoming_record on it -- producing two separate
+    # FieldProvenance/CanonicalInstitution rows for the SAME raw record.
+    # with_for_update(skip_locked=True) claims rows as part of the SELECT
+    # itself -- this proves two real, concurrent connections running
+    # _retry_stranded_records' claim query against the same candidate set
+    # never claim the same row.
+    import asyncio
+
+    from sqlalchemy import delete
+
+    setup_conn = await async_engine.connect()
+    setup_session = AsyncSession(bind=setup_conn, expire_on_commit=False)
+    run = SourceRun(source_type=SourceType.WEBSITE, run_metadata={}, status=RunStatus.STARTED)
+    setup_session.add(run)
+    await setup_session.flush()
+
+    records = [
+        RawSourceRecord(
+            source_run_id=run.id,
+            source_type=SourceType.WEBSITE,
+            source_id=f"https://stranded-{i}.example.edu",
+            raw_payload={},
+            normalized_name=f"stranded {i}",
+        )
+        for i in range(6)
+    ]
+    setup_session.add_all(records)
+    await setup_session.commit()
+    record_ids = {r.id for r in records}
+    run_id = run.id
+    await setup_session.close()
+    await setup_conn.close()
+
+    # A synchronization barrier forces genuine overlap between the two
+    # transactions regardless of how fast the local test database responds
+    # -- see docs/CODE_REVIEW_LESSONS.md pattern 4 and the analogous
+    # test in tests/test_researcher.py for why a naive asyncio.gather()
+    # alone doesn't reliably exercise SKIP LOCKED.
+    first_claimed_event = asyncio.Event()
+    second_selected_event = asyncio.Event()
+
+    async def claim(*, first: bool) -> set:
+        conn = await async_engine.connect()
+        session = AsyncSession(bind=conn, expire_on_commit=False)
+        pipeline = LeadPipeline(Settings(google_places_api_key="dummy-test-key"))
+        retried_ids: set[uuid.UUID] = set()
+
+        async def fake_resolve_or_log(session, run, record, resync_ids=None):
+            retried_ids.add(record.id)
+
+        try:
+            if not first:
+                await first_claimed_event.wait()
+            async with session.begin():
+                with patch.object(
+                    LeadPipeline, "_resolve_or_log", new=staticmethod(fake_resolve_or_log)
+                ):
+                    await pipeline._retry_stranded_records(session, run)
+                if first:
+                    first_claimed_event.set()
+                    await second_selected_event.wait()
+                else:
+                    second_selected_event.set()
+            return retried_ids
+        finally:
+            await session.close()
+            await conn.close()
+
+    results = await asyncio.gather(claim(first=True), claim(first=False))
+
+    try:
+        claimed_a, claimed_b = results
+        assert claimed_a.isdisjoint(claimed_b), (claimed_a, claimed_b)
+        assert claimed_a | claimed_b == record_ids
+    finally:
+        cleanup_conn = await async_engine.connect()
+        cleanup_session = AsyncSession(bind=cleanup_conn, expire_on_commit=False)
+        try:
+            await cleanup_session.execute(
+                delete(RawSourceRecord).where(RawSourceRecord.id.in_(record_ids))
+            )
+            await cleanup_session.execute(delete(SourceRun).where(SourceRun.id == run_id))
+            await cleanup_session.commit()
+        finally:
+            await cleanup_session.close()
+            await cleanup_conn.close()

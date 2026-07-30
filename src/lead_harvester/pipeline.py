@@ -547,6 +547,24 @@ class LeadPipeline:
         ambiguity). Runs at the start of every pipeline invocation so a
         transient failure (a DB hiccup, a since-fixed bug) self-heals on
         the next run instead of needing a dedicated backfill script.
+
+        Claims stranded rows via SELECT ... FOR UPDATE SKIP LOCKED, the
+        same pattern OutreachAutomator.run() and
+        ResearchBrain.process_all_pending() already use for their own
+        claim queries -- orchestrator.py's resolve_incoming_record
+        docstring documents that two ingestion runs (e.g. an overlapping
+        schedule, or google_places + web crawler running in parallel) can
+        genuinely overlap. Without locking, two concurrent runs would both
+        select the same stranded record here and both call
+        resolve_incoming_record on it, producing two separate
+        FieldProvenance/CanonicalInstitution rows for one raw record --
+        a stronger duplicate than the documented "two different new
+        records" limitation, since this is the SAME record resolved twice.
+        The lock is held for the rest of this run's transaction (this
+        method runs inside the same session the whole pipeline run
+        commits at the end), which is intended: it keeps a concurrent
+        run from claiming these rows until this run's outcome (success or
+        rollback) is final.
         """
         canonicalized = select(FieldProvenance.raw_record_id)
         pending_review = select(ResolutionCandidate.raw_record_id).where(
@@ -557,6 +575,7 @@ class LeadPipeline:
             .where(RawSourceRecord.source_type.in_(self._RESOLUTION_ELIGIBLE_SOURCE_TYPES))
             .where(RawSourceRecord.id.not_in(canonicalized))
             .where(RawSourceRecord.id.not_in(pending_review))
+            .with_for_update(skip_locked=True)
         )
         stranded = list(await session.scalars(stmt))
         if stranded:
