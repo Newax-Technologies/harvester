@@ -143,7 +143,23 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   only ever assesses an institution once (no re-assessment policy for institutions whose data
   changed after their first qualification) -- revisiting that is separate follow-up work, not
   silently unhandled.
-- **Ranking and Daily Selection**: doesn't exist yet.
+- **Ranking and Daily Selection**: done. `allocation/eligibility.py` states the eligibility rules
+  (institution OPERATIONAL, never DISQUALIFIED, meets a minimum score, has a real contact method)
+  and the deterministic ranking key (score desc, institution_id asc tiebreak) in Python;
+  `services/daily_selection_service.py::select_daily_batch` implements the same rules again in
+  SQL so the claim itself can filter/rank/lock atomically (kept in sync by hand, the same
+  documented tradeoff `resolution/blocking.py::_predicted_decision` already accepts for its own
+  duplication of `scoring.py`'s decision matrix). `models/allocation.py`'s `LeadReservation`
+  claims an institution for a bounded TTL window via `SELECT ... FOR UPDATE SKIP LOCKED` (so two
+  overlapping selection runs never claim the same institution), with a partial unique index
+  (`WHERE status = 'RESERVED'`) as migration-level defense in depth. Expired reservations release
+  automatically on the next `select_daily_batch` call; `mark_consumed`/`release_reservation`
+  handle the other two lifecycle transitions. Invokable via the `select-daily-leads` CLI command
+  or the `POST/GET /api/v1/daily-selection*` API. Known v1 limitation: nothing yet calls
+  `mark_consumed` automatically -- `outreach/automator.py` still works off `OutreachDraft`/
+  `AccountBrief`, not `LeadProfile`/`LeadReservation`, so wiring an actual outreach run to consume
+  a reservation once it sends is separate, bigger integration work (see the existing
+  boundary-conflict note on `outreach/` below), not silently unhandled.
 - **Compliance and Source Governance**: principles only (README's "Compliance guardrails"),
   not implemented as code.
 - **Verification and Data Quality**: doesn't exist as a distinct module.

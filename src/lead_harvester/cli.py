@@ -270,6 +270,38 @@ async def qualify_leads(args: argparse.Namespace) -> int:
     return 0
 
 
+async def select_daily_leads(args: argparse.Namespace) -> int:
+    """
+    Claim a batch of the highest-scoring eligible leads for a round of
+    outreach work (docs/ROADMAP.md module 10). Prints each reserved
+    institution and its score/batch label.
+    """
+    from .database import get_session
+    from .services.daily_selection_service import select_daily_batch
+
+    async with get_session() as session:
+        reservations = await select_daily_batch(
+            session,
+            limit=args.limit,
+            ttl_hours=args.ttl_hours,
+            min_score=args.min_score,
+            batch_label=args.batch_label,
+        )
+        # Captured before the session closes -- ORM attribute access after
+        # that would need a live connection to lazy-load anything not
+        # already resident.
+        summary = [
+            (r.institution_id, r.score_at_reservation, r.batch_label, r.expires_at)
+            for r in reservations
+        ]
+
+    print(f"\n[DailySelection] Reserved {len(summary)} lead(s):")
+    for institution_id, score, batch_label, expires_at in summary:
+        print(f"  {institution_id}  score={score}  batch={batch_label}  expires={expires_at}")
+    print()
+    return 0
+
+
 async def linkedin_send(args: argparse.Namespace) -> int:
     """
     Send all approved OutreachDraft records (LinkedIn messages or emails).
@@ -387,6 +419,27 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit", type=int, default=200, help="Max unassessed institutions to process this run"
     )
 
+    # -- select-daily-leads ---------------------------------------------------
+    select_daily = subparsers.add_parser(
+        "select-daily-leads",
+        help="Claim a batch of the highest-scoring eligible leads for outreach work",
+    )
+    select_daily.add_argument(
+        "--limit", type=int, default=None, help="Max leads to reserve (default: settings)"
+    )
+    select_daily.add_argument(
+        "--ttl-hours",
+        type=float,
+        default=None,
+        help="Hours before an unconsumed reservation expires (default: settings)",
+    )
+    select_daily.add_argument(
+        "--min-score", type=int, default=None, help="Minimum overall_score to be eligible"
+    )
+    select_daily.add_argument(
+        "--batch-label", default=None, help="Label for this batch (default: today's date)"
+    )
+
     # -- linkedin-send ------------------------------------------------------
     li_send = subparsers.add_parser(
         "linkedin-send",
@@ -486,6 +539,7 @@ def main() -> None:
         "linkedin-run": lambda: sys.exit(asyncio.run(linkedin_run(args))),
         "linkedin-research": lambda: sys.exit(asyncio.run(linkedin_research(args))),
         "qualify-leads": lambda: sys.exit(asyncio.run(qualify_leads(args))),
+        "select-daily-leads": lambda: sys.exit(asyncio.run(select_daily_leads(args))),
         "linkedin-send": lambda: sys.exit(asyncio.run(linkedin_send(args))),
         "linkedin-status": lambda: _linkedin_status(args),
         "linkedin-farm-run": lambda: sys.exit(asyncio.run(_linkedin_farm_run(args))),

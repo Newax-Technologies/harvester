@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     lead_sync_webhook_timeout_seconds: float = 5.0
     lead_sync_default_country_code: str = "PK"
 
+    # Ranking and Daily Selection (allocation/)
+    daily_selection_default_limit: int = 25
+    daily_selection_reservation_ttl_hours: float = 24.0
+    daily_selection_min_score: int = 0
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @model_validator(mode="after")

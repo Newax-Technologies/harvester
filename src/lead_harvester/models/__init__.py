@@ -1,3 +1,4 @@
+from .allocation import LeadReservation, ReservationStatus
 from .audit import AuditLog
 from .canonical import Branch, CanonicalInstitution, ContactPoint, OperatingStatus
 from .outreach import AccountBrief, BriefStatus, DraftStatus, OutreachDraft, OutreachOutcome
@@ -20,6 +21,7 @@ __all__ = [
     "FindingType",
     "JobStatus",
     "LeadProfile",
+    "LeadReservation",
     "LeadScoreSnapshot",
     "MatchAssessment",
     "MatchDecision",
@@ -31,6 +33,7 @@ __all__ = [
     "RawSourceRecord",
     "ResearchFinding",
     "ResearchJob",
+    "ReservationStatus",
     "ResolutionCandidate",
     "ReviewOutcome",
     "RunStatus",
