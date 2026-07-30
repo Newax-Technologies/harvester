@@ -124,3 +124,54 @@ async def test_linkedin_farm_run_aborts_when_proxies_file_missing(tmp_path):
     result = await cli._linkedin_farm_run(args)
 
     assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_linkedin_farm_run_rejects_proxies_file_missing_an_account(tmp_path):
+    # The file exists and covers burner_01, but says nothing about
+    # burner_02 -- account_farm.py's dict.get("burner_02") would silently
+    # return None and launch that one account unproxied from the host's
+    # real IP, exactly what an explicit --proxies-file is meant to prevent.
+    from lead_harvester import cli
+
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("https://linkedin.com/in/alice\n")
+
+    proxies_file = tmp_path / "proxies.txt"
+    proxies_file.write_text("burner_01=http://user:pass@proxy1:8080\n")
+
+    args = argparse.Namespace(
+        accounts="burner_01,burner_02",
+        urls_file=str(urls_file),
+        proxies_file=str(proxies_file),
+        captcha_key="",
+    )
+
+    result = await cli._linkedin_farm_run(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_linkedin_farm_run_rejects_proxies_file_with_malformed_line(tmp_path):
+    # A line with no "=" (or a blank value after it) never lands in the
+    # proxy map at all -- must be treated the same as a missing account,
+    # not silently skipped.
+    from lead_harvester import cli
+
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("https://linkedin.com/in/alice\n")
+
+    proxies_file = tmp_path / "proxies.txt"
+    proxies_file.write_text("burner_01=\nnot-a-valid-line\n")
+
+    args = argparse.Namespace(
+        accounts="burner_01",
+        urls_file=str(urls_file),
+        proxies_file=str(proxies_file),
+        captcha_key="",
+    )
+
+    result = await cli._linkedin_farm_run(args)
+
+    assert result == 1

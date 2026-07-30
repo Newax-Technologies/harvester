@@ -444,6 +444,23 @@ async def _linkedin_farm_run(args: argparse.Namespace) -> int:
             print(f"Proxies file not found: {args.proxies_file}", file=sys.stderr)
             return 1
 
+        # A file that exists but omits one of the requested accounts (or has
+        # a malformed line for it -- no "=", or a blank value after it) still
+        # leaves that account missing from the map. account_farm.py's lookup
+        # (self.proxies.get(account_id)) silently returns None for it, and
+        # that one worker launches unproxied from the host's real IP --
+        # exactly the cross-account correlation risk the proxies file exists
+        # to prevent. Reject the whole run up front instead of discovering
+        # the gap only after an account already ran exposed.
+        missing = [acc for acc in accounts if not proxies.get(acc)]
+        if missing:
+            print(
+                f"Proxies file {args.proxies_file} has no proxy configured for "
+                f"account(s): {', '.join(missing)}",
+                file=sys.stderr,
+            )
+            return 1
+
     # Load URLs
     try:
         urls = [
