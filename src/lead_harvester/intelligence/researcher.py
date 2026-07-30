@@ -354,45 +354,50 @@ class ResearchBrain:
         record: RawSourceRecord,
     ) -> None:
         payload = record.raw_payload
-        # Upsert a minimal CanonicalInstitution if one doesn't exist
-        institution = CanonicalInstitution(
-            canonical_name=payload.get("full_name", "Unknown"),
-            status=OperatingStatus.OPERATIONAL,
-        )
-        session.add(institution)
-        await session.flush()
-
+        # The whole attempt -- provisional institution, the AI call, and
+        # persisting findings -- runs inside a SAVEPOINT (begin_nested), not
+        # just the AI call. A failure partway through _persist_findings
+        # (e.g. a flush/constraint error) leaves the surrounding Postgres
+        # transaction aborted; every later statement on it (including the
+        # session.delete(institution)/flush() this method used to run as
+        # cleanup) then raises PendingRollbackError itself, which escaped
+        # this method and rolled back process_all_pending's entire shared
+        # session -- discarding every OTHER record already researched
+        # successfully earlier in the same batch, not just this one.
+        # Rolling back the savepoint on failure undoes the institution
+        # creation too, so no manual delete is needed at all.
         try:
-            await self.research_profile(session, payload, institution.id)
-        except Exception as e:
-            # A timed-out/rejected/malformed AI call must not be recorded
-            # the same way a real analysis is -- no FieldProvenance
-            # "processed" marker (so process_all_pending retries this
-            # record next time). It also must not leave the provisional
-            # institution behind: research_profile's own _call_ai step
-            # fails before any ResearchJob/finding/brief ever gets created
-            # for it, so a surviving institution would be a bare, empty
-            # orphan with no FieldProvenance link -- and since nothing ties
-            # it back to this raw record, every future failed retry would
-            # mint another one, permanently polluting canonical APIs with
-            # placeholder institutions. Roll it back instead; the failure
-            # itself is still visible via this log line.
-            print(f"[ResearchBrain] research failed for record {record.id}: {e}")
-            await session.delete(institution)
-            await session.flush()
-            return
+            async with session.begin_nested():
+                # Upsert a minimal CanonicalInstitution if one doesn't exist
+                institution = CanonicalInstitution(
+                    canonical_name=payload.get("full_name", "Unknown"),
+                    status=OperatingStatus.OPERATIONAL,
+                )
+                session.add(institution)
+                await session.flush()
 
-        # Marks this record as processed for process_all_pending's own
-        # exclusion query above -- same "branch_membership" FieldProvenance
-        # shape merge_records()/manual_leads.py already use to link a raw
-        # record to the canonical entity it produced. Written only after a
-        # successful analysis (see the except branch above).
-        session.add(
-            FieldProvenance(
-                canonical_id=institution.id,
-                raw_record_id=record.id,
-                field_name="branch_membership",
-                asserted_value=record.source_id,
-                assertion_trust=1.0,
-            )
-        )
+                await self.research_profile(session, payload, institution.id)
+
+                # Marks this record as processed for process_all_pending's
+                # own exclusion query -- same "branch_membership"
+                # FieldProvenance shape merge_records()/manual_leads.py
+                # already use to link a raw record to the canonical entity
+                # it produced. Written only after a successful analysis,
+                # inside the same savepoint so it's rolled back together
+                # with everything else above if anything failed.
+                session.add(
+                    FieldProvenance(
+                        canonical_id=institution.id,
+                        raw_record_id=record.id,
+                        field_name="branch_membership",
+                        asserted_value=record.source_id,
+                        assertion_trust=1.0,
+                    )
+                )
+        except Exception as e:
+            # A timed-out/rejected/malformed AI call (or any other failure
+            # persisting findings) must not be recorded the same way a real
+            # analysis is -- no FieldProvenance "processed" marker, so
+            # process_all_pending retries this record next time. The
+            # failure itself is still visible via this log line.
+            print(f"[ResearchBrain] research failed for record {record.id}: {e}")

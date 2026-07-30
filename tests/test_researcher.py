@@ -1,9 +1,10 @@
 import contextlib
 import json
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.intelligence.researcher import ResearchBrain, _validate_analysis_schema
@@ -265,6 +266,80 @@ async def test_process_all_pending_dedupes_same_source_id_within_one_call(db_ses
         .where(CanonicalInstitution.canonical_name == "Double Scraped")
     )
     assert count == 1
+
+
+@pytest.mark.asyncio
+async def test_research_record_savepoint_isolates_a_db_level_failure(db_session):
+    # A failure partway through _persist_findings that's a genuine DB-level
+    # error (not just a Python exception before any DB write) leaves the
+    # surrounding Postgres transaction aborted -- every later statement on
+    # it raises until a ROLLBACK. _research_record's own cleanup (deleting
+    # the provisional institution, then flushing) used to be exactly such a
+    # later statement, so it raised PendingRollbackError itself, escaping
+    # this method and rolling back process_all_pending's whole shared
+    # session -- discarding an EARLIER record in the same batch that had
+    # already been researched successfully. Running each record inside its
+    # own SAVEPOINT means only the failing record's work is undone.
+    run = SourceRun(source_type=SourceType.LINKEDIN, run_metadata={}, status=RunStatus.STARTED)
+    db_session.add(run)
+    await db_session.flush()
+
+    now = datetime.now(UTC)
+    good_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.LINKEDIN,
+        source_id="li:good",
+        raw_payload={"full_name": "Good Profile"},
+        normalized_name="good profile",
+        extracted_at=now - timedelta(seconds=5),
+    )
+    bad_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.LINKEDIN,
+        source_id="li:bad",
+        raw_payload={"full_name": "Bad Profile"},
+        normalized_name="bad profile",
+        extracted_at=now,
+    )
+    db_session.add_all([good_record, bad_record])
+    await db_session.commit()
+
+    brain = ResearchBrain(api_key="fake-key-for-test")
+    brain._call_ai = AsyncMock(return_value=dict(_VALID_ANALYSIS))
+
+    original_persist_findings = brain._persist_findings
+
+    async def _persist_with_db_level_failure(session, institution_id, profile, analysis):
+        if profile.get("full_name") == "Bad Profile":
+            # A real DBAPI-level error (not a mocked Python exception) --
+            # this is what actually poisons the surrounding transaction the
+            # way a genuine flush/constraint failure would.
+            await session.execute(text("SELECT 1/0"))
+        await original_persist_findings(session, institution_id, profile, analysis)
+
+    brain._persist_findings = _persist_with_db_level_failure
+
+    with patch(
+        "lead_harvester.intelligence.researcher.get_session",
+        new=lambda: _fake_get_session(db_session),
+    ):
+        await brain.process_all_pending()
+
+    good_institution = (
+        await db_session.execute(
+            select(CanonicalInstitution).where(
+                CanonicalInstitution.canonical_name == "Good Profile"
+            )
+        )
+    ).scalar_one_or_none()
+    assert good_institution is not None
+
+    bad_institution = (
+        await db_session.execute(
+            select(CanonicalInstitution).where(CanonicalInstitution.canonical_name == "Bad Profile")
+        )
+    ).scalar_one_or_none()
+    assert bad_institution is None
 
 
 @pytest.mark.asyncio
