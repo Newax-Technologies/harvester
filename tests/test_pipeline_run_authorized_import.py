@@ -207,6 +207,78 @@ async def test_run_authorized_import_is_idempotent_on_rerun(tmp_path, db_session
 
 
 @pytest.mark.asyncio
+async def test_run_authorized_import_merges_new_contact_into_existing_institution(
+    tmp_path, db_session, monkeypatch
+):
+    # source_id is derived only from institution_name + website (see
+    # AuthorizedImportInstitution.source_id) -- it intentionally ignores
+    # contacts, so a re-import that adds a second contact for an already-
+    # resolved institution must not be silently discarded as an unchanged
+    # rerun; the new contact must reach the existing CanonicalInstitution.
+    csv_path = tmp_path / "leads.csv"
+    csv_path.write_text(
+        "institution_name,website,contact_type,contact_value\n"
+        "Beacon House School,https://beaconhouse.example.edu,phone,+923001234567\n"
+    )
+
+    pipeline = LeadPipeline(
+        _settings(
+            {
+                "authorized_import_file": str(csv_path),
+                "authorized_import_source_reference": "license-2026",
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "lead_harvester.pipeline.get_session", lambda: _fake_get_session(db_session)
+    )
+
+    await pipeline.run()
+
+    csv_path.write_text(
+        "institution_name,website,contact_type,contact_value\n"
+        "Beacon House School,https://beaconhouse.example.edu,phone,+923001234567\n"
+        "Beacon House School,https://beaconhouse.example.edu,email,"
+        "admissions@beaconhouse.example.edu\n"
+    )
+    await pipeline.run()
+
+    institutions = (await db_session.execute(select(CanonicalInstitution))).scalars().all()
+    assert len(institutions) == 1
+
+    records = (
+        (
+            await db_session.execute(
+                select(RawSourceRecord).where(
+                    RawSourceRecord.source_type == SourceType.AUTHORIZED_IMPORT
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    # A new, immutable RawSourceRecord captures the updated snapshot rather
+    # than mutating the original -- raw_source_records is append-only.
+    assert len(records) == 2
+
+    contacts = (await db_session.execute(select(ContactPoint))).scalars().all()
+    assert {c.contact_type for c in contacts} == {"phone", "email"}
+
+    run_2 = (
+        (
+            await db_session.execute(
+                select(SourceRun)
+                .where(SourceRun.source_type == SourceType.AUTHORIZED_IMPORT)
+                .order_by(SourceRun.started_at.desc())
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert run_2.run_metadata["institutions_updated"] == 1
+
+
+@pytest.mark.asyncio
 async def test_run_authorized_import_requires_source_reference(tmp_path, capsys):
     csv_path = tmp_path / "leads.csv"
     csv_path.write_text("institution_name,contact_value\nSchool A,+923001234567\n")

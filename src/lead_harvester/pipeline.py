@@ -5,11 +5,17 @@ from typing import Any
 
 from sqlalchemy import select
 
+from .canonical.merger import (
+    attach_record_to_institution,
+    find_branch_for_raw_record,
+    find_canonical_for_raw_record,
+)
 from .config import Settings
 from .database import get_session
 from .integrations.lead_sync_emitter import LeadSyncEmitter
 from .integrations.lead_sync_resync import resync_institution
 from .models import RawSourceRecord, RunStatus, SourceRun, SourceType
+from .models.canonical import CanonicalInstitution
 from .models.provenance import FieldProvenance
 from .models.resolution import ResolutionCandidate
 from .resolution.normalize import normalize_domain, normalize_name, normalize_phone
@@ -203,19 +209,59 @@ class LeadPipeline:
                     await self._retry_stranded_records(session, run, resync_ids)
 
                     skipped_existing = 0
+                    updated_existing = 0
                     for institution in parsed.institutions:
-                        if await self._authorized_import_already_exists(session, institution):
+                        existing_record = await self._find_authorized_import_record(
+                            session, institution.source_id
+                        )
+                        if (
+                            existing_record is not None
+                            and not self._authorized_import_has_new_evidence(
+                                existing_record.raw_payload or {}, institution
+                            )
+                        ):
                             skipped_existing += 1
                             continue
+
                         record = self._build_authorized_import_record(run, institution)
                         session.add(record)
                         await session.flush()
-                        await self._resolve_or_log(session, run, record, resync_ids)
+
+                        if existing_record is None:
+                            await self._resolve_or_log(session, run, record, resync_ids)
+                            continue
+
+                        updated_existing += 1
+                        canonical_id = await find_canonical_for_raw_record(
+                            session, existing_record.id
+                        )
+                        if canonical_id is None:
+                            # Not yet resolved (still awaiting human review, or
+                            # stranded and already retried this run via
+                            # _retry_stranded_records above) -- route the
+                            # updated snapshot through the normal resolution
+                            # path like any fresh record, rather than silently
+                            # discarding the new evidence it carries.
+                            await self._resolve_or_log(session, run, record, resync_ids)
+                            continue
+
+                        target_institution = await session.get(CanonicalInstitution, canonical_id)
+                        target_branch = await find_branch_for_raw_record(
+                            session, target_institution.id, existing_record
+                        )
+                        await self._attach_or_log(
+                            session, run, record, target_institution, target_branch, resync_ids
+                        )
 
                     if skipped_existing:
                         run.run_metadata = {
                             **run.run_metadata,
                             "institutions_already_imported": skipped_existing,
+                        }
+                    if updated_existing:
+                        run.run_metadata = {
+                            **run.run_metadata,
+                            "institutions_updated": updated_existing,
                         }
 
                     run.status = RunStatus.COMPLETED
@@ -233,27 +279,88 @@ class LeadPipeline:
         return True
 
     @staticmethod
-    async def _authorized_import_already_exists(
-        session, institution: AuthorizedImportInstitution
-    ) -> bool:
+    async def _find_authorized_import_record(session, source_id: str) -> RawSourceRecord | None:
         """
-        Re-importing the exact same institution (even from a re-ordered or
-        appended-to file, since source_id is now content-derived rather
-        than positional -- see AuthorizedImportInstitution.source_id)
-        would otherwise still create a brand-new RawSourceRecord every
-        time, which the resolution pipeline's blocking strategies have no
-        way to recognize as the same institution it already resolved
-        (phone/domain/geography blocking doesn't consider source_id), so
-        every rerun of an unchanged file minted another duplicate
-        canonical institution. Skip creating a new record entirely when
-        this exact institution was already imported.
+        Finds the most recent previously-imported RawSourceRecord for this
+        institution's stable source_id (see
+        AuthorizedImportInstitution.source_id), if any. Returning the full
+        record (not just an existence check) lets the caller diff its
+        raw_payload against the freshly parsed institution to tell an
+        unchanged rerun from one that supplies genuinely new evidence.
         """
-        stmt = select(RawSourceRecord.id).where(
-            RawSourceRecord.source_type == SourceType.AUTHORIZED_IMPORT,
-            RawSourceRecord.source_id == institution.source_id,
+        stmt = (
+            select(RawSourceRecord)
+            .where(
+                RawSourceRecord.source_type == SourceType.AUTHORIZED_IMPORT,
+                RawSourceRecord.source_id == source_id,
+            )
+            .order_by(RawSourceRecord.extracted_at.desc())
+            .limit(1)
         )
         result = await session.execute(stmt)
-        return result.scalar_one_or_none() is not None
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    def _authorized_import_has_new_evidence(
+        existing_payload: dict, institution: AuthorizedImportInstitution
+    ) -> bool:
+        """
+        source_id is derived only from institution_name + website/address
+        (see AuthorizedImportInstitution.source_id) -- it intentionally
+        ignores contacts and every other mutable field, so a matching
+        source_id does not mean an identical row. Without this check,
+        _run_authorized_import treated every matching identity as an
+        unchanged rerun and skipped the whole institution, silently
+        discarding a newly declared contact or a previously-blank field
+        the spreadsheet has since filled in.
+        """
+        existing_contacts = {
+            (c.get("contact_type"), c.get("contact_value"))
+            for c in existing_payload.get("contacts") or []
+        }
+        new_contacts = {(c.contact_type, c.contact_value) for c in institution.contacts}
+        if new_contacts - existing_contacts:
+            return True
+
+        for attr in (
+            "institution_type",
+            "website",
+            "address",
+            "city",
+            "country",
+            "country_code",
+            "notes",
+        ):
+            if not existing_payload.get(attr) and getattr(institution, attr):
+                return True
+        return False
+
+    @staticmethod
+    async def _attach_or_log(
+        session,
+        run: SourceRun,
+        record: RawSourceRecord,
+        institution: CanonicalInstitution,
+        target_branch,
+        resync_ids: set[uuid.UUID] | None = None,
+    ) -> None:
+        # Same isolation reasoning as _resolve_or_log: one institution's
+        # enrichment failing (e.g. a constraint violation) must not abort
+        # the whole import run, and must run inside a SAVEPOINT so it
+        # doesn't leave the surrounding transaction aborted for every
+        # subsequent institution/commit.
+        try:
+            async with session.begin_nested():
+                await attach_record_to_institution(
+                    session, record, institution, target_branch=target_branch
+                )
+                if resync_ids is not None and institution.lead_synced_at is not None:
+                    resync_ids.add(institution.id)
+        except Exception as e:
+            unresolved = list(run.run_metadata.get("unresolved_records", []))
+            unresolved.append({"raw_record_id": str(record.id), "error": str(e)})
+            run.run_metadata = {**run.run_metadata, "unresolved_records": unresolved}
+            print(f"Applying new authorized-import evidence failed for raw record {record.id}: {e}")
 
     @staticmethod
     def _build_authorized_import_record(
