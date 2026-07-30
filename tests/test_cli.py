@@ -127,6 +127,74 @@ async def test_linkedin_farm_run_aborts_when_proxies_file_missing(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_linkedin_farm_run_passes_vertical_and_noise_urls_through(tmp_path):
+    # --vertical/--target-city declare what this batch targets, enforcing
+    # BreadthTracker's 30-day breadth ceiling before assignment, and
+    # --noise-urls-file supplies the pool needs_noise_visit draws from --
+    # both must actually reach AccountFarm.run(), not just be parsed and
+    # discarded.
+    from lead_harvester import cli
+
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("https://linkedin.com/in/alice\n")
+
+    noise_urls_file = tmp_path / "noise.txt"
+    noise_urls_file.write_text("https://linkedin.com/in/noise-a\nhttps://linkedin.com/in/noise-b\n")
+
+    args = argparse.Namespace(
+        accounts="burner_01",
+        urls_file=str(urls_file),
+        proxies_file="",
+        captcha_key="",
+        vertical="school_principals",
+        target_city="karachi",
+        noise_urls_file=str(noise_urls_file),
+    )
+
+    with patch("lead_harvester.sources.account_farm.AccountFarm") as mock_farm_cls:
+        mock_farm_cls.return_value.run = AsyncMock(return_value=[])
+        result = await cli._linkedin_farm_run(args)
+
+    assert result == 0
+    mock_farm_cls.return_value.run.assert_awaited_once_with(
+        ["https://linkedin.com/in/alice"],
+        vertical="school_principals",
+        target_city="karachi",
+        noise_urls=["https://linkedin.com/in/noise-a", "https://linkedin.com/in/noise-b"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_linkedin_farm_run_defaults_vertical_and_target_city_to_unknown(tmp_path):
+    from lead_harvester import cli
+
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("https://linkedin.com/in/alice\n")
+
+    args = argparse.Namespace(
+        accounts="burner_01",
+        urls_file=str(urls_file),
+        proxies_file="",
+        captcha_key="",
+        vertical="",
+        target_city="",
+        noise_urls_file="",
+    )
+
+    with patch("lead_harvester.sources.account_farm.AccountFarm") as mock_farm_cls:
+        mock_farm_cls.return_value.run = AsyncMock(return_value=[])
+        result = await cli._linkedin_farm_run(args)
+
+    assert result == 0
+    mock_farm_cls.return_value.run.assert_awaited_once_with(
+        ["https://linkedin.com/in/alice"],
+        vertical="unknown",
+        target_city="unknown",
+        noise_urls=None,
+    )
+
+
+@pytest.mark.asyncio
 async def test_linkedin_farm_run_rejects_proxies_file_missing_an_account(tmp_path):
     # The file exists and covers burner_01, but says nothing about
     # burner_02 -- account_farm.py's dict.get("burner_02") would silently

@@ -366,6 +366,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="Text file with one proxy per line (format: account_id=http://user:pass@host:port)",
     )
     li_farm.add_argument("--captcha-key", default="", help="2Captcha API key")
+    li_farm.add_argument(
+        "--vertical",
+        default="",
+        help=(
+            "Declares what --urls-file targets (e.g. 'school_principals'), enforcing "
+            "the 30-day cross-account breadth ceiling for this (vertical, --target-city) "
+            "combination. Defaults to 'unknown' if omitted."
+        ),
+    )
+    li_farm.add_argument(
+        "--target-city",
+        default="",
+        help=(
+            "Declares which city --urls-file targets (e.g. 'karachi'), paired with "
+            "--vertical for the breadth ceiling. Defaults to 'unknown' if omitted."
+        ),
+    )
+    li_farm.add_argument(
+        "--noise-urls-file",
+        default="",
+        help=(
+            "Optional text file of off-target-vertical LinkedIn profile URLs, one per "
+            "line. Used to satisfy an account's due noise visit (industry mixing) "
+            "before its next real target visit."
+        ),
+    )
 
     # -- linkedin-farm-status ----------------------------------------------
     li_farm_status = subparsers.add_parser(
@@ -476,8 +502,30 @@ async def _linkedin_farm_run(args: argparse.Namespace) -> int:
         print("No valid URLs found in file.", file=sys.stderr)
         return 1
 
+    # Optional pool of off-target-vertical profiles for noise injection --
+    # unlike --urls-file/--proxies-file, a missing file here just means no
+    # noise pool is available (needs_noise_visit silently has nothing to
+    # satisfy, same as before this feature existed), not a hard failure --
+    # noise injection is a best-effort mitigation, not a requirement to run.
+    noise_urls: list[str] = []
+    if args.noise_urls_file:
+        try:
+            noise_urls = [
+                l.strip()
+                for l in Path(args.noise_urls_file).read_text().splitlines()
+                if l.strip().startswith("http")
+            ]
+        except FileNotFoundError:
+            print(f"Noise URLs file not found: {args.noise_urls_file}", file=sys.stderr)
+            return 1
+
     farm = AccountFarm(accounts=accounts, proxies=proxies, captcha_key=captcha_key)
-    await farm.run(urls)
+    await farm.run(
+        urls,
+        vertical=args.vertical or "unknown",
+        target_city=args.target_city or "unknown",
+        noise_urls=noise_urls or None,
+    )
     return 0
 
 

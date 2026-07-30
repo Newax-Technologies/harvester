@@ -200,3 +200,35 @@ def test_record_farm_visits_logs_every_scraped_profile(tmp_path):
 
     bob_visit = next(v for v in bt._data["visits"] if v["url"].endswith("bob"))
     assert bob_visit["city"] == "unknown"
+
+
+def test_record_farm_visits_tags_declared_vertical_and_noise_separately(tmp_path):
+    # The run's declared vertical is recorded for a normal target visit, but
+    # a URL that assign_partitions injected as this account's noise visit
+    # (via consume_noise_marker) must be recorded as industry="noise"
+    # instead -- otherwise needs_noise_visit's own target-vs-noise ratio
+    # check for future runs would never see it as a satisfied noise visit.
+    bt = BreadthTracker(log_path=tmp_path / "breadth_log.json")
+    bt._data.setdefault("pending_noise", {})["https://linkedin.com/in/noise-profile"] = "burner_01"
+
+    results = [
+        AccountResult(
+            account_id="burner_01",
+            profiles_scraped=2,
+            profiles=[
+                {"profile_url": "https://linkedin.com/in/noise-profile"},
+                {"profile_url": "https://linkedin.com/in/real-target"},
+            ],
+        ),
+    ]
+
+    AccountFarm._record_farm_visits(bt, results, vertical="school_principals")
+
+    noise_visit = next(v for v in bt._data["visits"] if v["url"].endswith("noise-profile"))
+    assert noise_visit["industry"] == "noise"
+
+    target_visit = next(v for v in bt._data["visits"] if v["url"].endswith("real-target"))
+    assert target_visit["industry"] == "school_principals"
+
+    # The marker is consumed, not left around for a later run to misfire on.
+    assert "https://linkedin.com/in/noise-profile" not in bt._data.get("pending_noise", {})

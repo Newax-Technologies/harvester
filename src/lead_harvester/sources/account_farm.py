@@ -21,11 +21,14 @@ Usage (CLI):
   lead-harvester linkedin-farm-run \\
       --accounts burner_01,burner_02,burner_03 \\
       --urls-file targets.txt \\
-      --proxies proxies.txt         # optional, one proxy per line
+      --proxies proxies.txt \\        # optional, one proxy per line
+      --vertical school_principals \\ # optional, declares this batch's target vertical
+      --target-city karachi \\        # optional, declares this batch's target city
+      --noise-urls-file noise.txt     # optional, off-target profiles for noise injection
 
 Usage (Python):
   farm = AccountFarm(accounts=["burner_01", "burner_02"])
-  await farm.run(urls)
+  await farm.run(urls, vertical="school_principals", target_city="karachi")
 """
 
 from __future__ import annotations
@@ -263,11 +266,26 @@ class AccountFarm:
 
         print(f"{'=' * 70}\n")
 
-    async def run(self, urls: list[str]) -> list[AccountResult]:
+    async def run(
+        self,
+        urls: list[str],
+        *,
+        vertical: str = "unknown",
+        target_city: str = "unknown",
+        noise_urls: list[str] | None = None,
+    ) -> list[AccountResult]:
         """
         Distribute URLs across accounts and run each in its own subprocess.
         Uses BreadthTracker for zero-overlap URL partitioning and
         day-of-week scheduling to stagger accounts across the week.
+
+        vertical/target_city declare what this `urls` batch targets (e.g.
+        "school_principals" in "karachi") -- see BreadthTracker.
+        assign_partitions for why this is the only signal available before
+        any of these URLs are actually visited, and how it enforces the
+        30-day breadth ceiling. noise_urls is an optional pool of off-target
+        profiles used to satisfy BreadthTracker.needs_noise_visit for any
+        account that's due one.
         """
         if not within_working_hours():
             print("[Farm] Outside working hours. Aborting.")
@@ -302,8 +320,16 @@ class AccountFarm:
         for acc in skipped_today:
             per_account_limits[acc] = 0
 
-        # Use BreadthTracker for zero-overlap URL partitioning
-        assignment = bt.assign_partitions(urls, scheduled_today, per_account_limits)
+        # Use BreadthTracker for zero-overlap URL partitioning, the 30-day
+        # breadth ceiling, and noise injection
+        assignment = bt.assign_partitions(
+            urls,
+            scheduled_today,
+            per_account_limits,
+            vertical=vertical,
+            target_city=target_city,
+            noise_urls=noise_urls,
+        )
 
         # For Phase-1 or unscheduled accounts, assign empty list (feed warmup only)
         for acc in self.accounts:
@@ -361,7 +387,7 @@ class AccountFarm:
         stop_draining.set()
         drainer.join()
 
-        self._record_farm_visits(bt, results)
+        self._record_farm_visits(bt, results, vertical=vertical)
         await self._persist_profiles(results)
 
         # Print summary
@@ -383,13 +409,15 @@ class AccountFarm:
         return results
 
     @staticmethod
-    def _record_farm_visits(bt: BreadthTracker, results: list[AccountResult]) -> None:
+    def _record_farm_visits(
+        bt: BreadthTracker, results: list[AccountResult], *, vertical: str = "unknown"
+    ) -> None:
         """
         Logs every profile a worker actually scraped into BreadthTracker's
         visit history. No caller anywhere recorded a visit before this --
         assign_partitions' own "not in visited_urls" exclusion, the 30-day
         MAX_BREADTH_PER_VERTICAL_CITY_30D ceiling (is_breadth_exceeded), and
-        the every-4th-visit noise-injection scheduling (should_inject_noise)
+        the every-4th-visit noise-injection scheduling (needs_noise_visit)
         all read the same self._data["visits"] list, so with nothing ever
         writing to it every one of those checks was permanently inert --
         the farm could keep re-visiting the exact same URLs indefinitely,
@@ -398,15 +426,23 @@ class AccountFarm:
         actual signal is_breadth_exceeded cares about -- which cities'
         profiles this URL set has been drawn from), falling back to
         "unknown" like record_visit's own default when a profile has none.
+
+        `vertical` is the run's declared target vertical (see run()) --
+        recorded as-is UNLESS this exact URL was injected as a noise visit
+        for this account (assign_partitions' noise_urls path), in which
+        case it's recorded as "noise" so needs_noise_visit's own target-vs-
+        noise ratio check for future runs sees it correctly.
         """
         for result in results:
             for profile in result.profiles:
                 url = profile.get("profile_url")
                 if not url:
                     continue
+                industry = "noise" if bt.consume_noise_marker(result.account_id, url) else vertical
                 bt.record_visit(
                     result.account_id,
                     url,
+                    industry=industry,
                     city=profile.get("location") or "unknown",
                 )
 
