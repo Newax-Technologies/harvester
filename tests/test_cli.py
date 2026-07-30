@@ -98,6 +98,56 @@ async def test_linkedin_run_persists_partial_profiles_when_crawler_aborts(tmp_pa
 
 
 @pytest.mark.asyncio
+async def test_linkedin_run_isolates_a_db_level_failure_per_profile(tmp_path, db_session):
+    # RawSourceRecord.source_id is a VARCHAR(255) -- a genuine DB-level
+    # error (StringDataRightTruncation), not a Python exception, if one
+    # profile's URL exceeds that length. Without a per-row SAVEPOINT this
+    # poisons the whole shared session, losing every other profile the
+    # crawl harvested this run, not just the one bad row.
+    from lead_harvester import cli
+
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("https://linkedin.com/in/alice\n")
+
+    args = argparse.Namespace(
+        account="burner_01",
+        urls_file=str(urls_file),
+        proxy="",
+        captcha_key="",
+    )
+
+    too_long_url = "https://linkedin.com/in/" + "x" * 300
+    profiles = [
+        LinkedInProfile(profile_url="https://linkedin.com/in/alice", full_name="Alice"),
+        LinkedInProfile(profile_url=too_long_url, full_name="Bad Row"),
+        LinkedInProfile(profile_url="https://linkedin.com/in/bob", full_name="Bob"),
+    ]
+
+    with (
+        patch("lead_harvester.sources.linkedin_stealth.LinkedInStealthCrawler") as mock_crawler_cls,
+        patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)),
+    ):
+        mock_crawler_cls.return_value.run = AsyncMock(return_value=profiles)
+        result = await cli.linkedin_run(args)
+
+    assert result == 0
+
+    records = (
+        (
+            await db_session.execute(
+                select(RawSourceRecord).where(RawSourceRecord.source_type == SourceType.LINKEDIN)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert {r.source_id for r in records} == {
+        "https://linkedin.com/in/alice",
+        "https://linkedin.com/in/bob",
+    }
+
+
+@pytest.mark.asyncio
 async def test_import_authorized_returns_error_for_missing_file(tmp_path):
     from lead_harvester import cli
 

@@ -511,6 +511,14 @@ class AccountFarm:
         account but the actual profile data (only ever returned to the
         parent process as a bare count) was discarded, leaving
         linkedin-research nothing to process despite the run "succeeding".
+
+        Each row is written inside its own SAVEPOINT (see
+        docs/CODE_REVIEW_LESSONS.md pattern 3): a whole farm run can harvest
+        hundreds of profiles across many accounts, and a single row failing
+        (e.g. a genuine DB-level constraint error) must not abort every
+        other profile already added in this same shared session -- that
+        would silently discard an entire run's worth of scraped profiles
+        over one bad row instead of just that one.
         """
         all_profiles = [(r.account_id, profile) for r in results for profile in r.profiles]
         if not all_profiles:
@@ -528,21 +536,30 @@ class AccountFarm:
             session.add(run)
             await session.flush()
 
+            saved_count = 0
             for account_id, profile in all_profiles:
-                session.add(
-                    RawSourceRecord(
-                        source_run_id=run.id,
-                        source_type=SourceType.LINKEDIN,
-                        source_id=profile.get("profile_url", f"{account_id}:{uuid.uuid4().hex}"),
-                        raw_payload=profile,
-                        normalized_name=profile.get("full_name") or profile.get("company"),
-                        normalized_phone=None,
-                        normalized_domain=None,
-                        location=None,
-                    )
-                )
+                try:
+                    async with session.begin_nested():
+                        session.add(
+                            RawSourceRecord(
+                                source_run_id=run.id,
+                                source_type=SourceType.LINKEDIN,
+                                source_id=profile.get(
+                                    "profile_url", f"{account_id}:{uuid.uuid4().hex}"
+                                ),
+                                raw_payload=profile,
+                                normalized_name=profile.get("full_name") or profile.get("company"),
+                                normalized_phone=None,
+                                normalized_domain=None,
+                                location=None,
+                            )
+                        )
+                        await session.flush()
+                    saved_count += 1
+                except Exception as e:
+                    print(f"[Farm] Failed to persist profile from {account_id}: {e}")
 
             run.status = RunStatus.COMPLETED
             run.completed_at = datetime.now(UTC)
 
-        print(f"[Farm] Saved {len(all_profiles)} profile(s) to the database.")
+        print(f"[Farm] Saved {saved_count} of {len(all_profiles)} profile(s) to the database.")

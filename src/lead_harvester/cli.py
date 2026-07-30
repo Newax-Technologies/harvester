@@ -192,18 +192,31 @@ async def linkedin_run(args: argparse.Namespace) -> int:
         session.add(run)
         await session.flush()
 
+        # Each row gets its own SAVEPOINT (see docs/CODE_REVIEW_LESSONS.md
+        # pattern 3) -- a single profile failing a DB-level constraint must
+        # not abort every other already-added profile in this same shared
+        # session, discarding an entire crawl's worth of harvested profiles
+        # over one bad row.
+        saved_count = 0
         for profile in profiles:
-            record = RawSourceRecord(
-                source_run_id=run.id,
-                source_type=SourceType.LINKEDIN,
-                source_id=profile.profile_url,
-                raw_payload=dataclasses.asdict(profile),
-                normalized_name=profile.full_name or profile.company,
-                normalized_phone=None,
-                normalized_domain=None,
-                location=None,
-            )
-            session.add(record)
+            try:
+                async with session.begin_nested():
+                    session.add(
+                        RawSourceRecord(
+                            source_run_id=run.id,
+                            source_type=SourceType.LINKEDIN,
+                            source_id=profile.profile_url,
+                            raw_payload=dataclasses.asdict(profile),
+                            normalized_name=profile.full_name or profile.company,
+                            normalized_phone=None,
+                            normalized_domain=None,
+                            location=None,
+                        )
+                    )
+                    await session.flush()
+                saved_count += 1
+            except Exception as e:
+                print(f"[LinkedIn] Failed to persist profile {profile.profile_url}: {e}")
 
         import datetime as dt
 
@@ -212,7 +225,7 @@ async def linkedin_run(args: argparse.Namespace) -> int:
         run.status = RunStatus.COMPLETED
         run.completed_at = dt.datetime.now(dt.UTC)
 
-    print(f"\n✓ Saved {len(profiles)} profiles to database.")
+    print(f"\n✓ Saved {saved_count} of {len(profiles)} profiles to database.")
     print("  Run `linkedin-research` next to analyse them with AI.\n")
     return 1 if crawl_aborted else 0
 

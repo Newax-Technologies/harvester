@@ -92,6 +92,51 @@ async def test_persist_profiles_writes_raw_source_records(db_session):
 
 
 @pytest.mark.asyncio
+async def test_persist_profiles_isolates_a_db_level_failure_per_row(db_session):
+    # RawSourceRecord.source_id is a VARCHAR(255) -- a genuine DB-level
+    # error (StringDataRightTruncation), not just a Python exception,
+    # raised mid-transaction if a value exceeds that length. Without a
+    # per-row SAVEPOINT, this poisons the whole shared session, and every
+    # OTHER profile already added earlier in the same _persist_profiles
+    # call (or added after, before the eventual outer commit) would be
+    # lost too -- an entire farm run's worth of scraped profiles discarded
+    # over one bad row.
+    too_long_url = "https://linkedin.com/in/" + "x" * 300
+    results = [
+        AccountResult(
+            account_id="burner_01",
+            profiles_scraped=3,
+            profiles=[
+                {"profile_url": "https://linkedin.com/in/alice", "full_name": "Alice A"},
+                {"profile_url": too_long_url, "full_name": "Bad Row"},
+                {"profile_url": "https://linkedin.com/in/bob", "full_name": "Bob B"},
+            ],
+        ),
+    ]
+    farm = AccountFarm(accounts=["burner_01"])
+
+    with patch(
+        "lead_harvester.sources.account_farm.get_session",
+        new=lambda: _fake_get_session(db_session),
+    ):
+        await farm._persist_profiles(results)
+
+    records = (
+        (
+            await db_session.execute(
+                select(RawSourceRecord).where(RawSourceRecord.source_type == SourceType.LINKEDIN)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert {r.source_id for r in records} == {
+        "https://linkedin.com/in/alice",
+        "https://linkedin.com/in/bob",
+    }
+
+
+@pytest.mark.asyncio
 async def test_persist_profiles_no_ops_when_nothing_scraped(db_session):
     results = [AccountResult(account_id="burner_01", profiles_scraped=0, profiles=[])]
     farm = AccountFarm(accounts=["burner_01"])
