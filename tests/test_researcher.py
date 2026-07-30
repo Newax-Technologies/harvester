@@ -152,6 +152,48 @@ async def test_process_all_pending_excludes_by_stable_source_id_not_row_uuid(db_
 
 
 @pytest.mark.asyncio
+async def test_process_all_pending_dedupes_same_source_id_within_one_call(db_session):
+    # The exclusion query only sees source_ids committed by a PRIOR call --
+    # if the same profile was scraped twice (e.g. two overlapping farm
+    # runs) before either row was ever processed, both rows lack a
+    # FieldProvenance link and both pass the exclusion filter, landing in
+    # the same batch. Without an in-batch dedupe, both got processed here,
+    # minting two AI calls/institutions for one person.
+    run = SourceRun(source_type=SourceType.LINKEDIN, run_metadata={}, status=RunStatus.STARTED)
+    db_session.add(run)
+    await db_session.flush()
+
+    for _ in range(2):
+        db_session.add(
+            RawSourceRecord(
+                source_run_id=run.id,
+                source_type=SourceType.LINKEDIN,
+                source_id="https://linkedin.com/in/double-scraped",
+                raw_payload={"full_name": "Double Scraped"},
+                normalized_name="double scraped",
+            )
+        )
+    await db_session.commit()
+
+    brain = ResearchBrain(api_key="fake-key-for-test")
+    brain.research_profile = AsyncMock(return_value=None)
+
+    with patch(
+        "lead_harvester.intelligence.researcher.get_session",
+        new=lambda: _fake_get_session(db_session),
+    ):
+        await brain.process_all_pending()
+
+    brain.research_profile.assert_awaited_once()
+    count = await db_session.scalar(
+        select(func.count())
+        .select_from(CanonicalInstitution)
+        .where(CanonicalInstitution.canonical_name == "Double Scraped")
+    )
+    assert count == 1
+
+
+@pytest.mark.asyncio
 async def test_research_record_does_not_mark_processed_when_ai_call_fails(db_session):
     # A timed-out/rejected/malformed AI call previously got silently turned
     # into a fake zero-score analysis by _call_ai, so _research_record

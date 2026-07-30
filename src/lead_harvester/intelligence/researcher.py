@@ -143,9 +143,27 @@ class ResearchBrain:
                 .where(RawSourceRecord.source_type == SourceType.LINKEDIN)
                 .where(RawSourceRecord.normalized_name.isnot(None))
                 .where(RawSourceRecord.source_id.not_in(already_researched_source_ids))
+                .order_by(RawSourceRecord.extracted_at.asc())
                 .limit(50)
             )
+            # already_researched_source_ids only excludes source_ids a PRIOR,
+            # already-committed call already researched -- if the same
+            # profile was scraped twice (e.g. two farm runs) before either
+            # row was ever processed, both rows lack a FieldProvenance link
+            # and both pass that filter, landing in this same `records`
+            # batch. Without this, both would get processed here, minting
+            # two AI calls/ResearchJobs/CanonicalInstitutions for one
+            # person. Keep only the first row seen per source_id this
+            # batch; the skipped duplicate needs no provenance link of its
+            # own -- once the kept row's link is written, the exclusion
+            # query above matches by source_id (not by a specific raw
+            # record's own id), so it covers the duplicate too on every
+            # future call.
+            seen_source_ids: set[str] = set()
             for record in records:
+                if record.source_id in seen_source_ids:
+                    continue
+                seen_source_ids.add(record.source_id)
                 await self._research_record(session, record)
 
     async def research_profile(
