@@ -160,8 +160,31 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   `AccountBrief`, not `LeadProfile`/`LeadReservation`, so wiring an actual outreach run to consume
   a reservation once it sends is separate, bigger integration work (see the existing
   boundary-conflict note on `outreach/` below), not silently unhandled.
-- **Compliance and Source Governance**: principles only (README's "Compliance guardrails"),
-  not implemented as code.
+- **Compliance and Source Governance**: done for v1 scope, with one deliberately unresolved
+  tension surfaced rather than hidden. `compliance/source_policy.py` is a static, reviewed-by-
+  people registry declaring each `SourceType`'s authorization basis -- and it states plainly
+  that `SourceType.LINKEDIN` (`sources/linkedin_stealth.py`/`sources/account_farm.py`'s browser
+  account automation) is the one source that does NOT meet this repo's own documented standard
+  from module 2 above ("unauthorized scraping/account automation is out of bounds"). This module
+  does not resolve that contradiction (disabling a relied-upon feature unilaterally is a business
+  decision, not a data-model concern) -- it makes the contradiction impossible to miss: printed as
+  a banner every time `LinkedInStealthCrawler.run()` actually executes, and queryable via
+  `compliance/source_policy.py::contested_sources()`. `compliance/channel_eligibility.py` +
+  `models/compliance.py`'s `SuppressionEntry` (optionally scoped to one channel, e.g. opted out of
+  email but still callable) implement suppression -- wired as a real gate into
+  `outreach/automator.py::run()`, which previously sent to any APPROVED draft with no compliance
+  check at all. `DeletionRequest` implements a deliberately two-step right-to-erasure flow
+  (`services/compliance_service.py::request_deletion` never deletes anything by itself;
+  a separate `fulfill_deletion` call does). `purge_expired_raw_records` is v1's entire retention
+  enforcement, narrowly scoped to `RawSourceRecord` rows with no `FieldProvenance` reference at
+  all, to avoid corrupting data other live features (confidence scoring, conflict detection)
+  still depend on. Invokable via `suppress-contact`/`purge-expired-records` CLI commands or
+  `GET/POST /api/v1/compliance/*`. Known v1 limitations: a suppressed `OutreachDraft` stays
+  APPROVED forever and is re-checked (and re-released) every automator run rather than moving to
+  a dedicated terminal status -- adding one is separate follow-up work, deliberately avoided here
+  to not widen `OutreachDraft`'s already carefully-claimed `SENDING`/`SENT` state machine for this
+  fix; `consent_evidence` reuses the existing `ContactPoint.is_publicly_listed` flag rather than a
+  new tracked field, since that's already the closest signal this codebase records.
 - **Verification and Data Quality**: done for v1 scope. `verification/checks.py` states three
   checks as pure functions over already-loaded data: `check_confidence_drift` (does
   `CanonicalInstitution.confidence_score` still match what `verification/confidence.py`'s

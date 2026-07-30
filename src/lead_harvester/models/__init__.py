@@ -1,6 +1,13 @@
 from .allocation import LeadReservation, ReservationStatus
 from .audit import AuditLog
 from .canonical import Branch, CanonicalInstitution, ContactPoint, OperatingStatus
+from .compliance import (
+    DeletionRequest,
+    DeletionRequestStatus,
+    DeletionSubjectType,
+    SuppressionEntry,
+    SuppressionReason,
+)
 from .outreach import AccountBrief, BriefStatus, DraftStatus, OutreachDraft, OutreachOutcome
 from .profile import LeadProfile, LeadScoreSnapshot
 from .provenance import FieldProvenance
@@ -18,6 +25,9 @@ __all__ = [
     "CanonicalInstitution",
     "ContactPoint",
     "DataQualityFlag",
+    "DeletionRequest",
+    "DeletionRequestStatus",
+    "DeletionSubjectType",
     "DraftStatus",
     "FieldProvenance",
     "FindingType",
@@ -43,4 +53,6 @@ __all__ = [
     "RunStatus",
     "SourceRun",
     "SourceType",
+    "SuppressionEntry",
+    "SuppressionReason",
 ]

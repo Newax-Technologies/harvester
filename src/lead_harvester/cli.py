@@ -320,6 +320,39 @@ async def verify_data_quality(args: argparse.Namespace) -> int:
     return 0
 
 
+async def suppress_contact(args: argparse.Namespace) -> int:
+    """Add a phone/email/LinkedIn URL to the do-not-contact suppression list (docs/ROADMAP.md module 11)."""
+    from .database import get_session
+    from .models.compliance import SuppressionReason
+    from .services.compliance_service import add_suppression
+
+    async with get_session() as session:
+        entry = await add_suppression(
+            session,
+            args.contact_value,
+            SuppressionReason(args.reason),
+            channel=args.channel,
+            note=args.note,
+            suppressed_by="cli",
+        )
+        normalized = entry.normalized_contact_value
+
+    print(f"\n[Compliance] Suppressed {normalized!r} (channel={args.channel or 'all'}).\n")
+    return 0
+
+
+async def purge_expired_records(args: argparse.Namespace) -> int:
+    """Delete RawSourceRecord rows past retention that never produced provenance (docs/ROADMAP.md module 11)."""
+    from .database import get_session
+    from .services.compliance_service import purge_expired_raw_records
+
+    async with get_session() as session:
+        deleted_count = await purge_expired_raw_records(session, retention_days=args.retention_days)
+
+    print(f"\n[Compliance] Purged {deleted_count} expired, unreferenced raw record(s).\n")
+    return 0
+
+
 async def linkedin_send(args: argparse.Namespace) -> int:
     """
     Send all approved OutreachDraft records (LinkedIn messages or emails).
@@ -471,6 +504,34 @@ def build_parser() -> argparse.ArgumentParser:
         help="Flag an institution with no evidence recorded within this many days",
     )
 
+    # -- suppress-contact -------------------------------------------------
+    suppress = subparsers.add_parser(
+        "suppress-contact",
+        help="Add a phone/email/LinkedIn URL to the do-not-contact suppression list",
+    )
+    suppress.add_argument("contact_value", help="Phone, email, or LinkedIn URL to suppress")
+    suppress.add_argument(
+        "--reason",
+        choices=["opt_out", "bounced", "legal_request", "manual"],
+        default="manual",
+    )
+    suppress.add_argument(
+        "--channel", default=None, help="Limit to one channel (e.g. 'email'); default: all channels"
+    )
+    suppress.add_argument("--note", default="")
+
+    # -- purge-expired-records ----------------------------------------------
+    purge = subparsers.add_parser(
+        "purge-expired-records",
+        help="Delete RawSourceRecord rows past the retention window that never produced provenance",
+    )
+    purge.add_argument(
+        "--retention-days",
+        type=int,
+        default=365,
+        help="Delete unreferenced records older than this",
+    )
+
     # -- linkedin-send ------------------------------------------------------
     li_send = subparsers.add_parser(
         "linkedin-send",
@@ -572,6 +633,8 @@ def main() -> None:
         "qualify-leads": lambda: sys.exit(asyncio.run(qualify_leads(args))),
         "select-daily-leads": lambda: sys.exit(asyncio.run(select_daily_leads(args))),
         "verify-data-quality": lambda: sys.exit(asyncio.run(verify_data_quality(args))),
+        "suppress-contact": lambda: sys.exit(asyncio.run(suppress_contact(args))),
+        "purge-expired-records": lambda: sys.exit(asyncio.run(purge_expired_records(args))),
         "linkedin-send": lambda: sys.exit(asyncio.run(linkedin_send(args))),
         "linkedin-status": lambda: _linkedin_status(args),
         "linkedin-farm-run": lambda: sys.exit(asyncio.run(_linkedin_farm_run(args))),

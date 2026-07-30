@@ -260,3 +260,59 @@ async def test_run_does_not_requeue_draft_after_email_send_succeeds_but_mark_sen
     await db_session.flush()
     await db_session.refresh(draft)
     assert draft.status == DraftStatus.SENDING
+
+
+@pytest.mark.asyncio
+async def test_run_never_sends_to_a_suppressed_contact(db_session):
+    # Nothing checked suppression before docs/ROADMAP.md module 11 --
+    # OutreachAutomator sent to any APPROVED draft unconditionally, so an
+    # opted-out or bounced contact could be messaged again on the very
+    # next run. A suppressed draft must be excluded from the send batch
+    # and released back to APPROVED (the same path used for any other
+    # unattempted draft), not sent.
+    from lead_harvester.models.compliance import SuppressionEntry, SuppressionReason
+
+    institution = CanonicalInstitution(
+        canonical_name="Suppressed Contact School",
+        institution_type="school",
+        status=OperatingStatus.OPERATIONAL,
+        confidence_score=70.0,
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    brief = AccountBrief(institution_id=institution.id)
+    db_session.add(brief)
+    await db_session.flush()
+
+    draft = _draft(brief.id, "Suppressed Contact")
+    db_session.add(draft)
+    db_session.add(
+        SuppressionEntry(
+            normalized_contact_value=draft.target_contact_value,
+            reason=SuppressionReason.OPT_OUT,
+            note="unsubscribed",
+        )
+    )
+    await db_session.flush()
+
+    automator = OutreachAutomator(
+        account_id="test-account",
+        smtp_host="smtp.example.com",
+        smtp_user="sender@example.com",
+        smtp_password="secret",
+    )
+
+    with (
+        patch(
+            "lead_harvester.outreach.automator.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch("lead_harvester.outreach.automator.within_working_hours", return_value=True),
+        patch("smtplib.SMTP") as mock_smtp,
+    ):
+        await automator.run()
+
+    mock_smtp.assert_not_called()
+    await db_session.refresh(draft)
+    assert draft.status == DraftStatus.APPROVED

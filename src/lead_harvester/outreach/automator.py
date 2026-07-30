@@ -33,6 +33,7 @@ from lead_harvester.models import (
     OutreachDraft,
     OutreachOutcome,
 )
+from lead_harvester.services.compliance_service import is_eligible_to_contact
 from lead_harvester.sources.human_emulator import ActionBudget, within_working_hours
 from lead_harvester.sources.session_manager import SessionManager
 
@@ -121,6 +122,30 @@ class OutreachAutomator:
 
         print(f"[Automator] Found {len(drafts)} approved draft(s) to send.")
         claimed_ids = [d.id for d in drafts]
+
+        # Compliance gate (docs/ROADMAP.md module 11): never send to a
+        # suppressed contact, regardless of how "approved" the draft is.
+        # Nothing checked this before -- an opted-out or bounced contact
+        # could be messaged again on the very next run. A suppressed draft
+        # is simply excluded from li_drafts/email_drafts below, so it's
+        # never attempted; _release_unsent_drafts' existing finally block
+        # then reverts it to APPROVED like any other unattempted draft
+        # (it isn't in confirmed_sent_ids). Known v1 limitation: this
+        # means a suppressed draft stays APPROVED forever and gets
+        # re-checked (and re-released) every run rather than moving to a
+        # dedicated terminal status -- adding one is separate follow-up
+        # work, not solved here, to avoid widening OutreachDraft's already
+        # carefully-claimed state machine for this fix.
+        suppressed_ids: set[uuid.UUID] = set()
+        async with get_session() as session:
+            for draft in drafts:
+                channel = "linkedin" if draft.target_contact_value.startswith("http") else "email"
+                result = await is_eligible_to_contact(session, draft.target_contact_value, channel)
+                if not result.eligible:
+                    suppressed_ids.add(draft.id)
+                    print(f"[Automator] Skipping draft {draft.id} -- {result.reason}")
+        if suppressed_ids:
+            drafts = [d for d in drafts if d.id not in suppressed_ids]
 
         # Only a successful send calls _mark_sent (SENDING -> SENT) --
         # dry-run mode, a missing SMTP host, a missing camoufox install, no

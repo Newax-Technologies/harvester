@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from lead_harvester.api.dependencies import get_current_user
 from lead_harvester.api.errors import BaseAPIException
 from lead_harvester.api.routes import (
+    compliance,
     daily_selection,
     dashboard,
     drafts,
@@ -90,5 +91,6 @@ api_router.include_router(manual_leads.router)
 api_router.include_router(lead_profiles.router)
 api_router.include_router(daily_selection.router)
 api_router.include_router(verification.router)
+api_router.include_router(compliance.router)
 
 app.include_router(api_router)

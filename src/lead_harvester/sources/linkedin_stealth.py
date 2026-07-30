@@ -28,6 +28,8 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
+from ..compliance.source_policy import get_source_policy
+from ..models.source import SourceType
 from .device_profile import DeviceProfileManager
 from .human_emulator import (
     ActionBudget,
@@ -183,6 +185,10 @@ class LinkedInStealthCrawler:
         Main crawl loop. Returns a list of extracted profiles.
         Respects working hours and daily budgets automatically.
         """
+        policy = get_source_policy(SourceType.LINKEDIN)
+        print(f"[Crawler] Source policy for LINKEDIN: {policy.authorization_basis.value}")
+        print(f"[Crawler] {policy.notes}")
+
         try:
             from camoufox.async_api import AsyncCamoufox
         except ImportError:
