@@ -66,26 +66,44 @@ class AuthorizedImportInstitution:
     # import run (passed in by the caller, not read from the CSV itself).
     source_reference: str
     contacts: list[AuthorizedImportContact] = field(default_factory=list)
+    # The exact signal (website domain, normalized address, city, or a
+    # per-row fallback) that established this institution's identity for
+    # GROUPING -- see the key_suffix computation in
+    # parse_authorized_import_csv. Fixed once, by whichever row first
+    # created this group; source_id derives from this instead of
+    # recomputing from self.website/self.address, since those fields can be
+    # backfilled by a LATER row after grouping already happened (first-
+    # non-empty-wins) without changing which signal actually distinguished
+    # this institution from a same-named one grouped differently.
+    identity_key_suffix: str = ""
 
     @property
     def source_id(self) -> str:
         """
         A stable identity for this institution within this source_reference,
-        derived from its own normalized name + website/address rather than
-        the row's ordinal position in the file. An ordinal shifts if the
-        spreadsheet is reordered or gains a row -- an unchanged institution
-        would receive a new ID, and Branch.provider_ids/
+        derived from its own normalized name + identity_key_suffix rather
+        than the row's ordinal position in the file. An ordinal shifts if
+        the spreadsheet is reordered or gains a row -- an unchanged
+        institution would receive a new ID, and Branch.provider_ids/
         find_branch_for_raw_record treat source_type+source_id as the
         identity of an exact physical location, so a reordered rerun could
         enrich the wrong branch or be counted as new independent evidence.
         Re-importing the same institution (even from a re-ordered or
         appended-to file) now produces the same source_id.
+
+        Deliberately uses identity_key_suffix (the signal that actually
+        distinguished this institution during grouping) rather than
+        recomputing from self.website/self.address: without this, two
+        same-named institutions with neither a website nor an address (in
+        different cities, or two otherwise-bare rows) were correctly split
+        into separate AuthorizedImportInstitution objects by the grouping
+        key, but both computed the SAME digest here (address always empty
+        for both) -- _find_authorized_import_record then treated the
+        second as an update of the first, silently skipping it or
+        attaching its contacts to the wrong canonical institution.
         """
-        key_suffix = (
-            normalize_domain(self.website) if self.website else normalize_address(self.address)
-        )
         digest = hashlib.sha256(
-            f"{normalize_name(self.institution_name)}|{key_suffix}".encode()
+            f"{normalize_name(self.institution_name)}|{self.identity_key_suffix}".encode()
         ).hexdigest()[:16]
         return f"{self.source_reference}:{digest}"
 
@@ -167,7 +185,9 @@ def parse_authorized_import_csv(
         existing = groups.get(key)
         if existing is None:
             existing = AuthorizedImportInstitution(
-                **institution_fields, source_reference=source_reference
+                **institution_fields,
+                source_reference=source_reference,
+                identity_key_suffix=key_suffix,
             )
             groups[key] = existing
             order.append(key)

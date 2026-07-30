@@ -216,3 +216,42 @@ def test_source_id_differs_across_distinct_institutions():
     ids = {i.source_id for i in result.institutions}
     assert len(ids) == 2
     assert all(i.startswith("license-2026:") for i in ids)
+
+
+def test_source_id_differs_for_same_named_institutions_split_by_city():
+    # source_id previously fell back exclusively to normalize_address,
+    # ignoring the city/row-number fallback the grouping key itself uses --
+    # two same-named institutions correctly split into separate
+    # AuthorizedImportInstitution objects (different cities, both with a
+    # blank address) still computed the SAME digest, since address was
+    # empty for both. _find_authorized_import_record would then treat the
+    # second campus as an update of the first on a later import.
+    csv_text = (
+        "institution_name,city,contact_type,contact_value\n"
+        "Beacon House School,Karachi,phone,+923001111111\n"
+        "Beacon House School,Lahore,phone,+923002222222\n"
+    )
+
+    result = parse_authorized_import_csv(csv_text, source_reference="license-2026")
+
+    assert len(result.institutions) == 2
+    ids = {i.source_id for i in result.institutions}
+    assert len(ids) == 2
+
+
+def test_source_id_differs_for_bare_same_named_rows():
+    # Same concern as above, one tier further down the fallback chain: two
+    # bare rows (no website, address, OR city) with the same name are
+    # correctly split by row number during grouping, and must get distinct
+    # source_ids too.
+    csv_text = (
+        "institution_name,contact_type,contact_value\n"
+        "Beacon House School,phone,+923001111111\n"
+        "Beacon House School,phone,+923002222222\n"
+    )
+
+    result = parse_authorized_import_csv(csv_text, source_reference="license-2026")
+
+    assert len(result.institutions) == 2
+    ids = {i.source_id for i in result.institutions}
+    assert len(ids) == 2
