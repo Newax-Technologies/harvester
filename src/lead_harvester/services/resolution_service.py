@@ -31,6 +31,7 @@ from lead_harvester.models.resolution import (
     ReviewOutcome,
 )
 from lead_harvester.models.source import RawSourceRecord
+from lead_harvester.resolution.orchestrator import _has_other_pending_candidate
 from lead_harvester.schemas.resolution import ResolutionDecisionRequest
 
 _OUTCOME_BY_DECISION = {
@@ -301,46 +302,6 @@ async def _assemble_detail(session: AsyncSession, candidate: ResolutionCandidate
         "incoming_data": _record_evidence(record),
         "target_data": await _target_evidence(session, candidate),
     }
-
-
-async def _has_other_pending_candidate(
-    session: AsyncSession, raw_record_id: UUID, *, exclude_id: UUID
-) -> bool:
-    """
-    True if raw_record_id was ITSELF an incoming record with its own
-    unresolved ambiguity -- i.e. it is the raw_record_id (not merely the
-    target) of some OTHER still-open ResolutionCandidate (review_outcome is
-    null) whose latest assessment is PENDING.
-
-    Deliberately checks only the raw_record_id side, not target_raw_record_id:
-    two DIFFERENT candidates both targeting the same popular target record
-    (e.g. two reviewers independently deciding A->target and B->target) is
-    not this risk -- deciding one legitimately canonicalizes target, and the
-    other candidate's own decision (by the reviewer who owns IT) then
-    correctly routes to attaching rather than re-merging; nothing gets
-    silently swept away, since that second candidate is being explicitly
-    decided too. The actual risk is only when raw_record_id was blocked
-    against something as an INCOMING record in a still-unresolved pairing
-    that nobody is deciding right now.
-
-    exclude_id is always the candidate currently being decided -- without
-    excluding it, this would find itself whenever raw_record_id is the
-    current candidate's own target (the common case) and block every
-    decision unconditionally.
-    """
-    stmt = (
-        select(ResolutionCandidate.id)
-        .join(MatchAssessment, MatchAssessment.candidate_id == ResolutionCandidate.id)
-        .where(
-            ResolutionCandidate.id != exclude_id,
-            ResolutionCandidate.review_outcome.is_(None),
-            MatchAssessment.decision == MatchDecision.PENDING,
-            ResolutionCandidate.raw_record_id == raw_record_id,
-        )
-        .limit(1)
-    )
-    result = await session.execute(stmt)
-    return result.scalar_one_or_none() is not None
 
 
 async def _apply_decision(

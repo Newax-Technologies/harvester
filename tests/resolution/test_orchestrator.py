@@ -224,6 +224,65 @@ async def test_merge_deferred_when_a_pending_candidate_also_exists(db_session, s
 
 
 @pytest.mark.asyncio
+async def test_merge_blocked_when_target_has_its_own_pending_conflict(db_session, source_run):
+    # b is a confident MERGE target for the incoming record, but b ITSELF
+    # already has an unresolved conflict (b vs c, still PENDING, nobody has
+    # reviewed it). Auto-merging incoming into b now would canonicalize b
+    # for the first time, and list_pending's already-canonicalized
+    # exclusion would then silently drop the b/c candidate from the review
+    # queue -- hiding a genuine ambiguity nobody actually decided. Same
+    # guard the human-decision path (ResolutionService._apply_decision)
+    # already applies.
+    from lead_harvester.api.errors import TargetHasPendingConflictError
+    from lead_harvester.models.resolution import ResolutionCandidate
+
+    b = google_places_record(
+        source_run.id, name="Contested School", phone="+923008889999", lat=24.86, lng=67.00
+    )
+    c = google_places_record(source_run.id, name="Some Other School", phone="+923001234567")
+    db_session.add_all([b, c])
+    await db_session.flush()
+
+    existing_candidate = ResolutionCandidate(
+        raw_record_id=b.id,
+        target_raw_record_id=c.id,
+        blocking_strategy="phone",
+        version=1,
+    )
+    db_session.add(existing_candidate)
+    await db_session.flush()
+    db_session.add(
+        MatchAssessment(
+            candidate_id=existing_candidate.id,
+            name_similarity=0.5,
+            distance_meters=None,
+            phone_match=False,
+            domain_match=False,
+            total_score=60.0,
+            decision=MatchDecision.PENDING,
+        )
+    )
+    await db_session.flush()
+
+    incoming = google_places_record(
+        source_run.id, name="Contested School", phone="+923008889999", lat=24.86, lng=67.00
+    )
+    db_session.add(incoming)
+    await db_session.flush()
+
+    with pytest.raises(TargetHasPendingConflictError):
+        await resolve_incoming_record(db_session, incoming)
+
+    assert await find_canonical_for_raw_record(db_session, b.id) is None
+    assert await find_canonical_for_raw_record(db_session, incoming.id) is None
+
+    # b's own existing conflict must remain untouched -- still visible for
+    # a human to actually decide.
+    await db_session.refresh(existing_candidate)
+    assert existing_candidate.review_outcome is None
+
+
+@pytest.mark.asyncio
 async def test_link_only_creates_own_institution(db_session, source_run):
     # Same phone number, but different names and far apart -- shared
     # contact detail, not the same physical entity (e.g. a franchise chain).

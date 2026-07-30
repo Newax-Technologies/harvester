@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from lead_harvester.api.errors import TargetHasPendingConflictError
 from lead_harvester.canonical.merger import (
     attach_record_to_institution,
     find_branch_for_raw_record,
@@ -113,6 +115,23 @@ async def resolve_incoming_record(
                 resync_ids.add(institution.id)
             return institution
 
+        # matched_record (B) is itself still unresolved -- unlike the
+        # existing_canonical_id branch above (where B is already
+        # canonicalized, so any B-target candidate is already excluded from
+        # list_pending independent of this decision), merging A into B here
+        # is what WOULD canonicalize B for the first time. If B has its own
+        # separate pending candidate (e.g. B was also blocked against C and
+        # that pairing scored PENDING), auto-merging A into B now makes
+        # list_pending's already-canonicalized exclusion silently drop that
+        # B/C candidate from the queue -- hiding a genuine, never-actually-
+        # resolved ambiguity (is B the same institution as C?) behind an
+        # automated decision that only ever evaluated "is A the same
+        # institution as B?". Same guard ResolutionService._apply_decision
+        # already applies for the human-decision path -- block it here too
+        # rather than merging out from under a conflict nobody has reviewed.
+        if await _has_other_pending_candidate(session, matched_record.id, exclude_id=candidate.id):
+            raise TargetHasPendingConflictError(str(matched_record.id))
+
         return await merge_records(session, [record, matched_record], same_location=True)
 
     return await merge_records(session, [record])
@@ -123,3 +142,47 @@ def _best_merge_pair(scored: list[_ScoredCandidate]) -> _ScoredCandidate | None:
     if not merges:
         return None
     return max(merges, key=lambda pair: pair[1].total_score)
+
+
+async def _has_other_pending_candidate(
+    session: AsyncSession, raw_record_id: uuid.UUID, *, exclude_id: uuid.UUID
+) -> bool:
+    """
+    True if raw_record_id was ITSELF an incoming record with its own
+    unresolved ambiguity -- i.e. it is the raw_record_id (not merely the
+    target) of some OTHER still-open ResolutionCandidate (review_outcome is
+    null) whose latest assessment is PENDING.
+
+    Deliberately checks only the raw_record_id side, not target_raw_record_id:
+    two DIFFERENT candidates both targeting the same popular target record
+    (e.g. two reviewers independently deciding A->target and B->target) is
+    not this risk -- deciding one legitimately canonicalizes target, and the
+    other candidate's own decision (by the reviewer who owns IT) then
+    correctly routes to attaching rather than re-merging; nothing gets
+    silently swept away, since that second candidate is being explicitly
+    decided too. The actual risk is only when raw_record_id was blocked
+    against something as an INCOMING record in a still-unresolved pairing
+    that nobody is deciding right now.
+
+    exclude_id is always the candidate currently being decided -- without
+    excluding it, this would find itself whenever raw_record_id is the
+    current candidate's own target (the common case) and block every
+    decision unconditionally.
+
+    Shared by both the automated ingestion path (resolve_incoming_record,
+    above) and the human-decision path (ResolutionService._apply_decision)
+    -- the same silent-conflict-hiding risk applies to both.
+    """
+    stmt = (
+        select(ResolutionCandidate.id)
+        .join(MatchAssessment, MatchAssessment.candidate_id == ResolutionCandidate.id)
+        .where(
+            ResolutionCandidate.id != exclude_id,
+            ResolutionCandidate.review_outcome.is_(None),
+            MatchAssessment.decision == MatchDecision.PENDING,
+            ResolutionCandidate.raw_record_id == raw_record_id,
+        )
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none() is not None
