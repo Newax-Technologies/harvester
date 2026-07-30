@@ -12,6 +12,7 @@ from lead_harvester.models.canonical import (
 )
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, SourceType
+from lead_harvester.resolution.normalize import normalize_phone
 
 # Google Places' response (the only live raw-record source today) does not
 # request structured address components, only a free-text formattedAddress --
@@ -304,12 +305,26 @@ async def _add_contacts_and_provenance(
         # declared contact instead, with whatever type/person_name/role it
         # actually carries.
         for contact in declared_contacts:
+            contact_type = contact["contact_type"]
+            contact_value = contact["contact_value"]
+            if contact_type == "phone":
+                # Store the same normalized E.164 form record.normalized_phone
+                # already uses for blocking, not the raw CSV value -- a
+                # phone entered in national/formatted form ("0300
+                # 1234567") and a later Places/manual record for the same
+                # institution storing "+923001234567" would otherwise be
+                # treated as two distinct contact_values by
+                # _find_contact_point's exact match, creating a duplicate
+                # ContactPoint for the same physical number.
+                contact_value = normalize_phone(
+                    contact_value, default_region=fields.get("country_code") or None
+                )
             await _add_contact_if_present(
                 session,
                 institution,
                 record,
-                contact_type=contact["contact_type"],
-                contact_value=contact["contact_value"],
+                contact_type=contact_type,
+                contact_value=contact_value,
                 person_name=contact.get("person_name") or None,
                 role=contact.get("role") or None,
             )

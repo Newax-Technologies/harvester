@@ -784,6 +784,41 @@ async def test_merge_records_writes_every_declared_contact_for_authorized_import
 
 
 @pytest.mark.asyncio
+async def test_merge_records_normalizes_declared_phone_contact_to_e164(db_session, source_run):
+    # A phone entered in national/formatted form ("0300 1234567") must be
+    # stored the same normalized E.164 way record.normalized_phone already
+    # is for blocking -- otherwise a later Places/manual record for the
+    # same institution storing "+923001234567" is treated as a distinct
+    # contact_value by _find_contact_point's exact match, creating a
+    # duplicate ContactPoint for the same physical number.
+    record = _authorized_import_record(
+        source_run.id,
+        country_code="PK",
+        contacts=[
+            {
+                "contact_type": "phone",
+                "contact_value": "0300 1234567",
+                "person_name": "",
+                "role": "",
+            },
+        ],
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [record])
+    await db_session.flush()
+
+    contact = (
+        await db_session.execute(
+            select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+        )
+    ).scalar_one()
+    assert contact.contact_type == "phone"
+    assert contact.contact_value == "+923001234567"
+
+
+@pytest.mark.asyncio
 async def test_merge_records_populates_branch_city_and_country_code_from_authorized_import(
     db_session, source_run
 ):
