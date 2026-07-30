@@ -32,11 +32,16 @@ from __future__ import annotations
 import contextlib
 import fcntl
 import json
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 SESSIONS_DIR = Path("sessions")
+
+# A CAPTCHA means LinkedIn has flagged the session -- even a successful
+# solve leaves it "watched", so every challenge enforces a mandatory rest
+# before the account is used again, regardless of solve outcome.
+CAPTCHA_COOLDOWN = timedelta(hours=24)
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +241,44 @@ class SessionManager:
             }
         )
         path.write_text(json.dumps(payload, indent=2))
+
+    # ------------------------------------------------------------------
+    # CAPTCHA cooldown
+    # ------------------------------------------------------------------
+
+    def record_captcha_challenge(self, account_id: str) -> None:
+        """
+        Persists the exact moment a CAPTCHA challenge appeared for this
+        account. log_run's own date-only granularity is enough for daily
+        warmup budgets, but a 24-hour rest has to be measured from the
+        real moment of the challenge, not calendar-day boundaries.
+        """
+        path = self._path(account_id)
+        if not path.exists():
+            return
+        payload = json.loads(path.read_text())
+        payload["last_captcha_at"] = datetime.now(UTC).isoformat()
+        path.write_text(json.dumps(payload, indent=2))
+
+    def captcha_cooldown_remaining(self, account_id: str) -> timedelta:
+        """
+        Returns how much of the mandatory post-CAPTCHA rest is still left
+        (timedelta(0) if none is outstanding). Previously nothing ever read
+        the "captcha_triggered" event _check_for_captcha logged -- neither
+        LinkedInStealthCrawler.run() nor the farm scheduler checked it
+        before starting the account again, so the crawler's own claimed
+        "mandatory 24-hour rest" was never actually enforced and a flagged
+        account could be rerun immediately.
+        """
+        path = self._path(account_id)
+        if not path.exists():
+            return timedelta(0)
+        payload = json.loads(path.read_text())
+        last_str = payload.get("last_captcha_at")
+        if not last_str:
+            return timedelta(0)
+        elapsed = datetime.now(UTC) - datetime.fromisoformat(last_str)
+        return max(timedelta(0), CAPTCHA_COOLDOWN - elapsed)
 
     # ------------------------------------------------------------------
     # Atomic per-account budget reservation

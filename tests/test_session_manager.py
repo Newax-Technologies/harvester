@@ -76,3 +76,27 @@ def test_release_action_gives_back_unused_reservation(tmp_path):
 
     assert sm.actions_taken_today("burner_04") == {"message": 1}
     assert sm.reserve_action("burner_04", "message", 5) == 1
+
+
+def test_captcha_cooldown_remaining_zero_when_no_challenge_recorded(tmp_path):
+    sm = SessionManager(tmp_path)
+    sm.save_cookies("burner_05", [{"name": "x", "value": "y"}], first_login=True)
+
+    assert sm.captcha_cooldown_remaining("burner_05") == timedelta(0)
+
+
+def test_captcha_cooldown_remaining_reflects_elapsed_real_time(tmp_path):
+    sm = SessionManager(tmp_path)
+    sm.save_cookies("burner_06", [{"name": "x", "value": "y"}], first_login=True)
+
+    sm.record_captcha_challenge("burner_06")
+    remaining = sm.captcha_cooldown_remaining("burner_06")
+    assert timedelta(hours=23, minutes=59) < remaining <= timedelta(hours=24)
+
+    # Back-date the challenge to 25 hours ago -- cooldown must have expired.
+    path = tmp_path / "burner_06.json"
+    payload = json.loads(path.read_text())
+    payload["last_captcha_at"] = (datetime.now(UTC) - timedelta(hours=25)).isoformat()
+    path.write_text(json.dumps(payload))
+
+    assert sm.captcha_cooldown_remaining("burner_06") == timedelta(0)

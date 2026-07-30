@@ -24,6 +24,7 @@ import asyncio
 import json
 import random
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -202,6 +203,20 @@ class LinkedInStealthCrawler:
                 f"No session found for '{self.account_id}'. "
                 "Run the login command first to save your LinkedIn session."
             )
+
+        # A CAPTCHA challenge on ANY prior run (whether started via
+        # linkedin-run or the account farm's subprocess worker -- both
+        # paths call this same run() method) means this account is
+        # "watched" by LinkedIn and must rest, regardless of who reruns
+        # it. _check_for_captcha's own docstring already claims a
+        # mandatory 24h rest; nothing previously enforced it here.
+        cooldown_remaining = self.session_manager.captcha_cooldown_remaining(self.account_id)
+        if cooldown_remaining > timedelta(0):
+            print(
+                f"[Crawler] Account '{self.account_id}' is in CAPTCHA cooldown for another "
+                f"{cooldown_remaining}. Skipping this run to avoid a restriction."
+            )
+            return []
 
         # Apply warmup limits — override the default ActionBudget limits
         warmup = self.session_manager.get_today_limits(self.account_id)
@@ -738,8 +753,13 @@ class LinkedInStealthCrawler:
                 print("[Crawler] No 2Captcha key. Pausing 5 min for manual solve...")
                 await asyncio.sleep(300)
 
-            # Log CAPTCHA event to session — other code can read this to skip the account
+            # Log CAPTCHA event to session (audit trail) and the exact
+            # timestamp run()'s own captcha_cooldown_remaining check reads
+            # to actually enforce the claimed 24h rest before this account
+            # is used again -- log_run alone previously had nothing reading
+            # it back.
             self.session_manager.log_run(self.account_id, {"captcha_triggered": 1})
+            self.session_manager.record_captcha_challenge(self.account_id)
 
             # Raise to abort remaining URLs — account needs 24h rest regardless of solve outcome
             raise RuntimeError(

@@ -1,5 +1,8 @@
 import json
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
+
+import pytest
 
 from lead_harvester.sources.linkedin_stealth import LinkedInStealthCrawler
 from lead_harvester.sources.session_manager import SessionManager
@@ -73,3 +76,25 @@ def test_release_unused_daily_budget_gives_back_unused_portion(tmp_path):
     second = _crawler(tmp_path, "burner_03")
     second_reserved = second._reserve_daily_budget(warmup)
     assert second_reserved["profile_view"] == 5
+
+
+@pytest.mark.asyncio
+async def test_run_skips_account_still_in_captcha_cooldown(tmp_path):
+    # _check_for_captcha's own docstring claims a mandatory 24-hour rest
+    # after any challenge, regardless of solve outcome -- but nothing
+    # previously read that logged event back before starting the account
+    # again. run() must refuse to even open a browser while the cooldown
+    # from a prior challenge is still active.
+    _backdate_to_week3(tmp_path, "burner_07")
+    sm = SessionManager(tmp_path)
+    sm.record_captcha_challenge("burner_07")
+
+    crawler = _crawler(tmp_path, "burner_07")
+
+    with (
+        patch("lead_harvester.sources.linkedin_stealth.within_working_hours", return_value=True),
+        patch("lead_harvester.sources.linkedin_stealth.is_weekday", return_value=True),
+    ):
+        result = await crawler.run()
+
+    assert result == []
