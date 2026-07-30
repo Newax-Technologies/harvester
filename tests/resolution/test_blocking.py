@@ -327,6 +327,63 @@ async def test_generate_candidates_ranks_by_predicted_decision_not_strategy_tier
 
 
 @pytest.mark.asyncio
+async def test_generate_candidates_ranks_using_all_matched_strategies_not_just_strongest(
+    db_session, source_run
+):
+    # exact_geo_domain matches d via BOTH geo_name (exact name, ~400m) AND
+    # domain (shares d's website) -- but geo_name alone would predict
+    # REJECT (distance isn't <100m, and the score from name-similarity
+    # alone doesn't clear 60), same as in
+    # test_generate_candidates_ranks_by_predicted_decision_not_strategy_tier.
+    # The record ALSO qualifying via domain is what actually makes
+    # score_candidate return PENDING (domain_match and similarity>0.8) --
+    # if generate_candidates only remembers geo_name (the "strongest" single
+    # strategy) and discards that this record is domain-matched too, it
+    # wrongly predicts REJECT and a weaker domain-only sibling (LINK_ONLY)
+    # displaces it as the kept representative.
+    exact_geo_domain = google_places_record(
+        source_run.id,
+        name="Shared Name School",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=24.8643,
+        lng=67.0011,
+    )
+    domain_only_sibling = google_places_record(
+        source_run.id,
+        name="Totally Unrelated Name",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=None,
+        lng=None,
+    )
+    db_session.add_all([exact_geo_domain, domain_only_sibling])
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [exact_geo_domain, domain_only_sibling])
+    await db_session.flush()
+
+    d = google_places_record(
+        source_run.id,
+        name="Shared Name School",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=24.8607,
+        lng=67.0011,
+    )
+    db_session.add(d)
+    await db_session.flush()
+
+    candidates = await generate_candidates(db_session, d)
+
+    assert len(candidates) == 1
+    assert candidates[0].target_raw_record_id == exact_geo_domain.id
+
+    surviving_canonical_id = await find_canonical_for_raw_record(db_session, exact_geo_domain.id)
+    assert surviving_canonical_id == institution.id
+
+
+@pytest.mark.asyncio
 async def test_generate_candidates_does_not_dedupe_unresolved_matches(db_session, source_run):
     # Two records sharing a phone that have NOT yet been canonicalized are
     # each a genuine, independent candidate (a human may need to review

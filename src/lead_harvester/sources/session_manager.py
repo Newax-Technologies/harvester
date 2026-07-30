@@ -190,6 +190,28 @@ class SessionManager:
         limits["account_age_days"] = account_age_days
         return limits
 
+    def actions_taken_today(self, account_id: str) -> dict[str, int]:
+        """
+        Sums every run_log entry recorded for today into per-action totals.
+        run_log is append-only (one entry per past log_run call, never
+        merged) -- callers that only check today's warmup-phase limit
+        without also consulting this can be re-invoked any number of times
+        in the same day and each get a fresh in-memory budget, letting the
+        account's real daily action count blow past its configured limit.
+        """
+        path = self._path(account_id)
+        if not path.exists():
+            return {}
+        payload = json.loads(path.read_text())
+        today = datetime.now(UTC).date().isoformat()
+        totals: dict[str, int] = {}
+        for entry in payload.get("run_log", []):
+            if entry.get("date") != today:
+                continue
+            for action, count in entry.get("actions", {}).items():
+                totals[action] = totals.get(action, 0) + count
+        return totals
+
     def log_run(self, account_id: str, actions: dict[str, int]) -> None:
         """
         Record what actions were taken today into the session log.

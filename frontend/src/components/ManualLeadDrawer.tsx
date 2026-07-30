@@ -77,7 +77,6 @@ const STATUS_OPTIONS = [
 ];
 
 const API_URL = "http://localhost:8000/api/v1/leads/manual";
-const DEV_TOKEN = "secret-reviewer-token";
 
 function emptyContact(): ContactEntry {
   return {
@@ -191,7 +190,6 @@ export function ManualLeadDrawer({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${DEV_TOKEN}`,
         },
         body: JSON.stringify(payload),
       });

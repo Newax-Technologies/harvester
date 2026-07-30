@@ -1,6 +1,8 @@
 import asyncio
 import contextlib
+import json
 import uuid
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -104,6 +106,34 @@ async def test_concurrent_claims_never_double_claim_the_same_draft(async_engine)
         finally:
             await cleanup_session.close()
             await cleanup_conn.close()
+
+
+def test_apply_persisted_message_budget_uses_warmup_limit_and_todays_usage(tmp_path):
+    # Previously every invocation started a fresh ActionBudget with a flat
+    # 15-message allowance regardless of the account's actual warmup phase
+    # or how many messages an earlier invocation already sent today.
+    from lead_harvester.sources.session_manager import SessionManager
+
+    sm = SessionManager(tmp_path)
+    sm.save_cookies("burner_01", [{"name": "x", "value": "y"}], first_login=True)
+
+    # Backdate warmup_started_at to put this account in Week 3
+    # (message limit 2 per day, not the flat default of 15).
+    path = tmp_path / "burner_01.json"
+    payload = json.loads(path.read_text())
+    payload["warmup_started_at"] = (datetime.now(UTC).date() - timedelta(days=18)).isoformat()
+    payload["run_log"] = [{"date": datetime.now(UTC).date().isoformat(), "actions": {"message": 1}}]
+    path.write_text(json.dumps(payload))
+
+    automator = OutreachAutomator(account_id="burner_01")
+    automator._apply_persisted_message_budget(sm)
+
+    assert automator.budget.DAILY_LIMITS["message"] == 2
+    # One message already sent today -- only one more should be allowed
+    # before charge() raises.
+    automator.budget.charge("message")
+    with pytest.raises(RuntimeError, match="Daily limit reached"):
+        automator.budget.charge("message")
 
 
 @pytest.mark.asyncio

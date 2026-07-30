@@ -33,8 +33,12 @@ from __future__ import annotations
 import asyncio
 import multiprocessing
 import random
+import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
+from ..database import get_session
+from ..models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
 from .breadth_tracker import BreadthTracker
 from .device_profile import DeviceProfileManager
 from .human_emulator import is_weekday, within_working_hours
@@ -52,6 +56,12 @@ class AccountResult:
     errors: list[str] = field(default_factory=list)
     city: str = ""
     warmup_phase: int = 0
+    # The actual scraped profile data (as plain dicts, picklable across the
+    # subprocess boundary via multiprocessing.Queue) -- without this, a
+    # successful farm run reported profiles_scraped > 0 but never wrote a
+    # single RawSourceRecord, silently discarding everything the workers
+    # harvested and leaving linkedin-research nothing to process.
+    profiles: list[dict] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +112,7 @@ def _run_account_worker(
     Python process with its own event loop and browser instance.
     """
     import asyncio as _asyncio
+    import dataclasses
 
     async def _inner() -> dict:
         # Local imports inside subprocess — completely isolated import state
@@ -119,6 +130,7 @@ def _run_account_worker(
                 "errors": [f"No session saved for {account_id}. Run linkedin-login first."],
                 "city": "",
                 "warmup_phase": 0,
+                "profiles": [],
             }
 
         device = dpm.get(account_id)
@@ -144,6 +156,11 @@ def _run_account_worker(
                 "errors": [],
                 "city": device.city_name,
                 "warmup_phase": limits.get("phase", 0),
+                # Plain dicts (not the dataclass instances) so this crosses
+                # the multiprocessing.Queue boundary without depending on
+                # LinkedInProfile being importable/picklable identically on
+                # the receiving end.
+                "profiles": [dataclasses.asdict(p) for p in profiles],
             }
         except Exception as e:
             return {
@@ -152,6 +169,7 @@ def _run_account_worker(
                 "errors": [str(e)],
                 "city": device.city_name,
                 "warmup_phase": limits.get("phase", 0),
+                "profiles": [],
             }
 
     result = _asyncio.run(_inner())
@@ -299,6 +317,8 @@ class AccountFarm:
             data = result_queue.get_nowait()
             results.append(AccountResult(**data))
 
+        await self._persist_profiles(results)
+
         # Print summary
         print(f"\n{'=' * 55}")
         print("  FARM RUN COMPLETE")
@@ -316,3 +336,47 @@ class AccountFarm:
         print(f"{'=' * 55}\n")
 
         return results
+
+    async def _persist_profiles(self, results: list[AccountResult]) -> None:
+        """
+        Writes every profile every worker scraped to RawSourceRecord, the
+        same shape cli.py::linkedin_run already uses for the single-account
+        path -- without this, a farm run reported profiles_scraped > 0 per
+        account but the actual profile data (only ever returned to the
+        parent process as a bare count) was discarded, leaving
+        linkedin-research nothing to process despite the run "succeeding".
+        """
+        all_profiles = [(r.account_id, profile) for r in results for profile in r.profiles]
+        if not all_profiles:
+            return
+
+        async with get_session() as session:
+            run = SourceRun(
+                source_type=SourceType.LINKEDIN,
+                run_metadata={
+                    "accounts": [r.account_id for r in results],
+                    "profiles_found": len(all_profiles),
+                },
+                status=RunStatus.STARTED,
+            )
+            session.add(run)
+            await session.flush()
+
+            for account_id, profile in all_profiles:
+                session.add(
+                    RawSourceRecord(
+                        source_run_id=run.id,
+                        source_type=SourceType.LINKEDIN,
+                        source_id=profile.get("profile_url", f"{account_id}:{uuid.uuid4().hex}"),
+                        raw_payload=profile,
+                        normalized_name=profile.get("full_name") or profile.get("company"),
+                        normalized_phone=None,
+                        normalized_domain=None,
+                        location=None,
+                    )
+                )
+
+            run.status = RunStatus.COMPLETED
+            run.completed_at = datetime.now(UTC)
+
+        print(f"[Farm] Saved {len(all_profiles)} profile(s) to the database.")

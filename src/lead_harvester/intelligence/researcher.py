@@ -156,53 +156,46 @@ class ResearchBrain:
     # ------------------------------------------------------------------
 
     async def _call_ai(self, profile: dict[str, Any]) -> dict[str, Any]:
-        try:
-            from openai import AsyncOpenAI
+        # Deliberately does NOT catch and swallow failures into a fake
+        # zero-score placeholder anymore -- that made a timed-out/rejected/
+        # malformed AI call indistinguishable from a real analysis to every
+        # caller, so _research_record ended up persisting a COMPLETED job
+        # and a READY_FOR_REVIEW brief containing the failure text, and
+        # marking the record processed (permanently excluding it from
+        # retry via process_all_pending). Raising lets _research_record
+        # record the failure honestly and leave the record retryable.
+        from openai import AsyncOpenAI
 
-            client = AsyncOpenAI(
-                api_key=self.api_key,
-                base_url=self.base_url,  # None → uses OpenAI default
-            )
+        client = AsyncOpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,  # None → uses OpenAI default
+        )
 
-            prompt = ANALYSIS_PROMPT.format(
-                url=profile.get("profile_url", ""),
-                name=profile.get("full_name", ""),
-                headline=profile.get("headline", ""),
-                company=profile.get("company", ""),
-                location=profile.get("location", ""),
-                about=profile.get("about", "")[:500],
-                experience=json.dumps(profile.get("experience", [])[:3]),
-                education=json.dumps(profile.get("education", [])[:2]),
-                activity="\n".join(profile.get("recent_activity", [])[:2]),
-            )
+        prompt = ANALYSIS_PROMPT.format(
+            url=profile.get("profile_url", ""),
+            name=profile.get("full_name", ""),
+            headline=profile.get("headline", ""),
+            company=profile.get("company", ""),
+            location=profile.get("location", ""),
+            about=profile.get("about", "")[:500],
+            experience=json.dumps(profile.get("experience", [])[:3]),
+            education=json.dumps(profile.get("education", [])[:2]),
+            activity="\n".join(profile.get("recent_activity", [])[:2]),
+        )
 
-            response = await client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
-                max_tokens=800,
-                response_format={"type": "json_object"},
-            )
+        response = await client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=800,
+            response_format={"type": "json_object"},
+        )
 
-            raw = response.choices[0].message.content or "{}"
-            return json.loads(raw)
-
-        except Exception as e:
-            print(f"[ResearchBrain] AI call failed: {e}")
-            return {
-                "lead_score": 0,
-                "summary": f"AI analysis failed: {e}",
-                "email_draft": "",
-                "linkedin_note": "",
-                "best_angle": "",
-                "pain_points": [],
-                "buying_signals": [],
-                "decision_maker": False,
-                "suggested_subject": "",
-            }
+        raw = response.choices[0].message.content or "{}"
+        return json.loads(raw)
 
     # ------------------------------------------------------------------
     # Persist to database
@@ -289,10 +282,32 @@ class ResearchBrain:
         )
         session.add(institution)
         await session.flush()
+
+        try:
+            await self.research_profile(session, payload, institution.id)
+        except Exception as e:
+            # A timed-out/rejected/malformed AI call must not be recorded
+            # the same way a real analysis is -- no FieldProvenance
+            # "processed" marker (so process_all_pending retries this
+            # record next time), and a real FAILED job instead of a
+            # COMPLETED one with a fake zero-score brief.
+            print(f"[ResearchBrain] research failed for record {record.id}: {e}")
+            session.add(
+                ResearchJob(
+                    institution_id=institution.id,
+                    status=JobStatus.FAILED,
+                    objectives=["linkedin_profile_analysis"],
+                    execution_logs=[f"AI call failed: {e}"],
+                    completed_at=datetime.now(UTC),
+                )
+            )
+            return
+
         # Marks this record as processed for process_all_pending's own
         # exclusion query above -- same "branch_membership" FieldProvenance
         # shape merge_records()/manual_leads.py already use to link a raw
-        # record to the canonical entity it produced.
+        # record to the canonical entity it produced. Written only after a
+        # successful analysis (see the except branch above).
         session.add(
             FieldProvenance(
                 canonical_id=institution.id,
@@ -302,4 +317,3 @@ class ResearchBrain:
                 assertion_trust=1.0,
             )
         )
-        await self.research_profile(session, payload, institution.id)

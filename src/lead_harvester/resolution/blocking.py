@@ -48,11 +48,11 @@ _DECISION_PRIORITY = {
 
 
 def _predicted_decision(
-    strategy: str, distance_meters: float | None, name_similarity: float | None
+    strategies: frozenset[str], distance_meters: float | None, name_similarity: float | None
 ) -> MatchDecision:
     similarity = name_similarity if name_similarity is not None else 0.0
-    phone_match = strategy == "phone"
-    domain_match = strategy == "domain"
+    phone_match = "phone" in strategies
+    domain_match = "domain" in strategies
 
     if similarity > 0.8 and distance_meters is not None and distance_meters < 100:
         return MatchDecision.MERGE
@@ -77,27 +77,30 @@ def _predicted_decision(
 
 class _MatchInfo:
     """
-    What generate_candidates knows about one matched record: the strongest
-    strategy it qualified under, plus its actual distance/name similarity
-    to the incoming record -- used to break ties WITHIN a shared strategy
+    What generate_candidates knows about one matched record: EVERY blocking
+    strategy it qualified under (not just the strongest -- a record found
+    via both geo_name and domain, say, genuinely carries both signals, and
+    _predicted_decision needs all of them to match what score_candidate
+    would actually compute), plus its actual distance/name similarity to
+    the incoming record -- used to break ties WITHIN a shared decision
     tier. Two matches aren't equally good just because they share a
-    strategy label: among two domain-only matches, one with an exact name
-    match is much stronger evidence than one with a completely unrelated
-    name, and among two geo_name matches, a 490m/0.4-similarity match is
-    much weaker than a 10m/1.0-similarity one. Computed uniformly for every
-    matched record regardless of which strategy(ies) surfaced it, so this
-    tiebreak isn't only available within the geo_name tier.
+    decision tier: among two PENDING-tier domain matches, one with an exact
+    name match is much stronger evidence than one with a completely
+    unrelated name, and among two MERGE-tier geo_name matches, a
+    490m/0.4-similarity match is much weaker than a 10m/1.0-similarity one.
+    Computed uniformly for every matched record regardless of which
+    strategy(ies) surfaced it.
     """
 
-    __slots__ = ("distance_meters", "name_similarity", "strategy")
+    __slots__ = ("distance_meters", "name_similarity", "strategies")
 
     def __init__(
         self,
-        strategy: str,
+        strategies: frozenset[str],
         distance_meters: float | None = None,
         name_similarity: float | None = None,
     ) -> None:
-        self.strategy = strategy
+        self.strategies = strategies
         self.distance_meters = distance_meters
         self.name_similarity = name_similarity
 
@@ -114,7 +117,7 @@ class _MatchInfo:
         # distance) for the same reason as before: it's the dominant signal
         # in every branch of scoring.py's matrix, distance only ever
         # confirms MERGE secondarily.
-        predicted = _predicted_decision(self.strategy, self.distance_meters, self.name_similarity)
+        predicted = _predicted_decision(self.strategies, self.distance_meters, self.name_similarity)
         return (
             _DECISION_PRIORITY[predicted],
             -(self.name_similarity if self.name_similarity is not None else 0.0),
@@ -198,15 +201,22 @@ async def generate_candidates(
     matches are never deduplicated this way -- each is a genuine,
     independent candidate that may need its own review/merge decision.
     """
-    # record_id -> the strongest strategy that matched it, across all three
-    # blocking queries (a record can qualify via more than one).
+    # record_id -> the strongest strategy that matched it (used only as the
+    # ResolutionCandidate.blocking_strategy display label), across all
+    # three blocking queries (a record can qualify via more than one).
     matched_strategy: dict[uuid.UUID, str] = {}
+    # record_id -> EVERY strategy that matched it -- unlike matched_strategy
+    # above, this is never overwritten, so _MatchInfo/_predicted_decision
+    # can see e.g. both geo_name AND domain evidence for a record that
+    # qualified via both, instead of only the strongest.
+    matched_strategies: dict[uuid.UUID, set[str]] = {}
 
     def _note_matches(ids, strategy: str) -> None:
         for rid in ids:
             current = matched_strategy.get(rid)
             if current is None or _STRATEGY_PRIORITY[strategy] < _STRATEGY_PRIORITY[current]:
                 matched_strategy[rid] = strategy
+            matched_strategies.setdefault(rid, set()).add(strategy)
 
     # Strategy 1: Exact Phone Match
     if record.normalized_phone:
@@ -254,8 +264,8 @@ async def generate_candidates(
 
     quality = await _quality_for_matches(session, record, list(matched_strategy))
     matched_info: dict[uuid.UUID, _MatchInfo] = {
-        rid: _MatchInfo(strategy, *quality.get(rid, (None, None)))
-        for rid, strategy in matched_strategy.items()
+        rid: _MatchInfo(frozenset(matched_strategies[rid]), *quality.get(rid, (None, None)))
+        for rid in matched_strategy
     }
 
     canonical_by_record = await _canonical_ids_by_raw_record(session, list(matched_info))
@@ -270,7 +280,7 @@ async def generate_candidates(
                 ResolutionCandidate(
                     raw_record_id=record.id,
                     target_raw_record_id=rid,
-                    blocking_strategy=info.strategy,
+                    blocking_strategy=matched_strategy[rid],
                 )
             )
             continue
@@ -284,7 +294,7 @@ async def generate_candidates(
             ResolutionCandidate(
                 raw_record_id=record.id,
                 target_raw_record_id=rid,
-                blocking_strategy=matched_info[rid].strategy,
+                blocking_strategy=matched_strategy[rid],
             )
         )
 

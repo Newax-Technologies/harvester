@@ -1,13 +1,17 @@
 import createClient from "openapi-fetch";
 import type { paths } from "./schema";
 
-const DEV_AUTH_TOKEN = "secret-reviewer-token"; // Using reviewer role for testing UI
+// Read from a gitignored .env.local (see .env.local.example) -- never a
+// literal here. The mock-auth backend (api/dependencies.py::get_current_user)
+// accepts a fixed set of tokens for local development only; shipping one of
+// those values in the committed bundle would let anyone who reads the
+// repository or the built frontend invoke reviewer-only endpoints.
+const DEV_AUTH_TOKEN = import.meta.env.VITE_DEV_AUTH_TOKEN as
+  string | undefined;
 
 export const apiClient = createClient<paths>({
   baseUrl: "http://localhost:8000",
-  headers: {
-    Authorization: `Bearer ${DEV_AUTH_TOKEN}`,
-  },
+  headers: DEV_AUTH_TOKEN ? { Authorization: `Bearer ${DEV_AUTH_TOKEN}` } : {},
 });
 
 // Helper for extracting exactly the error schema structure from the backend
