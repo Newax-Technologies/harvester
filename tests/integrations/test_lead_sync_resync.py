@@ -1,12 +1,11 @@
+import contextlib
 import uuid
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
-import pytest_asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.config import Settings
-from lead_harvester.database import engine as resync_engine
-from lead_harvester.database import get_session
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.integrations.lead_sync_resync import resync_institution
 from lead_harvester.models.canonical import (
@@ -16,15 +15,24 @@ from lead_harvester.models.canonical import (
     OperatingStatus,
 )
 
-# resync_institution (unlike the rest of the resolution codepaths, which
-# always take an already-open AsyncSession as a parameter) opens its OWN
-# session via database.get_session() -- this is deliberate, since it runs
-# from a background task / after a run's own session has already closed
-# (see the module docstring). That means it can't be exercised through the
-# tests/conftest.py db_session fixture (bound to a separate, savepoint-only
-# test database connection get_session() never touches) -- seed and clean
-# up directly against the real configured database instead, the same way
-# database.get_session() itself will be used at runtime.
+
+@contextlib.asynccontextmanager
+async def _fake_get_session(session: AsyncSession):
+    yield session
+
+
+# resync_institution opens its OWN session via database.get_session() in
+# production (deliberately -- it runs from a background task / after a
+# run's own session has already closed, see the module docstring). But
+# database.get_session() is bound to settings.database_url, a separate,
+# real database from the isolated settings.test_database_url the rest of
+# this suite runs against (tests/conftest.py's db_session fixture) -- CI
+# only ever provisions the test database (see setup_db.py), so exercising
+# get_session() directly here would fail outside a local dev environment
+# that happens to already have the dev database. Patch the module's
+# get_session reference to yield the test's db_session instead, so this
+# exercises resync_institution's actual query logic against the same
+# isolated, already-provisioned database every other test uses.
 
 
 def _enabled_settings() -> Settings:
@@ -35,70 +43,60 @@ def _enabled_settings() -> Settings:
     )
 
 
-@pytest_asyncio.fixture(autouse=True)
-async def dispose_resync_engine():
-    # database.engine is a module-level engine bound to whatever event loop
-    # first uses it; pytest-asyncio (strict mode) gives each test its own
-    # loop, so it must be disposed between tests here too -- same reasoning
-    # as tests/api/test_manual_leads.py's dispose_manual_leads_engine.
-    yield
-    await resync_engine.dispose()
-
-
 @pytest.mark.asyncio
-async def test_resync_institution_emits_current_branches_and_contacts():
-    async with get_session() as session:
-        institution = CanonicalInstitution(
-            canonical_name="Resync Test School",
-            institution_type="school",
-            status=OperatingStatus.OPERATIONAL,
-            confidence_score=50.0,
-        )
-        session.add(institution)
-        await session.flush()
+async def test_resync_institution_emits_current_branches_and_contacts(db_session):
+    institution = CanonicalInstitution(
+        canonical_name="Resync Test School",
+        institution_type="school",
+        status=OperatingStatus.OPERATIONAL,
+        confidence_score=50.0,
+    )
+    db_session.add(institution)
+    await db_session.flush()
 
-        branch = Branch(
-            institution_id=institution.id,
-            branch_name="Main Campus",
-            address="1 Test Street",
-            city="Lahore",
-            country_code="PK",
-            provider_ids={},
-        )
-        contact = ContactPoint(
-            institution_id=institution.id,
-            contact_type="phone",
-            contact_value="+923001112222",
-            is_publicly_listed=False,
-        )
-        session.add_all([branch, contact])
-        await session.flush()
-        institution_id, branch_id, contact_id = institution.id, branch.id, contact.id
+    branch = Branch(
+        institution_id=institution.id,
+        branch_name="Main Campus",
+        address="1 Test Street",
+        city="Lahore",
+        country_code="PK",
+        provider_ids={},
+    )
+    contact = ContactPoint(
+        institution_id=institution.id,
+        contact_type="phone",
+        contact_value="+923001112222",
+        is_publicly_listed=False,
+    )
+    db_session.add_all([branch, contact])
+    await db_session.flush()
 
-    try:
-        emitter = LeadSyncEmitter(_enabled_settings())
-        emitter.emit_institution_upserted = AsyncMock()
-
-        await resync_institution(emitter, institution_id)
-
-        emitter.emit_institution_upserted.assert_awaited_once()
-        args, _ = emitter.emit_institution_upserted.call_args
-        resynced_institution, branches, contacts = args
-        assert resynced_institution.id == institution_id
-        assert [b.id for b in branches] == [branch_id]
-        assert [c.id for c in contacts] == [contact_id]
-    finally:
-        async with get_session() as session:
-            await session.delete(await session.get(ContactPoint, contact_id))
-            await session.delete(await session.get(Branch, branch_id))
-            await session.delete(await session.get(CanonicalInstitution, institution_id))
-
-
-@pytest.mark.asyncio
-async def test_resync_institution_no_ops_for_missing_institution():
     emitter = LeadSyncEmitter(_enabled_settings())
     emitter.emit_institution_upserted = AsyncMock()
 
-    await resync_institution(emitter, uuid.uuid4())
+    with patch(
+        "lead_harvester.integrations.lead_sync_resync.get_session",
+        new=lambda: _fake_get_session(db_session),
+    ):
+        await resync_institution(emitter, institution.id)
+
+    emitter.emit_institution_upserted.assert_awaited_once()
+    args, _ = emitter.emit_institution_upserted.call_args
+    resynced_institution, branches, contacts = args
+    assert resynced_institution.id == institution.id
+    assert [b.id for b in branches] == [branch.id]
+    assert [c.id for c in contacts] == [contact.id]
+
+
+@pytest.mark.asyncio
+async def test_resync_institution_no_ops_for_missing_institution(db_session):
+    emitter = LeadSyncEmitter(_enabled_settings())
+    emitter.emit_institution_upserted = AsyncMock()
+
+    with patch(
+        "lead_harvester.integrations.lead_sync_resync.get_session",
+        new=lambda: _fake_get_session(db_session),
+    ):
+        await resync_institution(emitter, uuid.uuid4())
 
     emitter.emit_institution_upserted.assert_not_awaited()
