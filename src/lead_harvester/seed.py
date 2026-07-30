@@ -6,11 +6,12 @@ from uuid import uuid4
 from sqlalchemy import text
 
 from lead_harvester.config import settings
-from lead_harvester.database import get_session_factory
+from lead_harvester.database import get_session
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.outreach import AccountBrief, DraftStatus, OutreachDraft
 from lead_harvester.models.research import FindingType, JobStatus, ResearchFinding, ResearchJob
-from lead_harvester.models.resolution import ResolutionCandidate
+from lead_harvester.models.resolution import MatchAssessment, MatchDecision, ResolutionCandidate
+from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
 
 
 def generate_deterministic_uuid(seed: int, index: int) -> str:
@@ -28,14 +29,14 @@ async def run_seed(args: argparse.Namespace) -> int:
 
     random.seed(args.seed)
 
-    SessionLocal = get_session_factory()
-
-    async with SessionLocal() as session, session.begin():
+    async with get_session() as session:
         if args.reset:
             print("Resetting demo data...")
             # Truncate tables for fresh seed
             await session.execute(text("TRUNCATE TABLE audit_logs CASCADE"))
             await session.execute(text("TRUNCATE TABLE resolution_candidates CASCADE"))
+            await session.execute(text("TRUNCATE TABLE raw_source_records CASCADE"))
+            await session.execute(text("TRUNCATE TABLE source_runs CASCADE"))
             await session.execute(text("TRUNCATE TABLE outreach_drafts CASCADE"))
             await session.execute(text("TRUNCATE TABLE research_findings CASCADE"))
             await session.execute(text("TRUNCATE TABLE contact_points CASCADE"))
@@ -113,15 +114,45 @@ async def run_seed(args: argparse.Namespace) -> int:
             )
             session.add(draft)
 
-        # Resolution Candidates
+        # Resolution Candidates -- a demo "pending" candidate awaiting human
+        # review via the actual schema: a candidate pairs a raw_record_id
+        # (NOT NULL) with a target (target_canonical_id here) and a
+        # blocking_strategy; scores/decision live on a separate
+        # MatchAssessment row, not on the candidate itself.
+        demo_run = SourceRun(
+            source_type=SourceType.WEBSITE, run_metadata={}, status=RunStatus.COMPLETED
+        )
+        session.add(demo_run)
+        await session.flush()
+
+        incoming_name = f"Demo Inst {institutions[0].canonical_name}"
+        incoming_record = RawSourceRecord(
+            source_run_id=demo_run.id,
+            source_type=SourceType.WEBSITE,
+            source_id="https://external-demo-duplicate.example.edu",
+            raw_payload={"name": incoming_name},
+            normalized_name=incoming_name.lower(),
+        )
+        session.add(incoming_record)
+        await session.flush()
+
         res_cand = ResolutionCandidate(
-            target_institution_id=institutions[0].id,
-            incoming_source_id="external_123",
-            incoming_data={"name": f"Demo Inst {institutions[0].canonical_name}"},
-            confidence_score=75,
+            raw_record_id=incoming_record.id,
+            target_canonical_id=institutions[0].id,
+            blocking_strategy="name_similarity",
             version=1,
         )
         session.add(res_cand)
+        await session.flush()
+
+        session.add(
+            MatchAssessment(
+                candidate_id=res_cand.id,
+                name_similarity=0.75,
+                total_score=75,
+                decision=MatchDecision.PENDING,
+            )
+        )
 
         await session.flush()
 

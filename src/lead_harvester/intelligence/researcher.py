@@ -121,14 +121,28 @@ class ResearchBrain:
             # duplicate CanonicalInstitution/ResearchJob/AccountBrief per
             # profile each run, and starving any record past the first 50
             # once that many exist.
-            already_researched = select(FieldProvenance.raw_record_id).where(
-                FieldProvenance.field_name == "branch_membership"
+            #
+            # Excludes by source_id (the profile URL, stable across
+            # re-scrapes -- see cli.py's linkedin_run and
+            # account_farm.py's _persist_profiles, both of which set it
+            # from profile.profile_url), not by the individual raw record's
+            # own UUID: a later crawler/farm run re-harvesting the same
+            # profile creates a brand-new RawSourceRecord row (a new UUID)
+            # for the exact same LinkedIn source_id. Excluding only by UUID
+            # let that duplicate row sail through this filter and trigger
+            # another AI call, ResearchJob, findings set, and
+            # CanonicalInstitution for the same person.
+            already_researched_source_ids = (
+                select(RawSourceRecord.source_id)
+                .join(FieldProvenance, FieldProvenance.raw_record_id == RawSourceRecord.id)
+                .where(FieldProvenance.field_name == "branch_membership")
+                .where(RawSourceRecord.source_type == SourceType.LINKEDIN)
             )
             records = await session.scalars(
                 select(RawSourceRecord)
                 .where(RawSourceRecord.source_type == SourceType.LINKEDIN)
                 .where(RawSourceRecord.normalized_name.isnot(None))
-                .where(RawSourceRecord.id.not_in(already_researched))
+                .where(RawSourceRecord.source_id.not_in(already_researched_source_ids))
                 .limit(50)
             )
             for record in records:

@@ -143,6 +143,36 @@ class LinkedInStealthCrawler:
         self.budget = ActionBudget()
         self.tz_offset = tz_offset
 
+    # Warmup-gated action types -- page_load has no warmup-derived limit
+    # (ActionBudget's own flat default applies to it instead), so it's never
+    # reserved/released against the session-file ledger.
+    _WARMUP_ACTIONS = ("profile_view", "connect", "message", "search")
+
+    def _reserve_daily_budget(self, warmup: dict[str, Any]) -> dict[str, int]:
+        """
+        Atomically reserves (and immediately logs) this run's share of
+        today's remaining warmup allowance for each action type, via
+        SessionManager.reserve_action -- the same fix applied to
+        OutreachAutomator._reserve_message_budget. Reading
+        get_today_limits() and logging usage only after crawling (the
+        previous behavior) let two overlapping/sequential linkedin-run
+        invocations both see "nothing used yet today" and each get the
+        full warmup limit, and logging after the fact could never undo an
+        already-completed overage. Returns the granted amount per action
+        type; call _release_unused_daily_budget with this same dict once
+        the real usage is known.
+        """
+        return {
+            action: self.session_manager.reserve_action(self.account_id, action, warmup[action])
+            for action in self._WARMUP_ACTIONS
+        }
+
+    def _release_unused_daily_budget(self, reserved: dict[str, int]) -> None:
+        for action, granted in reserved.items():
+            unused = granted - self.budget._counts.get(action, 0)
+            if unused > 0:
+                self.session_manager.release_action(self.account_id, action, unused)
+
     # ------------------------------------------------------------------
     # Public entry point
     # ------------------------------------------------------------------
@@ -219,15 +249,16 @@ class LinkedInStealthCrawler:
             print("[Crawler] Feed warmup complete. Come back tomorrow to continue.")
             return []
 
-        # Enforce warmup-derived limits — use a fresh copy so we don't mutate
-        # the class-level dict (which would affect all future ActionBudget instances)
-        self.budget.DAILY_LIMITS = {
-            **self.budget.DAILY_LIMITS,
-            "profile_view": warmup["profile_view"],
-            "connect": warmup["connect"],
-            "message": warmup["message"],
-            "search": warmup["search"],
-        }
+        # Reserve today's remaining warmup allowance atomically (see
+        # _reserve_daily_budget) instead of handing this run the FULL daily
+        # warmup limit regardless of what an earlier invocation already
+        # used today -- two sequential (or overlapping) linkedin-run
+        # invocations for the same account could otherwise each visit the
+        # full daily quota, since logging only happened after crawling
+        # finished. reserved[...] already accounts for today's prior usage,
+        # so it becomes this run's entire DAILY_LIMITS for these actions.
+        reserved = self._reserve_daily_budget(warmup)
+        self.budget.DAILY_LIMITS = {**self.budget.DAILY_LIMITS, **reserved}
 
         cookies = self.session_manager.load_cookies(self.account_id)
         results: list[LinkedInProfile] = []
@@ -393,14 +424,11 @@ class LinkedInStealthCrawler:
                 """)
                 self.session_manager.save_cookies(self.account_id, updated_cookies)
                 _save_storage_state(self.account_id, {"localStorage": local_storage})
-                self.session_manager.log_run(
-                    self.account_id,
-                    {
-                        "profile_view": self.budget._counts.get("profile_view", 0),
-                        "connect": self.budget._counts.get("connect", 0),
-                        "message": self.budget._counts.get("message", 0),
-                    },
-                )
+                # reserve_action already logged the full `reserved` amount
+                # up front (see _reserve_daily_budget) so a concurrent run
+                # sees it immediately -- give back whatever portion of that
+                # reservation this run didn't actually use.
+                self._release_unused_daily_budget(reserved)
                 await context.close()
 
         print(f"[Crawler] Done. Extracted {len(results)} profiles.")

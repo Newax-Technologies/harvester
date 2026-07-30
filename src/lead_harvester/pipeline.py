@@ -313,6 +313,26 @@ class LeadPipeline:
         await session.flush()
         await self._resolve_or_log(session, run, record, resync_ids)
 
+    # Source types resolve_incoming_record actually handles. LINKEDIN records
+    # are never passed to it -- they're picked up by an entirely separate
+    # mechanism (ResearchBrain.process_all_pending()) that's waiting for AI
+    # analysis, not entity resolution. MANUAL records don't need retrying
+    # either: manual_leads.py writes their canonical institution and
+    # "branch_membership" FieldProvenance synchronously in the same request,
+    # so a real MANUAL record is never left without provenance. Retrying an
+    # unscoped set of "no provenance, no pending candidate" records
+    # previously swept in every LinkedIn profile still waiting on
+    # linkedin-research too: _resolve_or_log would resolve it into a bare
+    # CanonicalInstitution with "branch_membership" provenance before any AI
+    # analysis ever ran, and that same provenance link is exactly what
+    # process_all_pending's own exclusion query treats as "already
+    # researched" -- silently and permanently starving it of research.
+    _RESOLUTION_ELIGIBLE_SOURCE_TYPES = (
+        SourceType.WEBSITE,
+        SourceType.GOOGLE_PLACES,
+        SourceType.AUTHORIZED_IMPORT,
+    )
+
     async def _retry_stranded_records(
         self,
         session,
@@ -331,9 +351,11 @@ class LeadPipeline:
         resolution-reviews queue either, with no way for a human or any
         later process to ever notice or retry it.
 
-        "Stranded" means neither canonicalized (no FieldProvenance link at
-        all, the same general check find_canonical_for_raw_record uses)
-        nor already sitting in the pending human-review queue (a live
+        "Stranded" means: belongs to a source type resolve_incoming_record
+        actually handles (see _RESOLUTION_ELIGIBLE_SOURCE_TYPES above);
+        neither canonicalized (no FieldProvenance link at all, the same
+        general check find_canonical_for_raw_record uses) nor already
+        sitting in the pending human-review queue (a live
         ResolutionCandidate with review_outcome unset means a human, not
         this retry, owns resolving it -- re-running resolve_incoming_record
         against it would just create duplicate candidates for the same
@@ -347,6 +369,7 @@ class LeadPipeline:
         )
         stmt = (
             select(RawSourceRecord)
+            .where(RawSourceRecord.source_type.in_(self._RESOLUTION_ELIGIBLE_SOURCE_TYPES))
             .where(RawSourceRecord.id.not_in(canonicalized))
             .where(RawSourceRecord.id.not_in(pending_review))
         )

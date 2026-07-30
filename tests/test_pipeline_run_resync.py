@@ -170,3 +170,42 @@ async def test_retry_stranded_records_retries_only_neither_canonicalized_nor_que
         await pipeline._retry_stranded_records(db_session, run)
 
     assert retried_ids == {stranded.id}
+
+
+@pytest.mark.asyncio
+async def test_retry_stranded_records_never_retries_linkedin_records(db_session):
+    # LinkedIn records with no FieldProvenance/pending candidate are not
+    # resolution failures -- they're profiles still waiting on
+    # linkedin-research, an entirely separate mechanism from
+    # resolve_incoming_record. Sweeping them into _retry_stranded_records
+    # previously resolved each one into a bare CanonicalInstitution with
+    # "branch_membership" provenance before any AI analysis ran, and that
+    # same provenance link is exactly what
+    # ResearchBrain.process_all_pending()'s own exclusion query treats as
+    # "already researched" -- silently and permanently starving it of
+    # research.
+    run = SourceRun(source_type=SourceType.WEBSITE, run_metadata={}, status=RunStatus.STARTED)
+    db_session.add(run)
+    await db_session.flush()
+
+    linkedin_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.LINKEDIN,
+        source_id="li:awaiting-research",
+        raw_payload={"full_name": "Awaiting Research"},
+        normalized_name="awaiting research",
+    )
+    db_session.add(linkedin_record)
+    await db_session.flush()
+
+    retried_ids: set[uuid.UUID] = set()
+
+    async def fake_resolve_or_log(session, run, record, resync_ids=None):
+        retried_ids.add(record.id)
+
+    pipeline = LeadPipeline(Settings(google_places_api_key="dummy-test-key"))
+
+    with patch.object(LeadPipeline, "_resolve_or_log", new=staticmethod(fake_resolve_or_log)):
+        await pipeline._retry_stranded_records(db_session, run)
+
+    assert retried_ids == set()

@@ -66,6 +66,22 @@ class TargetHasPendingConflictError(BaseAPIException):
         )
 
 
+class DraftBeingSentError(BaseAPIException):
+    def __init__(self, draft_id: str):
+        super().__init__(
+            status_code=409,
+            code="draft_being_sent",
+            message=(
+                "This draft has already been claimed by an outreach send and cannot "
+                "be edited or decided on. The automator loaded its current body/"
+                "status into memory before this claim; a mutation here would not "
+                "change what's actually sent, and could leave the database "
+                "recording content different from what was delivered."
+            ),
+            details={"draft_id": str(draft_id)},
+        )
+
+
 class ResourceNotFoundError(BaseAPIException):
     def __init__(self, resource_id: str = "unknown"):
         super().__init__(

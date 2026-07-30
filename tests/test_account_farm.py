@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.source import RawSourceRecord, SourceType
 from lead_harvester.sources.account_farm import AccountFarm, AccountResult, _drain_result_queue
+from lead_harvester.sources.breadth_tracker import BreadthTracker
 
 
 @contextlib.asynccontextmanager
@@ -164,3 +165,38 @@ def test_drain_result_queue_prevents_deadlock_on_large_payload():
 
     assert len(results) == 1
     assert results[0].account_id == "big_account"
+
+
+def test_record_farm_visits_logs_every_scraped_profile(tmp_path):
+    # No caller anywhere recorded a visit before this -- assign_partitions'
+    # own "not in visited_urls" exclusion, the 30-day breadth ceiling, and
+    # the noise-injection scheduling all read the same visits list, so
+    # nothing ever writing to it left every one of those checks
+    # permanently inert (the farm could keep re-visiting the exact same
+    # URLs indefinitely).
+    bt = BreadthTracker(log_path=tmp_path / "breadth_log.json")
+    results = [
+        AccountResult(
+            account_id="burner_01",
+            profiles_scraped=2,
+            profiles=[
+                {"profile_url": "https://linkedin.com/in/alice", "location": "Karachi, Pakistan"},
+                {"profile_url": "https://linkedin.com/in/bob"},
+            ],
+        ),
+        AccountResult(
+            account_id="burner_02", profiles_scraped=0, errors=["No session"], profiles=[]
+        ),
+    ]
+
+    AccountFarm._record_farm_visits(bt, results)
+
+    visited_urls = {v["url"] for v in bt._data["visits"]}
+    assert visited_urls == {"https://linkedin.com/in/alice", "https://linkedin.com/in/bob"}
+
+    alice_visit = next(v for v in bt._data["visits"] if v["url"].endswith("alice"))
+    assert alice_visit["account_id"] == "burner_01"
+    assert alice_visit["city"] == "karachi, pakistan"
+
+    bob_visit = next(v for v in bt._data["visits"] if v["url"].endswith("bob"))
+    assert bob_visit["city"] == "unknown"

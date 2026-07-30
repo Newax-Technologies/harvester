@@ -91,6 +91,67 @@ async def test_process_all_pending_excludes_already_researched_records(db_sessio
 
 
 @pytest.mark.asyncio
+async def test_process_all_pending_excludes_by_stable_source_id_not_row_uuid(db_session):
+    # A later crawler/farm run re-harvesting the same LinkedIn profile URL
+    # creates a brand-new RawSourceRecord row (a new UUID) for the exact
+    # same source_id -- excluding only by the OLD row's own UUID let that
+    # new duplicate row sail through the filter and trigger another AI
+    # call, ResearchJob, and CanonicalInstitution for the same person.
+    run = SourceRun(source_type=SourceType.LINKEDIN, run_metadata={}, status=RunStatus.STARTED)
+    db_session.add(run)
+    await db_session.flush()
+
+    original = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.LINKEDIN,
+        source_id="https://linkedin.com/in/rescraped-profile",
+        raw_payload={"full_name": "Rescraped Person"},
+        normalized_name="rescraped person",
+    )
+    db_session.add(original)
+    await db_session.commit()
+
+    brain = ResearchBrain(api_key="fake-key-for-test")
+    brain.research_profile = AsyncMock(return_value=None)
+
+    with patch(
+        "lead_harvester.intelligence.researcher.get_session",
+        new=lambda: _fake_get_session(db_session),
+    ):
+        await brain.process_all_pending()
+
+    brain.research_profile.assert_awaited_once()
+
+    # A later run re-scrapes the exact same profile URL into a brand-new
+    # row with its own UUID.
+    rescraped = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.LINKEDIN,
+        source_id="https://linkedin.com/in/rescraped-profile",
+        raw_payload={"full_name": "Rescraped Person"},
+        normalized_name="rescraped person",
+    )
+    db_session.add(rescraped)
+    await db_session.commit()
+    assert rescraped.id != original.id
+
+    with patch(
+        "lead_harvester.intelligence.researcher.get_session",
+        new=lambda: _fake_get_session(db_session),
+    ):
+        await brain.process_all_pending()
+
+    # Still only ever researched once.
+    brain.research_profile.assert_awaited_once()
+    count = await db_session.scalar(
+        select(func.count())
+        .select_from(CanonicalInstitution)
+        .where(CanonicalInstitution.canonical_name == "Rescraped Person")
+    )
+    assert count == 1
+
+
+@pytest.mark.asyncio
 async def test_research_record_does_not_mark_processed_when_ai_call_fails(db_session):
     # A timed-out/rejected/malformed AI call previously got silently turned
     # into a fake zero-score analysis by _call_ai, so _research_record

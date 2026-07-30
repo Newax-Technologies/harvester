@@ -361,6 +361,7 @@ class AccountFarm:
         stop_draining.set()
         drainer.join()
 
+        self._record_farm_visits(bt, results)
         await self._persist_profiles(results)
 
         # Print summary
@@ -380,6 +381,34 @@ class AccountFarm:
         print(f"{'=' * 55}\n")
 
         return results
+
+    @staticmethod
+    def _record_farm_visits(bt: BreadthTracker, results: list[AccountResult]) -> None:
+        """
+        Logs every profile a worker actually scraped into BreadthTracker's
+        visit history. No caller anywhere recorded a visit before this --
+        assign_partitions' own "not in visited_urls" exclusion, the 30-day
+        MAX_BREADTH_PER_VERTICAL_CITY_30D ceiling (is_breadth_exceeded), and
+        the every-4th-visit noise-injection scheduling (should_inject_noise)
+        all read the same self._data["visits"] list, so with nothing ever
+        writing to it every one of those checks was permanently inert --
+        the farm could keep re-visiting the exact same URLs indefinitely,
+        which the breadth tracker exists specifically to prevent. Uses each
+        profile's own reported location for the "city" dimension (the
+        actual signal is_breadth_exceeded cares about -- which cities'
+        profiles this URL set has been drawn from), falling back to
+        "unknown" like record_visit's own default when a profile has none.
+        """
+        for result in results:
+            for profile in result.profiles:
+                url = profile.get("profile_url")
+                if not url:
+                    continue
+                bt.record_visit(
+                    result.account_id,
+                    url,
+                    city=profile.get("location") or "unknown",
+                )
 
     async def _persist_profiles(self, results: list[AccountResult]) -> None:
         """

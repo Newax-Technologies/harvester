@@ -4,6 +4,7 @@ from sqlalchemy import select
 from lead_harvester.api.app import app
 from lead_harvester.api.dependencies import User, get_current_user
 from lead_harvester.models.audit import AuditLog
+from lead_harvester.models.outreach import DraftStatus
 
 
 @pytest.mark.asyncio
@@ -58,3 +59,56 @@ async def test_second_reviewer_receives_409(client_a, client_b, seeded_draft, db
     assert audits[0].actor == "reviewer_A"
 
     assert audits[0].action == "draft.approved"
+
+
+@pytest.mark.asyncio
+async def test_edit_rejected_while_draft_is_being_sent(client_a, seeded_draft, db_session):
+    # OutreachAutomator.run() claims a draft to SENDING (without bumping
+    # version) and loads its body into memory before that claim's own
+    # commit. A reviewer's concurrent edit using the version they loaded
+    # before the claim would otherwise still pass the version check and
+    # silently mutate a body the automator is actively sending, leaving
+    # the database recording content different from what was delivered.
+    version = seeded_draft.version
+    seeded_draft.status = DraftStatus.SENDING
+    await db_session.commit()
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id="reviewer_A", username="Alice", role="reviewer"
+    )
+    response = await client_a.patch(
+        f"/api/v1/drafts/{seeded_draft.id}",
+        json={"message": "Edited while sending!", "expected_version": version},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "draft_being_sent"
+
+    await db_session.refresh(seeded_draft)
+    assert seeded_draft.body == "World"
+    assert seeded_draft.status == DraftStatus.SENDING
+
+
+@pytest.mark.asyncio
+async def test_decision_rejected_while_draft_is_being_sent(client_a, seeded_draft, db_session):
+    version = seeded_draft.version
+    seeded_draft.status = DraftStatus.SENDING
+    await db_session.commit()
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id="reviewer_A", username="Alice", role="reviewer"
+    )
+    response = await client_a.post(
+        f"/api/v1/drafts/{seeded_draft.id}/decision",
+        json={
+            "decision": "approved",
+            "expected_version": version,
+            "feedback": "Approving while it's already sending.",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "draft_being_sent"
+
+    await db_session.refresh(seeded_draft)
+    assert seeded_draft.status == DraftStatus.SENDING

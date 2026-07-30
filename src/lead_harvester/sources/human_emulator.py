@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import random
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
@@ -90,7 +90,15 @@ def session_start_delay_seconds(preferred_hour: int, jitter_minutes: int) -> flo
     # Convert PKT preferred_hour to UTC (PKT = UTC+5)
     target_utc_hour = (preferred_hour - 5) % 24
     jitter = random.randint(-jitter_minutes, jitter_minutes)
-    target = now.replace(hour=target_utc_hour, minute=30 + jitter, second=0, microsecond=0)
+    # jitter_minutes can be as large as 45 (device_profile.py's generator
+    # draws preferred_start_jitter from range(10, 45)), so 30 + jitter can
+    # fall well outside 0-59 -- passing that directly as `minute=` to
+    # datetime.replace() raises ValueError before the crawler ever opens a
+    # browser. Building a valid base time first and adding the jitter as a
+    # timedelta lets it carry across hour (and date) boundaries correctly
+    # instead.
+    base = now.replace(hour=target_utc_hour, minute=30, second=0, microsecond=0)
+    target = base + timedelta(minutes=jitter)
     if target < now:
         return 0.0
     return (target - now).total_seconds()

@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lead_harvester.api.errors import ResourceNotFoundError, StaleDataError
+from lead_harvester.api.errors import DraftBeingSentError, ResourceNotFoundError, StaleDataError
 from lead_harvester.models.audit import AuditLog
 from lead_harvester.models.outreach import DraftStatus, OutreachDraft
 from lead_harvester.schemas.outreach import DraftDecisionRequest, DraftEditRequest
@@ -28,6 +28,18 @@ class DraftReviewService:
 
             if not draft:
                 raise ResourceNotFoundError(str(draft_id))
+
+            # OutreachAutomator.run() claims a draft to SENDING (SELECT ...
+            # FOR UPDATE SKIP LOCKED, flipped in the same transaction) and
+            # loads its body into memory before that claim's own commit --
+            # without this check, a reviewer's concurrent edit using the
+            # version they loaded before the claim would still pass the
+            # version check below (claiming to SENDING doesn't bump
+            # version) and silently mutate a body the automator has
+            # already read and is actively sending, leaving the database
+            # record content different from what was actually delivered.
+            if draft.status == DraftStatus.SENDING:
+                raise DraftBeingSentError(str(draft_id))
 
             if draft.version != req.expected_version:
                 raise StaleDataError(
@@ -65,6 +77,12 @@ class DraftReviewService:
 
             if not draft:
                 raise ResourceNotFoundError(str(draft_id))
+
+            # See the matching check in edit_draft above: a draft already
+            # claimed by OutreachAutomator.run() must not have its status
+            # changed out from under the send in progress either.
+            if draft.status == DraftStatus.SENDING:
+                raise DraftBeingSentError(str(draft_id))
 
             if draft.version != req.expected_version:
                 raise StaleDataError(
