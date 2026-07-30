@@ -305,17 +305,22 @@ def test_record_farm_visits_logs_every_scraped_profile(tmp_path):
         ),
     ]
 
-    AccountFarm._record_farm_visits(bt, results)
+    AccountFarm._record_farm_visits(bt, results, target_city="karachi")
 
     visited_urls = {v["url"] for v in bt._data["visits"]}
     assert visited_urls == {"https://linkedin.com/in/alice", "https://linkedin.com/in/bob"}
 
+    # Recorded under the run's declared target_city, not each profile's own
+    # raw scraped location string ("Karachi, Sindh, Pakistan" never
+    # exact-matches the declared "karachi" key that is_breadth_exceeded
+    # compares against, so recording the scraped value would leave the
+    # declared target's visit count permanently at zero).
     alice_visit = next(v for v in bt._data["visits"] if v["url"].endswith("alice"))
     assert alice_visit["account_id"] == "burner_01"
-    assert alice_visit["city"] == "karachi, pakistan"
+    assert alice_visit["city"] == "karachi"
 
     bob_visit = next(v for v in bt._data["visits"] if v["url"].endswith("bob"))
-    assert bob_visit["city"] == "unknown"
+    assert bob_visit["city"] == "karachi"
 
 
 def test_record_farm_visits_tags_declared_vertical_and_noise_separately(tmp_path):
@@ -348,3 +353,37 @@ def test_record_farm_visits_tags_declared_vertical_and_noise_separately(tmp_path
 
     # The marker is consumed, not left around for a later run to misfire on.
     assert "https://linkedin.com/in/noise-profile" not in bt._data.get("pending_noise", {})
+
+
+def test_record_farm_visits_lets_breadth_ceiling_actually_engage(tmp_path):
+    # is_breadth_exceeded compares against the run's declared target_city
+    # ("karachi"), not whatever free-text location string a profile
+    # happened to report ("Karachi, Sindh, Pakistan" and friends never
+    # exact-match "karachi"). If _record_farm_visits recorded the scraped
+    # location instead of target_city, every visit's "city" would vary
+    # across profiles and the declared target's own count would never
+    # reach the ceiling -- the 30-day cap would never actually engage no
+    # matter how many profiles were scraped.
+    bt = BreadthTracker(log_path=tmp_path / "breadth_log.json")
+    raw_locations = [
+        "Karachi, Sindh, Pakistan",
+        "Karachi, Pakistan",
+        None,
+        "Karachi Division, Pakistan",
+    ]
+    for i in range(40):
+        result = AccountResult(
+            account_id="burner_01",
+            profiles_scraped=1,
+            profiles=[
+                {
+                    "profile_url": f"https://linkedin.com/in/person-{i}",
+                    "location": raw_locations[i % len(raw_locations)],
+                }
+            ],
+        )
+        AccountFarm._record_farm_visits(
+            bt, [result], vertical="school_principals", target_city="karachi"
+        )
+
+    assert bt.is_breadth_exceeded("school_principals", "karachi") is True

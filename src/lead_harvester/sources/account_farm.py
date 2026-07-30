@@ -405,7 +405,7 @@ class AccountFarm:
         # never reach RawSourceRecord/research, yet their URLs would
         # already be marked visited and unrecoverable by any future run.
         await self._persist_profiles(results)
-        self._record_farm_visits(bt, results, vertical=vertical)
+        self._record_farm_visits(bt, results, vertical=vertical, target_city=target_city)
 
         # Print summary
         print(f"\n{'=' * 55}")
@@ -459,7 +459,11 @@ class AccountFarm:
 
     @staticmethod
     def _record_farm_visits(
-        bt: BreadthTracker, results: list[AccountResult], *, vertical: str = "unknown"
+        bt: BreadthTracker,
+        results: list[AccountResult],
+        *,
+        vertical: str = "unknown",
+        target_city: str = "unknown",
     ) -> None:
         """
         Logs every profile a worker actually scraped into BreadthTracker's
@@ -470,11 +474,15 @@ class AccountFarm:
         all read the same self._data["visits"] list, so with nothing ever
         writing to it every one of those checks was permanently inert --
         the farm could keep re-visiting the exact same URLs indefinitely,
-        which the breadth tracker exists specifically to prevent. Uses each
-        profile's own reported location for the "city" dimension (the
-        actual signal is_breadth_exceeded cares about -- which cities'
-        profiles this URL set has been drawn from), falling back to
-        "unknown" like record_visit's own default when a profile has none.
+        which the breadth tracker exists specifically to prevent. Records
+        each visit under the run's declared `target_city` (the same value
+        assign_partitions already checked is_breadth_exceeded against
+        before dispatching this batch), not the scraped profile's own raw
+        location string -- a profile's free-text "location" (e.g. "Karachi,
+        Sindh, Pakistan") almost never exact-matches the declared city key
+        (e.g. "karachi") that is_breadth_exceeded compares against, so
+        recording the scraped value left the declared target's visit count
+        permanently at zero and the ceiling never actually engaged.
 
         `vertical` is the run's declared target vertical (see run()) --
         recorded as-is UNLESS this exact URL was injected as a noise visit
@@ -492,7 +500,7 @@ class AccountFarm:
                     result.account_id,
                     url,
                     industry=industry,
-                    city=profile.get("location") or "unknown",
+                    city=target_city,
                 )
 
     async def _persist_profiles(self, results: list[AccountResult]) -> None:
