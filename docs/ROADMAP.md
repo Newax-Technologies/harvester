@@ -107,8 +107,11 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
 - **Entity Registry**: partial. `models/canonical.py` has institution/branch/contact_point;
   `models/source.py` has source_record. No `person_candidate` (today `contact_point.person_name`
   is a bare string with no resolution state) or `signal` entity yet.
-- **Source Connectors**: partial. `sources/` has google_places, web, search. No apple_maps,
-  yandex_maps, telegram, or authorized_imports connectors yet.
+- **Source Connectors**: partial. `sources/` has google_places, web, search, and
+  authorized_imports (CSV/bulk import of licensed or manually-sourced data, wired into
+  `LeadPipeline`/`cli.py`'s `import-authorized` command, going through the same
+  blocking/scoring resolution as every other connector). No apple_maps, yandex_maps, or
+  telegram connectors yet.
 - **Ingestion**: not modularized as its own layer; scheduling/rate-limiting logic is embedded
   in `pipeline.py`/`sources/web.py` rather than a distinct `ingestion/` module.
 - **Normalization**: partial, lives in `resolution/normalize.py` rather than its own module;

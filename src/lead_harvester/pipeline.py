@@ -1,5 +1,6 @@
 import datetime
 import uuid
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -13,6 +14,7 @@ from .models.provenance import FieldProvenance
 from .models.resolution import ResolutionCandidate
 from .resolution.normalize import normalize_domain, normalize_name, normalize_phone
 from .resolution.orchestrator import resolve_incoming_record
+from .sources.authorized_imports import AuthorizedImportRecord, parse_authorized_import_csv
 from .sources.geographic_tiling import build_queries_for_tile, generate_tiles
 from .sources.google_places import GooglePlacesConnector
 
@@ -36,7 +38,9 @@ class LeadPipeline:
         return self._places_connector
 
     async def run(self) -> None:
-        if "seeds" in self.settings.job_config:
+        if "authorized_import_file" in self.settings.job_config:
+            await self._run_authorized_import()
+        elif "seeds" in self.settings.job_config:
             await self._run_web_crawler()
         else:
             await self._run_google_places()
@@ -126,6 +130,98 @@ class LeadPipeline:
         finally:
             await self._emit_resync_events(resync_ids)
         print(f"WebCrawler finished. Found {len(leads)} leads.")
+
+    async def _run_authorized_import(self) -> None:
+        import asyncio
+
+        import_file = self.settings.job_config.get("authorized_import_file", "")
+        source_reference = self.settings.job_config.get("authorized_import_source_reference", "")
+        if not import_file:
+            print("No authorized_import_file provided.")
+            return
+        if not source_reference:
+            print("authorized_import_source_reference is required for authorized imports.")
+            return
+
+        csv_text = await asyncio.to_thread(Path(import_file).read_text, encoding="utf-8")
+
+        try:
+            parsed = parse_authorized_import_csv(
+                csv_text,
+                source_reference=source_reference,
+                default_country_code=self.settings.lead_sync_default_country_code,
+            )
+        except ValueError as e:
+            print(f"Authorized import file is malformed: {e}")
+            return
+
+        for reason in parsed.skipped:
+            print(f"[AuthorizedImport] Skipped {reason}")
+
+        # See the matching comment in _run_web_crawler: this wraps the whole
+        # session block (not just its inner try/except) so the emit still
+        # runs even when the run fails and re-raises, since the inner
+        # finally's commit durably persists whatever was processed before
+        # the failure.
+        resync_ids: set[uuid.UUID] = set()
+
+        try:
+            async with get_session() as session:
+                run = SourceRun(
+                    source_type=SourceType.AUTHORIZED_IMPORT,
+                    run_metadata={
+                        "source_reference": source_reference,
+                        "rows_parsed": len(parsed.records),
+                        "rows_skipped": len(parsed.skipped),
+                        "skipped": parsed.skipped,
+                    },
+                    status=RunStatus.STARTED,
+                )
+                session.add(run)
+                await session.flush()
+
+                try:
+                    await self._retry_stranded_records(session, run, resync_ids)
+
+                    for row_number, row in enumerate(parsed.records, start=1):
+                        record = self._build_authorized_import_record(run, row, row_number)
+                        session.add(record)
+                        await session.flush()
+                        await self._resolve_or_log(session, run, record, resync_ids)
+
+                    run.status = RunStatus.COMPLETED
+                    run.completed_at = datetime.datetime.now(datetime.UTC)
+                except Exception as e:
+                    run.status = RunStatus.FAILED
+                    run.completed_at = datetime.datetime.now(datetime.UTC)
+                    run.run_metadata = {**run.run_metadata, "error": str(e)}
+                    raise
+                finally:
+                    await session.commit()
+        finally:
+            await self._emit_resync_events(resync_ids)
+        print(f"Authorized import finished. Processed {len(parsed.records)} row(s).")
+
+    @staticmethod
+    def _build_authorized_import_record(
+        run: SourceRun, row: AuthorizedImportRecord, row_number: int
+    ) -> RawSourceRecord:
+        import dataclasses
+
+        return RawSourceRecord(
+            source_run_id=run.id,
+            source_type=SourceType.AUTHORIZED_IMPORT,
+            source_id=f"{row.source_reference}:{row_number}",
+            raw_payload=dataclasses.asdict(row),
+            normalized_name=normalize_name(row.institution_name),
+            normalized_phone=(
+                normalize_phone(row.contact_value, default_region=row.country_code)
+                if row.contact_type == "phone" and row.contact_value
+                else None
+            ),
+            normalized_domain=(normalize_domain(row.website) if row.website else None),
+            location=None,
+        )
 
     async def _run_google_places(self) -> None:
         tiles = generate_tiles(self.settings.job_config)

@@ -114,6 +114,21 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
             "institution_type": payload.get("institution_type", ""),
         }
 
+    if record.source_type == SourceType.AUTHORIZED_IMPORT:
+        # Same reasoning as the MANUAL branch above: normalized_name is
+        # always populated by parse_authorized_import_csv/_run_authorized_import
+        # too, so it would otherwise always win and discard the
+        # spreadsheet's original casing/punctuation.
+        name = payload.get("institution_name") or record.normalized_name or "Unknown"
+        email = payload.get("contact_value") if payload.get("contact_type") == "email" else None
+        return {
+            "name": name,
+            "address": payload.get("address", ""),
+            "website": payload.get("website") or None,
+            "email": email,
+            "institution_type": payload.get("institution_type", ""),
+        }
+
     # No connector exists yet for any other SourceType (telegram/linkedin/
     # yandex/apple_maps) -- fall back to the normalized index fields only
     # rather than guessing at an unknown raw_payload shape.

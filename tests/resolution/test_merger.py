@@ -250,6 +250,35 @@ async def test_display_fields_handles_manual_shape(source_run):
 
 
 @pytest.mark.asyncio
+async def test_display_fields_handles_authorized_import_shape(source_run):
+    from lead_harvester.models.source import RawSourceRecord, SourceType
+    from lead_harvester.resolution.normalize import normalize_name
+
+    # Same reasoning as the MANUAL case above -- must not shadow the
+    # spreadsheet's original casing in raw_payload["institution_name"].
+    record = RawSourceRecord(
+        source_run_id=source_run.id,
+        source_type=SourceType.AUTHORIZED_IMPORT,
+        source_id="license-2026:1",
+        raw_payload={
+            "institution_name": "Beacon School",
+            "address": "1 Main St",
+            "institution_type": "school",
+            "contact_type": "email",
+            "contact_value": "admissions@beacon.edu",
+        },
+        normalized_name=normalize_name("Beacon School"),
+        normalized_phone=None,
+        normalized_domain=None,
+        location=None,
+    )
+    fields = display_fields(record)
+    assert fields["name"] == "Beacon School"
+    assert fields["email"] == "admissions@beacon.edu"
+    assert fields["institution_type"] == "school"
+
+
+@pytest.mark.asyncio
 async def test_display_fields_prefers_full_website_url_over_bare_domain(source_run):
     # normalized_domain is a bare host ("beacon.edu"), used for blocking, and
     # is truthy whenever a website exists at all -- it must not shadow the

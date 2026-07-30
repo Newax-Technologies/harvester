@@ -18,6 +18,7 @@ class SourceType(str, enum.Enum):
     YANDEX = "yandex"
     APPLE_MAPS = "apple_maps"
     MANUAL = "manual"
+    AUTHORIZED_IMPORT = "authorized_import"
 
 
 class RunStatus(str, enum.Enum):

@@ -42,6 +42,31 @@ def run_command(args: argparse.Namespace) -> int:
     return 0
 
 
+async def import_authorized(args: argparse.Namespace) -> int:
+    """
+    Bulk-imports institutions/contacts from a licensed or manually-sourced
+    CSV via LeadPipeline._run_authorized_import -- the same
+    blocking/scoring resolution every other connector goes through, so
+    imported rows correctly dedupe/merge against existing institutions
+    rather than each becoming its own separate entity.
+    """
+    if not Path(args.file).exists():
+        print(f"CSV file not found: {args.file}", file=sys.stderr)
+        return 1
+
+    job_config: dict = {
+        "authorized_import_file": args.file,
+        "authorized_import_source_reference": args.source_reference,
+    }
+    settings = Settings(job_config=job_config)
+    if args.country_code:
+        settings.lead_sync_default_country_code = args.country_code.upper()
+
+    pipeline = LeadPipeline(settings)
+    await pipeline.run()
+    return 0
+
+
 async def check_db_health() -> int:
     from sqlalchemy import text
 
@@ -235,6 +260,23 @@ def build_parser() -> argparse.ArgumentParser:
     run = subparsers.add_parser("run", help="Run discovery via YAML config (web / Google Places)")
     run.add_argument("--config", required=True, help="Path to the YAML job config file")
 
+    # -- import-authorized ---------------------------------------------------
+    import_authorized = subparsers.add_parser(
+        "import-authorized",
+        help="Bulk-import institutions/contacts from a licensed or manually-sourced CSV",
+    )
+    import_authorized.add_argument("--file", required=True, help="Path to the CSV file to import")
+    import_authorized.add_argument(
+        "--source-reference",
+        required=True,
+        help="Identifies the license/agreement or manual-research source this data came from",
+    )
+    import_authorized.add_argument(
+        "--country-code",
+        default="",
+        help="ISO-2 fallback country code for rows with a blank country_code column (default: PK)",
+    )
+
     # -- db-health ----------------------------------------------------------
     subparsers.add_parser("db-health", help="Check PostgreSQL connection health")
 
@@ -348,6 +390,7 @@ def main() -> None:
 
     dispatch = {
         "run": lambda: sys.exit(run_command(args)),
+        "import-authorized": lambda: sys.exit(asyncio.run(import_authorized(args))),
         "db-health": lambda: sys.exit(asyncio.run(check_db_health())),
         "migrate-phase1": lambda: sys.exit(asyncio.run(_migrate(args))),
         "seed-demo-data": lambda: sys.exit(asyncio.run(_seed(args))),
