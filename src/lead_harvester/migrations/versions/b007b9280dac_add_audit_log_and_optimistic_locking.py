@@ -40,8 +40,31 @@ def upgrade() -> None:
     op.create_index(op.f("ix_audit_logs_entity_id"), "audit_logs", ["entity_id"], unique=False)
     op.create_index(op.f("ix_audit_logs_timestamp"), "audit_logs", ["timestamp"], unique=False)
 
-    op.add_column("outreach_drafts", sa.Column("version", sa.Integer(), nullable=False))
-    op.add_column("resolution_candidates", sa.Column("version", sa.Integer(), nullable=False))
+    # outreach_drafts/resolution_candidates may already have rows on any
+    # database that's been running before this migration -- a bare ADD
+    # COLUMN ... NOT NULL with no default fails immediately the moment
+    # either table isn't empty, since every existing row would get NULL for
+    # the new column. Add nullable, backfill every existing row to the same
+    # starting value the model's own Python-side `default=1` uses for a
+    # freshly created row (models/outreach.py, models/resolution.py), then
+    # enforce NOT NULL once every row is known to have a value -- same
+    # staged pattern as f1a2b3c4d5e6's branches.city/country_code migration.
+    op.add_column("outreach_drafts", sa.Column("version", sa.Integer(), nullable=True))
+    op.add_column("resolution_candidates", sa.Column("version", sa.Integer(), nullable=True))
+
+    outreach_drafts = sa.table("outreach_drafts", sa.column("version", sa.Integer))
+    resolution_candidates = sa.table("resolution_candidates", sa.column("version", sa.Integer))
+    op.execute(
+        outreach_drafts.update().where(outreach_drafts.c.version.is_(None)).values(version=1)
+    )
+    op.execute(
+        resolution_candidates.update()
+        .where(resolution_candidates.c.version.is_(None))
+        .values(version=1)
+    )
+
+    op.alter_column("outreach_drafts", "version", existing_type=sa.Integer(), nullable=False)
+    op.alter_column("resolution_candidates", "version", existing_type=sa.Integer(), nullable=False)
     # ### end Alembic commands ###
 
 
