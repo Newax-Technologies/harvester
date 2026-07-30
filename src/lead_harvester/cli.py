@@ -63,8 +63,8 @@ async def import_authorized(args: argparse.Namespace) -> int:
         settings.lead_sync_default_country_code = args.country_code.upper()
 
     pipeline = LeadPipeline(settings)
-    await pipeline.run()
-    return 0
+    success = await pipeline.run()
+    return 0 if success else 1
 
 
 async def check_db_health() -> int:
@@ -436,7 +436,13 @@ async def _linkedin_farm_run(args: argparse.Namespace) -> int:
                     acc, proxy = line.split("=", 1)
                     proxies[acc.strip()] = proxy.strip()
         except FileNotFoundError:
+            # An operator who explicitly asked for --proxies-file wants
+            # every account launched behind a residential proxy -- silently
+            # continuing with an empty map would expose the host's real IP
+            # and let LinkedIn correlate every "isolated" burner account by
+            # shared origin, exactly what the proxy was meant to prevent.
             print(f"Proxies file not found: {args.proxies_file}", file=sys.stderr)
+            return 1
 
     # Load URLs
     try:

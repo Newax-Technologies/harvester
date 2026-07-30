@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +45,7 @@ def _operating_status(record: RawSourceRecord) -> OperatingStatus:
     return OperatingStatus.UNKNOWN
 
 
-def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
+def display_fields(record: RawSourceRecord) -> dict[str, Any]:
     """
     Extracts name/address/website/institution_type in a source-shape-aware
     way. RawSourceRecord.raw_payload's keys differ entirely by source_type
@@ -71,6 +72,8 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
             "website": payload.get("websiteUri"),
             "email": None,
             "institution_type": payload.get("primaryType", ""),
+            "city": "",
+            "country_code": "",
         }
 
     if record.source_type == SourceType.WEBSITE:
@@ -96,6 +99,8 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
             "website": payload.get("website") or record.normalized_domain,
             "email": payload.get("email") or None,
             "institution_type": "",
+            "city": "",
+            "country_code": "",
         }
 
     if record.source_type == SourceType.MANUAL:
@@ -112,6 +117,8 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
             "website": payload.get("website"),
             "email": None,
             "institution_type": payload.get("institution_type", ""),
+            "city": "",
+            "country_code": "",
         }
 
     if record.source_type == SourceType.AUTHORIZED_IMPORT:
@@ -120,13 +127,23 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
         # too, so it would otherwise always win and discard the
         # spreadsheet's original casing/punctuation.
         name = payload.get("institution_name") or record.normalized_name or "Unknown"
-        email = payload.get("contact_value") if payload.get("contact_type") == "email" else None
+        contacts = payload.get("contacts") or []
+        email = next(
+            (c["contact_value"] for c in contacts if c.get("contact_type") == "email"), None
+        )
         return {
             "name": name,
             "address": payload.get("address", ""),
             "website": payload.get("website") or None,
             "email": email,
             "institution_type": payload.get("institution_type", ""),
+            "city": payload.get("city", ""),
+            "country_code": payload.get("country_code", ""),
+            # Every contact this institution declared (any contact_type,
+            # with person_name/role) -- see _add_contacts_and_provenance,
+            # which writes all of them instead of just the single "email"
+            # key above (kept for callers that only need the one field).
+            "declared_contacts": contacts,
         }
 
     # No connector exists yet for any other SourceType (telegram/linkedin/
@@ -138,6 +155,8 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
         "website": record.normalized_domain,
         "email": None,
         "institution_type": "",
+        "city": "",
+        "country_code": "",
     }
 
 
@@ -187,14 +206,25 @@ def _synthesize_branch_fields(records: list[RawSourceRecord]) -> dict:
     """
     address = None
     location = None
+    city = None
+    country_code = None
     for r in records:
-        if not address:
-            fields = display_fields(r)
-            if fields["address"]:
-                address = fields["address"]
+        fields = display_fields(r)
+        if not address and fields["address"]:
+            address = fields["address"]
         if location is None and r.location is not None:
             location = r.location
-    return {"address": address, "location": location}
+        # city/country_code: same first-non-empty-wins policy. Only
+        # AUTHORIZED_IMPORT supplies real values today (Google Places'
+        # response has no structured address components, and the web
+        # crawler/manual paths have no equivalent field) -- every other
+        # source's display_fields returns "" for both, so this falls
+        # through to _build_branch's UNKNOWN sentinel unchanged for them.
+        if not city and fields.get("city"):
+            city = fields["city"]
+        if not country_code and fields.get("country_code"):
+            country_code = fields["country_code"]
+    return {"address": address, "location": location, "city": city, "country_code": country_code}
 
 
 def _build_branch(
@@ -205,8 +235,8 @@ def _build_branch(
         institution_id=institution_id,
         branch_name=branch_name,
         address=synthesized["address"] or "",
-        city=_UNKNOWN_CITY,
-        country_code=_UNKNOWN_COUNTRY_CODE,
+        city=synthesized["city"] or _UNKNOWN_CITY,
+        country_code=synthesized["country_code"] or _UNKNOWN_COUNTRY_CODE,
         location=synthesized["location"],
         provider_ids=_provider_ids_for(records),
     )
@@ -262,12 +292,34 @@ async def _add_contacts_and_provenance(
         )
     )
 
+    fields = display_fields(record)
+    declared_contacts = fields.get("declared_contacts")
+    if declared_contacts is not None:
+        # This source declares its own explicit contact list (currently
+        # only AUTHORIZED_IMPORT, where a CSV row's contact_type is
+        # arbitrary -- phone, email, whatsapp, telegram, other). Writing
+        # only phone (from normalized_phone) + email (from the "email" key
+        # below) silently dropped every other contact_type entirely, and
+        # dropped person_name/role even for phone/email rows. Write every
+        # declared contact instead, with whatever type/person_name/role it
+        # actually carries.
+        for contact in declared_contacts:
+            await _add_contact_if_present(
+                session,
+                institution,
+                record,
+                contact_type=contact["contact_type"],
+                contact_value=contact["contact_value"],
+                person_name=contact.get("person_name") or None,
+                role=contact.get("role") or None,
+            )
+        return
+
     await _add_contact_if_present(
         session, institution, record, contact_type="phone", contact_value=record.normalized_phone
     )
-    email = display_fields(record).get("email")
     await _add_contact_if_present(
-        session, institution, record, contact_type="email", contact_value=email
+        session, institution, record, contact_type="email", contact_value=fields.get("email")
     )
 
 
@@ -278,6 +330,8 @@ async def _add_contact_if_present(
     *,
     contact_type: str,
     contact_value: str | None,
+    person_name: str | None = None,
+    role: str | None = None,
 ) -> None:
     if not contact_value:
         return
@@ -294,6 +348,8 @@ async def _add_contact_if_present(
                 institution_id=institution.id,
                 contact_type=contact_type,
                 contact_value=contact_value,
+                person_name=person_name,
+                role=role,
             )
         )
     session.add(
@@ -537,6 +593,14 @@ async def attach_record_to_institution(
 
         if not target_branch.address and fields["address"]:
             target_branch.address = fields["address"]
+        # city/country_code are NOT NULL, so a branch created without real
+        # values always holds the UNKNOWN sentinels rather than being
+        # blank -- backfill only replaces those sentinels, the same
+        # fill-if-missing policy as address above.
+        if target_branch.city == _UNKNOWN_CITY and fields.get("city"):
+            target_branch.city = fields["city"]
+        if target_branch.country_code == _UNKNOWN_COUNTRY_CODE and fields.get("country_code"):
+            target_branch.country_code = fields["country_code"]
         # provider_ids is a plain JSONB column (no MutableDict tracking), so
         # mutating the existing dict/list in place would never be detected
         # as a change -- reassign a new dict (with a new list for this

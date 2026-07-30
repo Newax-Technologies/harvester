@@ -100,3 +100,27 @@ async def test_import_authorized_runs_pipeline_with_csv_and_source_reference(tmp
     )
     assert len(records) == 1
     assert records[0].raw_payload["source_reference"] == "license-2026-education-directory"
+
+
+@pytest.mark.asyncio
+async def test_linkedin_farm_run_aborts_when_proxies_file_missing(tmp_path):
+    # An operator explicitly supplying --proxies-file wants every account
+    # launched behind a residential proxy -- silently continuing with an
+    # empty proxy map would launch every burner account from the host's
+    # real IP, exposing and correlating "isolated" accounts by shared
+    # origin, exactly what the proxy was meant to prevent.
+    from lead_harvester import cli
+
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("https://linkedin.com/in/alice\n")
+
+    args = argparse.Namespace(
+        accounts="burner_01",
+        urls_file=str(urls_file),
+        proxies_file=str(tmp_path / "does-not-exist-proxies.txt"),
+        captcha_key="",
+    )
+
+    result = await cli._linkedin_farm_run(args)
+
+    assert result == 1

@@ -14,7 +14,7 @@ from .models.provenance import FieldProvenance
 from .models.resolution import ResolutionCandidate
 from .resolution.normalize import normalize_domain, normalize_name, normalize_phone
 from .resolution.orchestrator import resolve_incoming_record
-from .sources.authorized_imports import AuthorizedImportRecord, parse_authorized_import_csv
+from .sources.authorized_imports import AuthorizedImportInstitution, parse_authorized_import_csv
 from .sources.geographic_tiling import build_queries_for_tile, generate_tiles
 from .sources.google_places import GooglePlacesConnector
 
@@ -37,13 +37,20 @@ class LeadPipeline:
             )
         return self._places_connector
 
-    async def run(self) -> None:
+    async def run(self) -> bool:
+        """
+        Returns True on success, False for a structural authorized-import
+        failure (see _run_authorized_import) -- the other two paths either
+        complete or raise, so they have no comparable "failed without
+        raising" case and always return True.
+        """
         if "authorized_import_file" in self.settings.job_config:
-            await self._run_authorized_import()
+            return await self._run_authorized_import()
         elif "seeds" in self.settings.job_config:
             await self._run_web_crawler()
         else:
             await self._run_google_places()
+        return True
 
     async def _run_web_crawler(self) -> None:
         import dataclasses
@@ -131,19 +138,31 @@ class LeadPipeline:
             await self._emit_resync_events(resync_ids)
         print(f"WebCrawler finished. Found {len(leads)} leads.")
 
-    async def _run_authorized_import(self) -> None:
+    async def _run_authorized_import(self) -> bool:
+        """
+        Returns True on success (including "nothing to do"), False for a
+        structural failure (missing config, unreadable/malformed CSV) --
+        the caller (cli.py's import_authorized) uses this to decide its
+        process exit code, since a scheduler or operator must not record a
+        structurally invalid import as successful just because this
+        method returned without raising.
+        """
         import asyncio
 
         import_file = self.settings.job_config.get("authorized_import_file", "")
         source_reference = self.settings.job_config.get("authorized_import_source_reference", "")
         if not import_file:
             print("No authorized_import_file provided.")
-            return
+            return False
         if not source_reference:
             print("authorized_import_source_reference is required for authorized imports.")
-            return
+            return False
 
-        csv_text = await asyncio.to_thread(Path(import_file).read_text, encoding="utf-8")
+        try:
+            csv_text = await asyncio.to_thread(Path(import_file).read_text, encoding="utf-8")
+        except OSError as e:
+            print(f"Could not read authorized import file {import_file}: {e}")
+            return False
 
         try:
             parsed = parse_authorized_import_csv(
@@ -153,7 +172,7 @@ class LeadPipeline:
             )
         except ValueError as e:
             print(f"Authorized import file is malformed: {e}")
-            return
+            return False
 
         for reason in parsed.skipped:
             print(f"[AuthorizedImport] Skipped {reason}")
@@ -171,7 +190,7 @@ class LeadPipeline:
                     source_type=SourceType.AUTHORIZED_IMPORT,
                     run_metadata={
                         "source_reference": source_reference,
-                        "rows_parsed": len(parsed.records),
+                        "institutions_parsed": len(parsed.institutions),
                         "rows_skipped": len(parsed.skipped),
                         "skipped": parsed.skipped,
                     },
@@ -183,11 +202,21 @@ class LeadPipeline:
                 try:
                     await self._retry_stranded_records(session, run, resync_ids)
 
-                    for row_number, row in enumerate(parsed.records, start=1):
-                        record = self._build_authorized_import_record(run, row, row_number)
+                    skipped_existing = 0
+                    for institution in parsed.institutions:
+                        if await self._authorized_import_already_exists(session, institution):
+                            skipped_existing += 1
+                            continue
+                        record = self._build_authorized_import_record(run, institution)
                         session.add(record)
                         await session.flush()
                         await self._resolve_or_log(session, run, record, resync_ids)
+
+                    if skipped_existing:
+                        run.run_metadata = {
+                            **run.run_metadata,
+                            "institutions_already_imported": skipped_existing,
+                        }
 
                     run.status = RunStatus.COMPLETED
                     run.completed_at = datetime.datetime.now(datetime.UTC)
@@ -200,26 +229,58 @@ class LeadPipeline:
                     await session.commit()
         finally:
             await self._emit_resync_events(resync_ids)
-        print(f"Authorized import finished. Processed {len(parsed.records)} row(s).")
+        print(f"Authorized import finished. Processed {len(parsed.institutions)} institution(s).")
+        return True
+
+    @staticmethod
+    async def _authorized_import_already_exists(
+        session, institution: AuthorizedImportInstitution
+    ) -> bool:
+        """
+        Re-importing the exact same institution (even from a re-ordered or
+        appended-to file, since source_id is now content-derived rather
+        than positional -- see AuthorizedImportInstitution.source_id)
+        would otherwise still create a brand-new RawSourceRecord every
+        time, which the resolution pipeline's blocking strategies have no
+        way to recognize as the same institution it already resolved
+        (phone/domain/geography blocking doesn't consider source_id), so
+        every rerun of an unchanged file minted another duplicate
+        canonical institution. Skip creating a new record entirely when
+        this exact institution was already imported.
+        """
+        stmt = select(RawSourceRecord.id).where(
+            RawSourceRecord.source_type == SourceType.AUTHORIZED_IMPORT,
+            RawSourceRecord.source_id == institution.source_id,
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none() is not None
 
     @staticmethod
     def _build_authorized_import_record(
-        run: SourceRun, row: AuthorizedImportRecord, row_number: int
+        run: SourceRun, institution: AuthorizedImportInstitution
     ) -> RawSourceRecord:
         import dataclasses
 
+        phone_contact = next(
+            (c for c in institution.contacts if c.contact_type == "phone" and c.contact_value),
+            None,
+        )
         return RawSourceRecord(
             source_run_id=run.id,
             source_type=SourceType.AUTHORIZED_IMPORT,
-            source_id=f"{row.source_reference}:{row_number}",
-            raw_payload=dataclasses.asdict(row),
-            normalized_name=normalize_name(row.institution_name),
+            source_id=institution.source_id,
+            raw_payload=dataclasses.asdict(institution),
+            normalized_name=normalize_name(institution.institution_name),
             normalized_phone=(
-                normalize_phone(row.contact_value, default_region=row.country_code)
-                if row.contact_type == "phone" and row.contact_value
+                normalize_phone(
+                    phone_contact.contact_value, default_region=institution.country_code
+                )
+                if phone_contact
                 else None
             ),
-            normalized_domain=(normalize_domain(row.website) if row.website else None),
+            normalized_domain=(
+                normalize_domain(institution.website) if institution.website else None
+            ),
             location=None,
         )
 

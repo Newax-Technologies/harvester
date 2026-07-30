@@ -263,9 +263,23 @@ async def test_display_fields_handles_authorized_import_shape(source_run):
         raw_payload={
             "institution_name": "Beacon School",
             "address": "1 Main St",
+            "city": "Karachi",
+            "country_code": "PK",
             "institution_type": "school",
-            "contact_type": "email",
-            "contact_value": "admissions@beacon.edu",
+            "contacts": [
+                {
+                    "contact_type": "email",
+                    "contact_value": "admissions@beacon.edu",
+                    "person_name": "",
+                    "role": "",
+                },
+                {
+                    "contact_type": "whatsapp",
+                    "contact_value": "+923001234567",
+                    "person_name": "Ali Khan",
+                    "role": "Principal",
+                },
+            ],
         },
         normalized_name=normalize_name("Beacon School"),
         normalized_phone=None,
@@ -276,6 +290,9 @@ async def test_display_fields_handles_authorized_import_shape(source_run):
     assert fields["name"] == "Beacon School"
     assert fields["email"] == "admissions@beacon.edu"
     assert fields["institution_type"] == "school"
+    assert fields["city"] == "Karachi"
+    assert fields["country_code"] == "PK"
+    assert len(fields["declared_contacts"]) == 2
 
 
 @pytest.mark.asyncio
@@ -638,3 +655,113 @@ async def test_merge_records_creates_email_contact_for_email_only_website_lead(
     assert len(contacts) == 1
     assert contacts[0].contact_type == "email"
     assert contacts[0].contact_value == "admissions@beacon.edu"
+
+
+def _authorized_import_record(source_run_id, **payload_overrides):
+    from lead_harvester.models.source import RawSourceRecord, SourceType
+    from lead_harvester.resolution.normalize import normalize_name
+
+    payload = {
+        "institution_name": "Beacon House School",
+        "institution_type": "school",
+        "website": "",
+        "address": "",
+        "city": "",
+        "country_code": "",
+        "country": "",
+        "notes": "",
+        "source_reference": "license-2026",
+        "contacts": [],
+    }
+    payload.update(payload_overrides)
+    return RawSourceRecord(
+        source_run_id=source_run_id,
+        source_type=SourceType.AUTHORIZED_IMPORT,
+        source_id="license-2026:test",
+        raw_payload=payload,
+        normalized_name=normalize_name(payload["institution_name"]),
+        normalized_phone=None,
+        normalized_domain=None,
+        location=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_merge_records_writes_every_declared_contact_for_authorized_import(
+    db_session, source_run
+):
+    # merger.py's contact-writing path previously only ever wrote a single
+    # phone (from normalized_phone) + a single email, discarding any other
+    # contact_type (whatsapp/telegram/other) entirely and losing
+    # person_name/role even for the phone/email contacts it did keep.
+    record = _authorized_import_record(
+        source_run.id,
+        contacts=[
+            {
+                "contact_type": "phone",
+                "contact_value": "+923001234567",
+                "person_name": "Ali Khan",
+                "role": "Principal",
+            },
+            {
+                "contact_type": "whatsapp",
+                "contact_value": "+923009999999",
+                "person_name": "",
+                "role": "",
+            },
+        ],
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [record])
+    await db_session.flush()
+
+    contacts = (
+        (
+            await db_session.execute(
+                select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert {c.contact_type for c in contacts} == {"phone", "whatsapp"}
+    phone = next(c for c in contacts if c.contact_type == "phone")
+    assert phone.person_name == "Ali Khan"
+    assert phone.role == "Principal"
+
+
+@pytest.mark.asyncio
+async def test_merge_records_populates_branch_city_and_country_code_from_authorized_import(
+    db_session, source_run
+):
+    # _build_branch previously always wrote the UNKNOWN sentinel for
+    # city/country_code regardless of what the source actually supplied --
+    # display_fields never exposed those fields for _synthesize_branch_fields
+    # to pick up, so a valid spreadsheet location was stranded in the raw
+    # payload only.
+    record = _authorized_import_record(
+        source_run.id,
+        city="Karachi",
+        country_code="PK",
+        contacts=[
+            {
+                "contact_type": "phone",
+                "contact_value": "+923001234567",
+                "person_name": "",
+                "role": "",
+            }
+        ],
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [record])
+    await db_session.flush()
+
+    branch = (
+        await db_session.execute(select(Branch).where(Branch.institution_id == institution.id))
+    ).scalar_one()
+    assert branch.city == "Karachi"
+    assert branch.country_code == "PK"

@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.config import Settings
-from lead_harvester.models.canonical import CanonicalInstitution
+from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.source import RawSourceRecord, SourceRun, SourceType
 from lead_harvester.pipeline import LeadPipeline
 
@@ -52,7 +52,8 @@ async def test_run_authorized_import_creates_source_run_and_records(
         "lead_harvester.pipeline.get_session", lambda: _fake_get_session(db_session)
     )
 
-    await pipeline.run()
+    success = await pipeline.run()
+    assert success is True
 
     run = (
         await db_session.execute(
@@ -60,7 +61,7 @@ async def test_run_authorized_import_creates_source_run_and_records(
         )
     ).scalar_one()
     assert run.run_metadata["source_reference"] == "license-2026-education-directory"
-    assert run.run_metadata["rows_parsed"] == 2
+    assert run.run_metadata["institutions_parsed"] == 2
     assert run.run_metadata["rows_skipped"] == 1
 
     records = (
@@ -80,6 +81,130 @@ async def test_run_authorized_import_creates_source_run_and_records(
     institutions = (await db_session.execute(select(CanonicalInstitution))).scalars().all()
     assert {i.canonical_name for i in institutions} == {"Beacon House School", "Riverside Academy"}
 
+    beacon = next(i for i in institutions if i.canonical_name == "Beacon House School")
+    branch = (
+        await db_session.execute(select(Branch).where(Branch.institution_id == beacon.id))
+    ).scalar_one()
+    assert branch.city == "Karachi"
+    assert branch.country_code == "PK"
+
+    contact = (
+        await db_session.execute(
+            select(ContactPoint).where(ContactPoint.institution_id == beacon.id)
+        )
+    ).scalar_one()
+    assert contact.contact_type == "phone"
+    assert contact.person_name == "Ali Khan"
+    assert contact.role == "Principal"
+
+
+@pytest.mark.asyncio
+async def test_run_authorized_import_preserves_non_phone_email_contacts(
+    tmp_path, db_session, monkeypatch
+):
+    csv_path = tmp_path / "leads.csv"
+    csv_path.write_text(
+        "institution_name,contact_type,contact_value,person_name,role\n"
+        "Beacon House School,whatsapp,+923001234567,Ali Khan,Admissions Officer\n"
+    )
+
+    pipeline = LeadPipeline(
+        _settings(
+            {
+                "authorized_import_file": str(csv_path),
+                "authorized_import_source_reference": "license-2026",
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "lead_harvester.pipeline.get_session", lambda: _fake_get_session(db_session)
+    )
+
+    await pipeline.run()
+
+    contact = (await db_session.execute(select(ContactPoint))).scalar_one()
+    assert contact.contact_type == "whatsapp"
+    assert contact.contact_value == "+923001234567"
+    assert contact.person_name == "Ali Khan"
+    assert contact.role == "Admissions Officer"
+
+
+@pytest.mark.asyncio
+async def test_run_authorized_import_groups_multi_contact_rows_into_one_institution(
+    tmp_path, db_session, monkeypatch
+):
+    # Two rows for the same school (a phone contact and an email contact)
+    # previously became two independent raw records with no shared
+    # phone/domain/geo signal for the resolution pipeline to link them --
+    # each silently became its own separate canonical institution.
+    csv_path = tmp_path / "leads.csv"
+    csv_path.write_text(
+        "institution_name,website,contact_type,contact_value,person_name,role\n"
+        "Beacon House School,https://beaconhouse.example.edu,phone,+923001234567,Ali Khan,Principal\n"
+        "Beacon House School,https://beaconhouse.example.edu,email,"
+        "admissions@beaconhouse.example.edu,,\n"
+    )
+
+    pipeline = LeadPipeline(
+        _settings(
+            {
+                "authorized_import_file": str(csv_path),
+                "authorized_import_source_reference": "license-2026",
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "lead_harvester.pipeline.get_session", lambda: _fake_get_session(db_session)
+    )
+
+    await pipeline.run()
+
+    institutions = (await db_session.execute(select(CanonicalInstitution))).scalars().all()
+    assert len(institutions) == 1
+
+    contacts = (await db_session.execute(select(ContactPoint))).scalars().all()
+    assert {c.contact_type for c in contacts} == {"phone", "email"}
+
+
+@pytest.mark.asyncio
+async def test_run_authorized_import_is_idempotent_on_rerun(tmp_path, db_session, monkeypatch):
+    csv_path = tmp_path / "leads.csv"
+    csv_path.write_text(
+        "institution_name,website,contact_type,contact_value\n"
+        "Beacon House School,https://beaconhouse.example.edu,phone,+923001234567\n"
+    )
+
+    pipeline = LeadPipeline(
+        _settings(
+            {
+                "authorized_import_file": str(csv_path),
+                "authorized_import_source_reference": "license-2026",
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "lead_harvester.pipeline.get_session", lambda: _fake_get_session(db_session)
+    )
+
+    await pipeline.run()
+    await pipeline.run()
+
+    records = (
+        (
+            await db_session.execute(
+                select(RawSourceRecord).where(
+                    RawSourceRecord.source_type == SourceType.AUTHORIZED_IMPORT
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(records) == 1
+
+    institutions = (await db_session.execute(select(CanonicalInstitution))).scalars().all()
+    assert len(institutions) == 1
+
 
 @pytest.mark.asyncio
 async def test_run_authorized_import_requires_source_reference(tmp_path, capsys):
@@ -88,13 +213,14 @@ async def test_run_authorized_import_requires_source_reference(tmp_path, capsys)
 
     pipeline = LeadPipeline(_settings({"authorized_import_file": str(csv_path)}))
 
-    await pipeline.run()
+    success = await pipeline.run()
 
+    assert success is False
     assert "source_reference is required" in capsys.readouterr().out
 
 
 @pytest.mark.asyncio
-async def test_run_authorized_import_logs_missing_column_without_raising(tmp_path, capsys):
+async def test_run_authorized_import_reports_failure_for_malformed_csv(tmp_path, capsys):
     csv_path = tmp_path / "leads.csv"
     csv_path.write_text("institution_name\nSchool A\n")  # missing contact_value column entirely
 
@@ -107,6 +233,7 @@ async def test_run_authorized_import_logs_missing_column_without_raising(tmp_pat
         )
     )
 
-    await pipeline.run()
+    success = await pipeline.run()
 
+    assert success is False
     assert "malformed" in capsys.readouterr().out

@@ -8,11 +8,22 @@ to unauthorized scraping/account automation for a source with no live API
 out of bounds; authorized imports and licensed/manual research are the
 accepted pattern").
 
-One CSV row = one institution + one contact, using the same flattened field
-shape as the manual-lead API (ManualLeadIn):
+Each CSV row declares one institution + one contact, using the same
+flattened field shape as the manual-lead API (ManualLeadIn):
   institution_name (required), institution_type, website, address, city,
   country, country_code, contact_type, contact_value (required), person_name,
   role, notes
+
+Rows are GROUPED by institution identity (normalized name + website domain,
+falling back to normalized address when there's no website) into one
+AuthorizedImportInstitution per institution, carrying every declared
+contact -- not one RawSourceRecord per row. Without this, a school listed
+across two rows (e.g. a phone contact and an email contact) produced two
+independent raw records that the resolution pipeline's blocking strategies
+(phone/domain/geography -- see resolution/blocking.py) have no way to link
+back together, since neither row alone carries a phone+geo or domain match:
+each row silently became its own separate canonical institution instead of
+one institution with two contacts.
 
 A malformed or blank row (missing institution_name/contact_value, or a row
 that raises while parsing) is skipped and logged rather than aborting the
@@ -24,12 +35,23 @@ convention (_resolve_or_log).
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from ..resolution.normalize import normalize_address, normalize_domain, normalize_name
 
 
 @dataclass(slots=True)
-class AuthorizedImportRecord:
+class AuthorizedImportContact:
+    contact_type: str
+    contact_value: str
+    person_name: str
+    role: str
+
+
+@dataclass(slots=True)
+class AuthorizedImportInstitution:
     institution_name: str
     institution_type: str
     website: str
@@ -37,21 +59,40 @@ class AuthorizedImportRecord:
     city: str
     country: str
     country_code: str
-    contact_type: str
-    contact_value: str
-    person_name: str
-    role: str
     notes: str
-    # Identifies the license/agreement or manual-research source this row
-    # came from, for compliance traceability -- distinct from per-row notes,
-    # and always the same value for every row in one import run (passed in
-    # by the caller, not read from the CSV itself).
+    # Identifies the license/agreement or manual-research source this
+    # institution came from, for compliance traceability -- distinct from
+    # per-row notes, and always the same value for every institution in one
+    # import run (passed in by the caller, not read from the CSV itself).
     source_reference: str
+    contacts: list[AuthorizedImportContact] = field(default_factory=list)
+
+    @property
+    def source_id(self) -> str:
+        """
+        A stable identity for this institution within this source_reference,
+        derived from its own normalized name + website/address rather than
+        the row's ordinal position in the file. An ordinal shifts if the
+        spreadsheet is reordered or gains a row -- an unchanged institution
+        would receive a new ID, and Branch.provider_ids/
+        find_branch_for_raw_record treat source_type+source_id as the
+        identity of an exact physical location, so a reordered rerun could
+        enrich the wrong branch or be counted as new independent evidence.
+        Re-importing the same institution (even from a re-ordered or
+        appended-to file) now produces the same source_id.
+        """
+        key_suffix = (
+            normalize_domain(self.website) if self.website else normalize_address(self.address)
+        )
+        digest = hashlib.sha256(
+            f"{normalize_name(self.institution_name)}|{key_suffix}".encode()
+        ).hexdigest()[:16]
+        return f"{self.source_reference}:{digest}"
 
 
 @dataclass(slots=True)
 class AuthorizedImportResult:
-    records: list[AuthorizedImportRecord]
+    institutions: list[AuthorizedImportInstitution]
     # One entry per skipped row: "row <n>: <reason>", 1-indexed against the
     # data rows (excluding the header), so a caller can point a human back
     # at the exact line to fix in the original file.
@@ -69,13 +110,14 @@ def parse_authorized_import_csv(
     default_country: str = "Pakistan",
 ) -> AuthorizedImportResult:
     """
-    Parses CSV text (one row = one institution + one contact) into
-    normalized AuthorizedImportRecord entries. Raises ValueError up front if
-    the header row is missing either required column -- that's a structural
-    problem with the whole file, not a single bad row, so it isn't worth
-    skip-and-continue treatment. Individual data rows missing a required
-    value, or that otherwise fail to parse, are skipped and collected into
-    `skipped` instead of raising.
+    Parses CSV text into normalized AuthorizedImportInstitution entries,
+    one per distinct institution (grouping rows that describe the same
+    institution -- see AuthorizedImportInstitution's docstring). Raises
+    ValueError up front if the header row is missing either required
+    column -- that's a structural problem with the whole file, not a
+    single bad row, so it isn't worth skip-and-continue treatment.
+    Individual data rows missing a required value, or that otherwise fail
+    to parse, are skipped and collected into `skipped` instead of raising.
     """
     reader = csv.DictReader(io.StringIO(text))
     header = set(reader.fieldnames or [])
@@ -83,32 +125,68 @@ def parse_authorized_import_csv(
     if missing:
         raise ValueError(f"CSV is missing required column(s): {', '.join(sorted(missing))}")
 
-    records: list[AuthorizedImportRecord] = []
     skipped: list[str] = []
+    groups: dict[tuple[str, str], AuthorizedImportInstitution] = {}
+    order: list[tuple[str, str]] = []
 
     for row_number, row in enumerate(reader, start=1):
         try:
-            record = _parse_row(
+            institution_fields, contact = _parse_row(
                 row,
-                source_reference=source_reference,
                 default_country_code=default_country_code,
                 default_country=default_country,
             )
         except ValueError as e:
             skipped.append(f"row {row_number}: {e}")
             continue
-        records.append(record)
 
-    return AuthorizedImportResult(records=records, skipped=skipped)
+        key = (
+            normalize_name(institution_fields["institution_name"]),
+            normalize_domain(institution_fields["website"])
+            if institution_fields["website"]
+            else normalize_address(institution_fields["address"]),
+        )
+        existing = groups.get(key)
+        if existing is None:
+            existing = AuthorizedImportInstitution(
+                **institution_fields, source_reference=source_reference
+            )
+            groups[key] = existing
+            order.append(key)
+        else:
+            # First non-empty value wins for institution-level fields, in
+            # row order -- a later row for the same institution may supply
+            # a field an earlier row left blank.
+            for attr in (
+                "institution_type",
+                "website",
+                "address",
+                "city",
+                "country",
+                "country_code",
+                "notes",
+            ):
+                if not getattr(existing, attr) and institution_fields[attr]:
+                    setattr(existing, attr, institution_fields[attr])
+
+        # Skip an exact duplicate contact (same type+value) already
+        # recorded for this institution, e.g. the same row appearing twice.
+        if not any(
+            c.contact_type == contact.contact_type and c.contact_value == contact.contact_value
+            for c in existing.contacts
+        ):
+            existing.contacts.append(contact)
+
+    institutions = [groups[key] for key in order]
+    return AuthorizedImportResult(institutions=institutions, skipped=skipped)
 
 
 def _parse_row(
     row: dict[str, str | None],
     *,
-    source_reference: str,
     default_country_code: str,
     default_country: str,
-) -> AuthorizedImportRecord:
+) -> tuple[dict[str, str], AuthorizedImportContact]:
     institution_name = (row.get("institution_name") or "").strip()
     if not institution_name:
         raise ValueError("institution_name is required")
@@ -121,18 +199,20 @@ def _parse_row(
     if len(country_code) != 2 or not country_code.isalpha():
         raise ValueError(f"country_code must be two letters, got {country_code!r}")
 
-    return AuthorizedImportRecord(
-        institution_name=institution_name,
-        institution_type=(row.get("institution_type") or "").strip() or "school",
-        website=(row.get("website") or "").strip(),
-        address=(row.get("address") or "").strip(),
-        city=(row.get("city") or "").strip(),
-        country=(row.get("country") or "").strip() or default_country,
-        country_code=country_code,
+    institution_fields = {
+        "institution_name": institution_name,
+        "institution_type": (row.get("institution_type") or "").strip() or "school",
+        "website": (row.get("website") or "").strip(),
+        "address": (row.get("address") or "").strip(),
+        "city": (row.get("city") or "").strip(),
+        "country": (row.get("country") or "").strip() or default_country,
+        "country_code": country_code,
+        "notes": (row.get("notes") or "").strip(),
+    }
+    contact = AuthorizedImportContact(
         contact_type=(row.get("contact_type") or "").strip().lower() or "phone",
         contact_value=contact_value,
         person_name=(row.get("person_name") or "").strip(),
         role=(row.get("role") or "").strip(),
-        notes=(row.get("notes") or "").strip(),
-        source_reference=source_reference,
     )
+    return institution_fields, contact
