@@ -106,6 +106,82 @@ async def test_get_review_shape(client_a, db_session):
 
 
 @pytest.mark.asyncio
+async def test_get_review_exposes_branch_and_contact_evidence_for_canonical_target(
+    client_a, db_session
+):
+    # target_data for a target_canonical_id candidate always reported
+    # address/phone as null, even when the canonical institution has real,
+    # populated Branch/ContactPoint rows -- a reviewer saw "Unknown" for
+    # two primary comparison signals raw-record targets already expose.
+    run = SourceRun(source_type=SourceType.GOOGLE_PLACES, run_metadata={}, status=RunStatus.STARTED)
+    db_session.add(run)
+    await db_session.flush()
+
+    record = _record(run.id, "Incoming School", "+923009998888", "gp-incoming")
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = CanonicalInstitution(
+        canonical_name="Existing Target School",
+        institution_type="school",
+        status=OperatingStatus.OPERATIONAL,
+        confidence_score=80.0,
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    from lead_harvester.models.canonical import ContactPoint
+
+    db_session.add(
+        Branch(
+            institution_id=institution.id,
+            branch_name="Main Campus",
+            address="42 Target Road",
+            city="Karachi",
+            country_code="PK",
+            provider_ids={},
+        )
+    )
+    db_session.add(
+        ContactPoint(
+            institution_id=institution.id,
+            contact_type="phone",
+            contact_value="+923001234567",
+        )
+    )
+
+    candidate = ResolutionCandidate(
+        raw_record_id=record.id,
+        target_canonical_id=institution.id,
+        blocking_strategy="manual_review",
+        version=1,
+    )
+    db_session.add(candidate)
+    await db_session.flush()
+
+    db_session.add(
+        MatchAssessment(
+            candidate_id=candidate.id,
+            name_similarity=0.7,
+            distance_meters=None,
+            phone_match=False,
+            domain_match=False,
+            total_score=65.0,
+            decision=MatchDecision.PENDING,
+        )
+    )
+    await db_session.commit()
+
+    response = await client_a.get(f"/api/v1/resolution-reviews/{candidate.id}")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["target_data"]["name"] == "Existing Target School"
+    assert body["target_data"]["address"] == "42 Target Road"
+    assert body["target_data"]["phone"] == "+923001234567"
+
+
+@pytest.mark.asyncio
 async def test_merge_decision_attaches_records_to_one_institution(client_a, db_session):
     candidate, record, target = await _seed_pending_pair(db_session)
 

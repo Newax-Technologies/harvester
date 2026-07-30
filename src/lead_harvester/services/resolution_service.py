@@ -22,7 +22,7 @@ from lead_harvester.canonical.merger import (
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.integrations.lead_sync_resync import resync_institution
 from lead_harvester.models.audit import AuditLog
-from lead_harvester.models.canonical import CanonicalInstitution
+from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.resolution import (
     MatchAssessment,
@@ -253,10 +253,32 @@ async def _target_evidence(session: AsyncSession, candidate: ResolutionCandidate
     elif candidate.target_canonical_id:
         institution = await session.get(CanonicalInstitution, candidate.target_canonical_id)
         if institution:
+            # A candidate can target a canonical institution directly (no
+            # specific prior raw record -- see _apply_decision's
+            # target_canonical_id branch), but that institution can still
+            # have real, populated Branch/ContactPoint rows -- address/phone
+            # were always reported null regardless, so a reviewer saw
+            # "Unknown" for two primary comparison signals raw-record
+            # targets already expose, even when the data existed.
+            branch = (
+                await session.execute(
+                    select(Branch).where(Branch.institution_id == institution.id).limit(1)
+                )
+            ).scalar_one_or_none()
+            phone_contact = (
+                await session.execute(
+                    select(ContactPoint)
+                    .where(
+                        ContactPoint.institution_id == institution.id,
+                        ContactPoint.contact_type == "phone",
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
             return {
                 "name": institution.canonical_name,
-                "address": None,
-                "phone": None,
+                "address": branch.address if branch else None,
+                "phone": phone_contact.contact_value if phone_contact else None,
                 "website": institution.website,
             }
     return {"name": "Unknown", "address": None, "phone": None, "website": None}
