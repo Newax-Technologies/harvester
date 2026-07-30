@@ -15,6 +15,7 @@ from lead_harvester.api.routes import (
     institutions,
     lead_profiles,
     manual_leads,
+    operations,
     outbox,
     resolution_reviews,
     verification,
@@ -96,5 +97,6 @@ api_router.include_router(verification.router)
 api_router.include_router(compliance.router)
 api_router.include_router(outbox.router)
 api_router.include_router(exports.router)
+api_router.include_router(operations.router)
 
 app.include_router(api_router)

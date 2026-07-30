@@ -405,6 +405,60 @@ async def export_leads(args: argparse.Namespace) -> int:
     return 0
 
 
+async def ops_health(args: argparse.Namespace) -> int:
+    """Print a real health signal: DB reachability + any SourceRuns stuck in STARTED (docs/ROADMAP.md module 15)."""
+    from .database import get_session
+    from .services.operations_service import check_health
+
+    async with get_session() as session:
+        result = await check_health(session)
+
+    status = "HEALTHY" if result["healthy"] else "UNHEALTHY"
+    print(f"\n[Health] {status}")
+    print(f"  database_ok: {result['database_ok']}")
+    print(f"  stuck_run_count: {result['stuck_run_count']}")
+    if result["stuck_run_ids"]:
+        print(f"  stuck_run_ids: {', '.join(result['stuck_run_ids'])}")
+    print()
+    return 0 if result["healthy"] else 1
+
+
+async def ops_metrics(args: argparse.Namespace) -> int:
+    """Print aggregated operational counts across every module (docs/ROADMAP.md module 15)."""
+    from .database import get_session
+    from .services.operations_service import compute_operational_metrics
+
+    async with get_session() as session:
+        metrics = await compute_operational_metrics(session)
+
+    print("\n[Metrics]")
+    for key, value in metrics.items():
+        if key == "recent_pipeline_activity":
+            continue
+        print(f"  {key}: {value}")
+    print()
+    return 0
+
+
+async def ops_source_health(args: argparse.Namespace) -> int:
+    """Print per-source-type run health (docs/ROADMAP.md module 15)."""
+    from .database import get_session
+    from .services.operations_service import compute_source_health
+
+    async with get_session() as session:
+        health = await compute_source_health(session)
+
+    print("\n[Source Health]")
+    for entry in health:
+        print(
+            f"  {entry['source_type']}: last_run={entry['last_run_status']} "
+            f"at {entry['last_run_at']}, last_success={entry['last_successful_run_at']}, "
+            f"failed_last_7d={entry['failed_run_count_last_7d']}"
+        )
+    print()
+    return 0
+
+
 async def linkedin_send(args: argparse.Namespace) -> int:
     """
     Send all approved OutreachDraft records (LinkedIn messages or emails).
@@ -620,6 +674,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit", type=int, default=1000, help="Max institutions to include"
     )
 
+    # -- ops-health -----------------------------------------------------------
+    subparsers.add_parser(
+        "ops-health",
+        help="Check DB reachability and surface any SourceRuns stuck in STARTED",
+    )
+
+    # -- ops-metrics ------------------------------------------------------------
+    subparsers.add_parser(
+        "ops-metrics",
+        help="Print aggregated operational counts across every module",
+    )
+
+    # -- ops-source-health --------------------------------------------------
+    subparsers.add_parser(
+        "ops-source-health",
+        help="Print per-source-type run health (last run, last success, recent failures)",
+    )
+
     # -- linkedin-send ------------------------------------------------------
     li_send = subparsers.add_parser(
         "linkedin-send",
@@ -725,6 +797,9 @@ def main() -> None:
         "purge-expired-records": lambda: sys.exit(asyncio.run(purge_expired_records(args))),
         "process-outbox": lambda: sys.exit(asyncio.run(process_outbox(args))),
         "export-leads": lambda: sys.exit(asyncio.run(export_leads(args))),
+        "ops-health": lambda: sys.exit(asyncio.run(ops_health(args))),
+        "ops-metrics": lambda: sys.exit(asyncio.run(ops_metrics(args))),
+        "ops-source-health": lambda: sys.exit(asyncio.run(ops_source_health(args))),
         "linkedin-send": lambda: sys.exit(asyncio.run(linkedin_send(args))),
         "linkedin-status": lambda: _linkedin_status(args),
         "linkedin-farm-run": lambda: sys.exit(asyncio.run(_linkedin_farm_run(args))),

@@ -236,8 +236,27 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   summarized per-institution (primary city/country, branch count) rather than joined per-row.
 - **Manual Lead Intake**: exists and correctly scoped — `manual_leads.py::create_manual_lead`
   is the one connected, live write path today.
-- **Operations and Administration**: partial (`services/dashboard_service.py` and dashboard
-  routes); no job_management/source_health/failure_queue as a distinct module.
+- **Operations and Administration**: done for v1 scope, as a read/aggregate layer over data
+  every other module already writes -- no new tables. `services/operations_service.py`:
+  `list_source_runs`/`get_source_run_detail` give `job_management` a real read API over the
+  existing `SourceRun`/`RawSourceRecord` tables; `compute_source_health` reports each
+  `SourceType`'s last run, last success, and 7-day failure count; `list_stranded_records` is
+  read-only visibility into exactly the same "stranded" set `pipeline.py`'s
+  `_retry_stranded_records` already self-heals every run (reuses its eligibility list directly
+  rather than restating it, so the two can't drift), giving `failure_queue` an inspectable view
+  without duplicating the retry logic that already exists; `list_audit_log` is the first read
+  API over `AuditLog` (previously write-only -- populated by `resolution_service.py`/
+  `draft_review_service.py` but nothing ever read it back); `get_sanitized_config` exposes an
+  explicit allowlist of `Settings` fields (not a blocklist), so a future secret field can never
+  leak through it just because nobody remembered to exclude it; `compute_operational_metrics`
+  extends `DashboardService.get_summary` (reused, not recomputed) with outbox/data-quality/
+  suppression counts from the modules that landed after the dashboard was built;
+  `check_health` is a real check (an actual `SELECT 1`, plus detecting any `SourceRun` stuck in
+  `STARTED` past a threshold -- a strong crashed-worker signal) rather than the trivial
+  always-"ok" `/api/v1/health`. Invokable via the `ops-health`/`ops-metrics`/
+  `ops-source-health` CLI commands or `GET /api/v1/operations/*`. Known v1 limitation: no
+  `admin_api` write surface (e.g. manually cancelling a stuck run, editing `job_config`) --
+  every endpoint here is read-only by design for this increment.
 
 **Boundary conflict worth a decision, not silently resolved here**: `outreach/` (drafting +
 `automator.py`, which sends LinkedIn messages and emails) and LinkedIn-stealth message-sending
