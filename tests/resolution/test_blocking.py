@@ -128,6 +128,46 @@ async def test_generate_candidates_keeps_strongest_match_not_first_encountered(
 
 
 @pytest.mark.asyncio
+async def test_generate_candidates_ranks_geo_name_siblings_by_actual_quality(
+    db_session, source_run
+):
+    # Both siblings qualify for the SAME "geo_name" strategy (both within
+    # 500m and above the 0.4 name-similarity threshold), but strong is an
+    # exact name match at the identical location while weak is a looser
+    # name match ~490m away -- much weaker evidence. Ranking by strategy
+    # label alone treats them as interchangeable and could keep whichever
+    # the unordered query returns first; ranking must also use the actual
+    # distance/similarity to prefer strong.
+    weak = google_places_record(
+        source_run.id, name="Downtown Campus", phone=None, website=None, lat=24.8651, lng=67.0011
+    )
+    strong = google_places_record(
+        source_run.id, name="Downtown Academy", phone=None, website=None, lat=24.8607, lng=67.0011
+    )
+    db_session.add_all([weak, strong])
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [weak, strong])
+    await db_session.flush()
+
+    d = google_places_record(
+        source_run.id, name="Downtown Academy", phone=None, website=None, lat=24.8607, lng=67.0011
+    )
+    db_session.add(d)
+    await db_session.flush()
+
+    candidates = await generate_candidates(db_session, d)
+
+    assert len(candidates) == 1
+    assert candidates[0].target_raw_record_id == strong.id
+    assert candidates[0].blocking_strategy == "geo_name"
+
+    result = await resolve_incoming_record(db_session, d)
+    assert result is not None
+    assert result.id == institution.id
+
+
+@pytest.mark.asyncio
 async def test_generate_candidates_does_not_dedupe_unresolved_matches(db_session, source_run):
     # Two records sharing a phone that have NOT yet been canonicalized are
     # each a genuine, independent candidate (a human may need to review

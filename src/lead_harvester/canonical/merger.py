@@ -99,7 +99,13 @@ def display_fields(record: RawSourceRecord) -> dict[str, str | None]:
         }
 
     if record.source_type == SourceType.MANUAL:
-        name = record.normalized_name or payload.get("institution_name", "Unknown")
+        # Same reasoning as the Google Places/WEBSITE branches above:
+        # normalized_name is always populated for manual entries too, so it
+        # would otherwise always win and discard the user-entered casing --
+        # showing the resolution queue's matching key instead of what the
+        # user actually typed when a later scraped record is compared
+        # against this one.
+        name = payload.get("institution_name") or record.normalized_name or "Unknown"
         return {
             "name": name,
             "address": payload.get("address", ""),
@@ -398,6 +404,17 @@ async def attach_record_to_institution(
         institution.website = fields["website"]
     if not institution.domain and record.normalized_domain:
         institution.domain = record.normalized_domain
+    # Unlike website/domain (fill-if-missing, since those don't change once
+    # known), operating status is a point-in-time fact that a rediscovery
+    # can genuinely update in either direction (closed permanently, or
+    # reopened) -- _operating_status was previously only ever consulted
+    # when FIRST creating an institution, so a place that later closed kept
+    # showing OPERATIONAL indefinitely and could still proceed into
+    # qualification/outreach. Always trust the newest record's asserted
+    # status (when it asserts one at all).
+    new_status = _operating_status(record)
+    if new_status != OperatingStatus.UNKNOWN:
+        institution.status = new_status
 
     if target_branch is not None:
         if not target_branch.address and fields["address"]:

@@ -48,6 +48,17 @@ class ContactEntry(BaseModel):
     person_name: str | None = None
     role: str | None = None
 
+    @field_validator("contact_type")
+    @classmethod
+    def _normalize_contact_type(cls, value: str) -> str:
+        # Every downstream exact-match comparison (this route's own
+        # first_phone/phone-normalization lookups by contact_type == "phone",
+        # LeadSyncEmitter.SUPPORTED_CONTACT_TYPES) expects the exact lowercase
+        # form -- a caller sending "Phone" or " phone " would otherwise pass
+        # this unconstrained field but silently fail every one of those
+        # comparisons, leaving the contact unnormalized and dropped from sync.
+        return value.strip().lower()
+
 
 class ManualLeadIn(BaseModel):
     # Institution

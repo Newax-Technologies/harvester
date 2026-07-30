@@ -215,6 +215,42 @@ async def test_create_manual_lead_normalizes_phone_and_domain_with_shared_helper
 
 
 @pytest.mark.asyncio
+async def test_create_manual_lead_normalizes_contact_type_casing(
+    manual_leads_client, db_session, fake_emitter
+):
+    # contact_type is compared exact-match against "phone" (this route's own
+    # normalized_phone extraction, ContactPoint value normalization) and
+    # against LeadSyncEmitter.SUPPORTED_CONTACT_TYPES -- a caller sending
+    # "Phone" instead of "phone" must not silently fail every one of those
+    # comparisons.
+    payload = {
+        **VALID_PAYLOAD,
+        "institution_name": "Casing Test School",
+        "contacts": [
+            {
+                "contact_type": "Phone",
+                "contact_value": "+92 300 111 2222",
+                "person_name": "Test Person",
+                "role": "Admin",
+            }
+        ],
+    }
+    response = await manual_leads_client.post("/api/v1/leads/manual", json=payload)
+    assert response.status_code == 201
+
+    record = (
+        await db_session.execute(
+            select(RawSourceRecord).where(RawSourceRecord.normalized_name == "casing test school")
+        )
+    ).scalar_one()
+    assert record.normalized_phone == normalize_phone("+92 300 111 2222")
+
+    args, _ = fake_emitter.emit_institution_upserted.call_args
+    _, _, contact_points = args
+    assert contact_points[0].contact_type == "phone"
+
+
+@pytest.mark.asyncio
 async def test_create_manual_lead_writes_branch_membership_provenance(
     manual_leads_client, db_session
 ):

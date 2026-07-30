@@ -1,7 +1,7 @@
 import uuid
 
 from geoalchemy2 import Geography
-from geoalchemy2.functions import ST_DWithin
+from geoalchemy2.functions import ST_Distance, ST_DWithin
 from sqlalchemy import cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +24,45 @@ GEOGRAPHIC_DISTANCE_METERS = 500
 # match that actually carries strong evidence in favor of a weaker one,
 # understating the eventual score_candidate result.
 _STRATEGY_PRIORITY = {"geo_name": 0, "domain": 1, "phone": 2}
+
+
+class _MatchInfo:
+    """
+    What generate_candidates knows about one matched record: the strongest
+    strategy it qualified under, plus (for geo_name matches only, where the
+    underlying query already computes them) the actual distance/name
+    similarity -- used to break ties WITHIN the geo_name tier itself. Two
+    geo_name matches aren't equally good just because they're both
+    geo_name: a 490m/0.4-similarity match is much weaker evidence than a
+    10m/1.0-similarity match, and picking the DB's arbitrary first row
+    within that tier could keep the weak one and lose the strong one.
+    Phone/domain matches have no comparable graduated quality signal (an
+    exact phone or domain match is categorically binary), so they sort
+    after every geo_name match regardless, and ties among themselves stay
+    in encounter order.
+    """
+
+    __slots__ = ("distance_meters", "name_similarity", "strategy")
+
+    def __init__(
+        self,
+        strategy: str,
+        distance_meters: float | None = None,
+        name_similarity: float | None = None,
+    ) -> None:
+        self.strategy = strategy
+        self.distance_meters = distance_meters
+        self.name_similarity = name_similarity
+
+    def sort_key(self) -> tuple[int, float, float]:
+        return (
+            _STRATEGY_PRIORITY[self.strategy],
+            self.distance_meters if self.distance_meters is not None else float("inf"),
+            -(self.name_similarity if self.name_similarity is not None else 0.0),
+        )
+
+    def is_better_than(self, other: "_MatchInfo") -> bool:
+        return self.sort_key() < other.sort_key()
 
 
 async def _canonical_ids_by_raw_record(
@@ -61,22 +100,28 @@ async def generate_candidates(
     (and persisting a permanent ResolutionCandidate/MatchAssessment row for)
     every other already-represented sibling is pure waste that grows
     unboundedly with repeated ingestion. The kept representative is the one
-    matched via the STRONGEST strategy (see _STRATEGY_PRIORITY), not merely
-    whichever the DB happened to return first -- an arbitrary weak (phone)
-    match could otherwise shadow a same-institution sibling that actually
-    matched on name+location, understating the eventual score. Still-
-    unresolved matches are never deduplicated this way -- each is a genuine,
-    independent candidate that may need its own review/merge decision.
+    with the strongest evidence -- ranked first by strategy (see
+    _STRATEGY_PRIORITY), then by actual distance/name-similarity within the
+    geo_name tier (see _MatchInfo) -- not merely whichever the DB happened
+    to return first. Still-unresolved matches are never deduplicated this
+    way -- each is a genuine, independent candidate that may need its own
+    review/merge decision.
     """
-    # record_id -> the strongest strategy that matched it, across all three
+    # record_id -> the strongest match info seen for it, across all three
     # blocking queries (a record can qualify via more than one).
-    matched_strategy: dict[uuid.UUID, str] = {}
+    matched_info: dict[uuid.UUID, _MatchInfo] = {}
 
-    def _note_matches(matched_ids: list[uuid.UUID], strategy: str) -> None:
-        for rid in matched_ids:
-            current = matched_strategy.get(rid)
-            if current is None or _STRATEGY_PRIORITY[strategy] < _STRATEGY_PRIORITY[current]:
-                matched_strategy[rid] = strategy
+    def _note_matches(rows, strategy: str, *, has_quality: bool = False) -> None:
+        for row in rows:
+            if has_quality:
+                rid, distance, similarity = row
+                info = _MatchInfo(strategy, distance, similarity)
+            else:
+                info = _MatchInfo(strategy)
+                rid = row
+            current = matched_info.get(rid)
+            if current is None or info.is_better_than(current):
+                matched_info[rid] = info
 
     # Strategy 1: Exact Phone Match
     if record.normalized_phone:
@@ -108,28 +153,29 @@ async def generate_candidates(
         # ("function st_dwithin(geography, character varying, ...) does not
         # exist" otherwise).
         # We only want records that are physically close AND have similar names.
-        stmt = select(RawSourceRecord.id).where(
+        record_geog = cast(record.location, Geography)
+        similarity_col = func.similarity(RawSourceRecord.normalized_name, record.normalized_name)
+        stmt = select(
+            RawSourceRecord.id,
+            ST_Distance(RawSourceRecord.location, record_geog),
+            similarity_col,
+        ).where(
             RawSourceRecord.id != record.id,
             RawSourceRecord.location.is_not(None),
-            ST_DWithin(
-                RawSourceRecord.location,
-                cast(record.location, Geography),
-                GEOGRAPHIC_DISTANCE_METERS,
-            ),
-            func.similarity(RawSourceRecord.normalized_name, record.normalized_name)
-            >= NAME_SIMILARITY_THRESHOLD,
+            ST_DWithin(RawSourceRecord.location, record_geog, GEOGRAPHIC_DISTANCE_METERS),
+            similarity_col >= NAME_SIMILARITY_THRESHOLD,
         )
         result = await session.execute(stmt)
-        _note_matches(list(result.scalars()), "geo_name")
+        _note_matches(result.all(), "geo_name", has_quality=True)
 
-    if not matched_strategy:
+    if not matched_info:
         return []
 
-    canonical_by_record = await _canonical_ids_by_raw_record(session, list(matched_strategy))
+    canonical_by_record = await _canonical_ids_by_raw_record(session, list(matched_info))
 
     candidates = []
     best_per_canonical: dict[uuid.UUID, uuid.UUID] = {}
-    for rid, strategy in matched_strategy.items():
+    for rid, info in matched_info.items():
         canonical_id = canonical_by_record.get(rid)
         if canonical_id is None:
             # Not yet resolved -- always its own independent candidate.
@@ -137,15 +183,13 @@ async def generate_candidates(
                 ResolutionCandidate(
                     raw_record_id=record.id,
                     target_raw_record_id=rid,
-                    blocking_strategy=strategy,
+                    blocking_strategy=info.strategy,
                 )
             )
             continue
 
-        current_best = best_per_canonical.get(canonical_id)
-        if current_best is None or (
-            _STRATEGY_PRIORITY[strategy] < _STRATEGY_PRIORITY[matched_strategy[current_best]]
-        ):
+        current_best_id = best_per_canonical.get(canonical_id)
+        if current_best_id is None or info.is_better_than(matched_info[current_best_id]):
             best_per_canonical[canonical_id] = rid
 
     for rid in best_per_canonical.values():
@@ -153,7 +197,7 @@ async def generate_candidates(
             ResolutionCandidate(
                 raw_record_id=record.id,
                 target_raw_record_id=rid,
-                blocking_strategy=matched_strategy[rid],
+                blocking_strategy=matched_info[rid].strategy,
             )
         )
 

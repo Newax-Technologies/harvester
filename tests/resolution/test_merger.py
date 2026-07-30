@@ -126,6 +126,28 @@ async def test_display_fields_handles_website_shape(source_run):
 
 
 @pytest.mark.asyncio
+async def test_display_fields_handles_manual_shape(source_run):
+    from lead_harvester.models.source import RawSourceRecord, SourceType
+    from lead_harvester.resolution.normalize import normalize_name
+
+    # normalized_name is always populated for manual entries too (matches
+    # manual_leads.py::create_manual_lead) -- must not shadow the
+    # user-entered casing in raw_payload["institution_name"].
+    record = RawSourceRecord(
+        source_run_id=source_run.id,
+        source_type=SourceType.MANUAL,
+        source_id="manual:test123",
+        raw_payload={"institution_name": "Beacon School", "address": "1 Main St"},
+        normalized_name=normalize_name("Beacon School"),
+        normalized_phone=None,
+        normalized_domain=None,
+        location=None,
+    )
+    fields = display_fields(record)
+    assert fields["name"] == "Beacon School"
+
+
+@pytest.mark.asyncio
 async def test_display_fields_prefers_full_website_url_over_bare_domain(source_run):
     # normalized_domain is a bare host ("beacon.edu"), used for blocking, and
     # is truthy whenever a website exists at all -- it must not shadow the
@@ -231,6 +253,39 @@ async def test_attach_record_to_institution_caps_confidence_score_at_100(db_sess
     await db_session.flush()
 
     assert institution.confidence_score == 100.0
+
+
+@pytest.mark.asyncio
+async def test_attach_record_to_institution_refreshes_operating_status(db_session, source_run):
+    # A rediscovered Google Place's businessStatus can change between scrapes
+    # -- attach_record_to_institution previously only ever consulted
+    # _operating_status when FIRST creating an institution, so a place that
+    # later closed permanently kept showing OPERATIONAL indefinitely.
+    a = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone="+923001111111",
+        business_status="OPERATIONAL",
+    )
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+    assert institution.status == OperatingStatus.OPERATIONAL
+
+    b = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone="+923002222222",
+        business_status="CLOSED_PERMANENTLY",
+    )
+    db_session.add(b)
+    await db_session.flush()
+
+    await attach_record_to_institution(db_session, b, institution, target_branch=None)
+    await db_session.flush()
+
+    assert institution.status == OperatingStatus.CLOSED_PERMANENTLY
 
 
 @pytest.mark.asyncio
