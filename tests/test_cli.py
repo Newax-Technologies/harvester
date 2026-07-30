@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.source import RawSourceRecord, SourceType
+from lead_harvester.sources.account_farm import AccountResult
 from lead_harvester.sources.linkedin_stealth import LinkedInProfile
 
 
@@ -237,6 +238,94 @@ async def test_linkedin_farm_run_defaults_vertical_and_target_city_to_unknown(tm
         target_city="unknown",
         noise_urls=None,
     )
+
+
+@pytest.mark.asyncio
+async def test_linkedin_farm_run_returns_failure_when_every_account_errors(tmp_path):
+    # AccountFarm.run() previously returned its list of AccountResult but
+    # _linkedin_farm_run always returned 0 regardless -- a scheduler had no
+    # way to tell a fully-failed harvest (every session missing, every
+    # worker crashed or timed out) from a genuinely successful one.
+    from lead_harvester import cli
+
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("https://linkedin.com/in/alice\n")
+
+    args = argparse.Namespace(
+        accounts="burner_01,burner_02",
+        urls_file=str(urls_file),
+        proxies_file="",
+        captcha_key="",
+        vertical="",
+        target_city="",
+        noise_urls_file="",
+    )
+
+    failed_results = [
+        AccountResult(account_id="burner_01", profiles_scraped=0, errors=["No session saved"]),
+        AccountResult(account_id="burner_02", profiles_scraped=0, errors=["Worker timed out"]),
+    ]
+
+    with patch("lead_harvester.sources.account_farm.AccountFarm") as mock_farm_cls:
+        mock_farm_cls.return_value.run = AsyncMock(return_value=failed_results)
+        result = await cli._linkedin_farm_run(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_linkedin_farm_run_succeeds_when_at_least_one_account_reports_no_errors(tmp_path):
+    from lead_harvester import cli
+
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("https://linkedin.com/in/alice\n")
+
+    args = argparse.Namespace(
+        accounts="burner_01,burner_02",
+        urls_file=str(urls_file),
+        proxies_file="",
+        captcha_key="",
+        vertical="",
+        target_city="",
+        noise_urls_file="",
+    )
+
+    mixed_results = [
+        AccountResult(account_id="burner_01", profiles_scraped=3, errors=[]),
+        AccountResult(account_id="burner_02", profiles_scraped=0, errors=["No session saved"]),
+    ]
+
+    with patch("lead_harvester.sources.account_farm.AccountFarm") as mock_farm_cls:
+        mock_farm_cls.return_value.run = AsyncMock(return_value=mixed_results)
+        result = await cli._linkedin_farm_run(args)
+
+    assert result == 0
+
+
+@pytest.mark.asyncio
+async def test_linkedin_farm_run_succeeds_on_legitimate_no_op_skip(tmp_path):
+    # An empty results list means run() legitimately skipped the whole day
+    # (outside working hours, or a weekend) -- not a failure.
+    from lead_harvester import cli
+
+    urls_file = tmp_path / "urls.txt"
+    urls_file.write_text("https://linkedin.com/in/alice\n")
+
+    args = argparse.Namespace(
+        accounts="burner_01",
+        urls_file=str(urls_file),
+        proxies_file="",
+        captcha_key="",
+        vertical="",
+        target_city="",
+        noise_urls_file="",
+    )
+
+    with patch("lead_harvester.sources.account_farm.AccountFarm") as mock_farm_cls:
+        mock_farm_cls.return_value.run = AsyncMock(return_value=[])
+        result = await cli._linkedin_farm_run(args)
+
+    assert result == 0
 
 
 @pytest.mark.asyncio

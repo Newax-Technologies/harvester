@@ -232,6 +232,33 @@ def test_run_account_worker_preserves_partial_profiles_on_crawler_abort(tmp_path
     assert result["errors"] == ["CaptchaTriggered:burner_01"]
 
 
+def test_fill_missing_worker_results_adds_synthetic_entry_for_unreported_account():
+    # A terminated (timed-out) or crashed worker never reaches its own
+    # result_queue.put() -- its account_id previously vanished from
+    # `results` entirely, indistinguishable from "nothing to report",
+    # leaving _linkedin_farm_run unable to tell a fully-failed run from a
+    # successful one.
+    assignment = {"burner_01": ["https://linkedin.com/in/alice"], "burner_02": []}
+    results = [AccountResult(account_id="burner_01", profiles_scraped=1, errors=[])]
+
+    AccountFarm._fill_missing_worker_results(assignment, results)
+
+    assert {r.account_id for r in results} == {"burner_01", "burner_02"}
+    missing = next(r for r in results if r.account_id == "burner_02")
+    assert missing.errors
+    assert missing.profiles_scraped == 0
+
+
+def test_fill_missing_worker_results_leaves_fully_reported_results_untouched():
+    assignment = {"burner_01": []}
+    results = [AccountResult(account_id="burner_01", profiles_scraped=2, errors=[])]
+
+    AccountFarm._fill_missing_worker_results(assignment, results)
+
+    assert len(results) == 1
+    assert results[0].errors == []
+
+
 def test_record_farm_visits_logs_every_scraped_profile(tmp_path):
     # No caller anywhere recorded a visit before this -- assign_partitions'
     # own "not in visited_urls" exclusion, the 30-day breadth ceiling, and

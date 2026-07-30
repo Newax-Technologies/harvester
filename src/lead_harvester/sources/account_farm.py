@@ -394,6 +394,8 @@ class AccountFarm:
         stop_draining.set()
         drainer.join()
 
+        self._fill_missing_worker_results(assignment, results)
+
         self._record_farm_visits(bt, results, vertical=vertical)
         await self._persist_profiles(results)
 
@@ -414,6 +416,38 @@ class AccountFarm:
         print(f"{'=' * 55}\n")
 
         return results
+
+    @staticmethod
+    def _fill_missing_worker_results(
+        assignment: dict[str, list[str]], results: list[AccountResult]
+    ) -> None:
+        """
+        A terminated (timed-out) or crashed worker never reaches its own
+        result_queue.put() -- its account_id silently never appears in
+        `results` at all, vanishing from the run summary and leaving
+        _linkedin_farm_run unable to tell a fully-failed run (every
+        account errored or timed out) from a genuinely successful one,
+        since an empty gap in `results` looks identical to "nothing to
+        report" rather than "this account failed". Appends a synthetic
+        errored entry for every account a worker was actually launched for
+        (every key in `assignment`) that never reported back, so callers
+        can derive success/failure from `results` alone.
+        """
+        reported_account_ids = {r.account_id for r in results}
+        for account_id in assignment:
+            if account_id not in reported_account_ids:
+                results.append(
+                    AccountResult(
+                        account_id=account_id,
+                        profiles_scraped=0,
+                        errors=[
+                            (
+                                f"Worker for {account_id} did not report back "
+                                "(timed out or crashed before finishing)."
+                            )
+                        ],
+                    )
+                )
 
     @staticmethod
     def _record_farm_visits(

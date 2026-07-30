@@ -538,12 +538,25 @@ async def _linkedin_farm_run(args: argparse.Namespace) -> int:
             return 1
 
     farm = AccountFarm(accounts=accounts, proxies=proxies, captcha_key=captcha_key)
-    await farm.run(
+    results = await farm.run(
         urls,
         vertical=args.vertical or "unknown",
         target_city=args.target_city or "unknown",
         noise_urls=noise_urls or None,
     )
+
+    # An empty results list means run() legitimately skipped the whole day
+    # (outside working hours, or a weekend) -- not a failure. Otherwise, if
+    # every single account reported an error (missing session, browser
+    # crash, or a timed-out worker -- see the synthetic entries run() now
+    # adds for those), a scheduler previously still saw exit code 0 and
+    # recorded a fully-failed harvest as successful.
+    if results and all(r.errors for r in results):
+        print(
+            f"[Farm] All {len(results)} account(s) failed this run -- see errors above.",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
