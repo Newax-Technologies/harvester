@@ -94,3 +94,11 @@ async def test_run_attaches_partial_profiles_when_the_loop_aborts(tmp_path):
     partial_profiles = exc_info.value.partial_profiles
     assert len(partial_profiles) == 1
     assert partial_profiles[0].full_name == "Alice"
+
+    # Regression: run() previously constructed DeviceProfileManager() with
+    # no arguments, silently defaulting to the module-level "sessions"
+    # directory regardless of the sessions_dir this crawler was configured
+    # with -- persisting a real device-fingerprint file into the repo's
+    # cwd-relative "sessions/" folder on every test run instead of tmp_path.
+    assert (tmp_path / "burner_partial_device.json").exists()
+    assert not (tmp_path / "sessions").exists()

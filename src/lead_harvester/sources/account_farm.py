@@ -111,6 +111,7 @@ def _run_account_worker(
     proxy: str | None,
     captcha_key: str | None,
     result_queue: multiprocessing.Queue[dict],
+    sessions_dir: str = "sessions",
 ) -> None:
     """
     Subprocess entry point. Each account worker is a completely isolated
@@ -125,8 +126,8 @@ def _run_account_worker(
         from lead_harvester.sources.linkedin_stealth import LinkedInStealthCrawler
         from lead_harvester.sources.session_manager import SessionManager
 
-        sm = SessionManager("sessions")
-        dpm = DeviceProfileManager("sessions")
+        sm = SessionManager(sessions_dir)
+        dpm = DeviceProfileManager(sessions_dir)
 
         if not sm.has_session(account_id):
             return {
@@ -152,6 +153,7 @@ def _run_account_worker(
             target_urls=urls,
             captcha_api_key=captcha_key,
             proxy=proxy,
+            sessions_dir=sessions_dir,
         )
         try:
             profiles = await crawler.run()
@@ -243,12 +245,14 @@ class AccountFarm:
         accounts: list[str],
         proxies: dict[str, str] | None = None,
         captcha_key: str | None = None,
+        sessions_dir: str = "sessions",
     ) -> None:
         self.accounts = accounts
         self.proxies = proxies or {}
         self.captcha_key = captcha_key
-        self.sm = SessionManager("sessions")
-        self.dpm = DeviceProfileManager("sessions")
+        self.sessions_dir = sessions_dir
+        self.sm = SessionManager(sessions_dir)
+        self.dpm = DeviceProfileManager(sessions_dir)
 
     def print_farm_status(self) -> None:
         """Print a summary table of all accounts in the farm."""
@@ -354,7 +358,14 @@ class AccountFarm:
             proxy = self.proxies.get(account_id)
             p = multiprocessing.Process(
                 target=_run_account_worker,
-                args=(account_id, account_urls, proxy, self.captcha_key, result_queue),
+                args=(
+                    account_id,
+                    account_urls,
+                    proxy,
+                    self.captcha_key,
+                    result_queue,
+                    self.sessions_dir,
+                ),
                 name=f"linkedin-{account_id}",
                 daemon=True,
             )

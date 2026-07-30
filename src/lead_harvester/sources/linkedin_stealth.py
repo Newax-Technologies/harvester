@@ -80,23 +80,23 @@ class LinkedInProfile:
 # ---------------------------------------------------------------------------
 
 
-def _storage_path(account_id: str) -> Path:
-    return Path("sessions") / f"{account_id}_storage.json"
+def _storage_path(account_id: str, sessions_dir: str) -> Path:
+    return Path(sessions_dir) / f"{account_id}_storage.json"
 
 
-def _save_storage_state(account_id: str, state: dict) -> None:
+def _save_storage_state(account_id: str, state: dict, sessions_dir: str) -> None:
     import json as _json
 
     try:
-        _storage_path(account_id).write_text(_json.dumps(state, indent=2))
+        _storage_path(account_id, sessions_dir).write_text(_json.dumps(state, indent=2))
     except Exception as e:
         print(f"failed to persist storage state for {account_id}: {e}")
 
 
-def _load_storage_state(account_id: str) -> dict | None:
+def _load_storage_state(account_id: str, sessions_dir: str) -> dict | None:
     import json as _json
 
-    path = _storage_path(account_id)
+    path = _storage_path(account_id, sessions_dir)
     if not path.exists():
         return None
     try:
@@ -142,6 +142,7 @@ class LinkedInStealthCrawler:
         self.target_urls = target_urls
         self.captcha_api_key = captcha_api_key
         self.proxy = proxy
+        self.sessions_dir = sessions_dir
         self.session_manager = SessionManager(sessions_dir)
         self.budget = ActionBudget()
         self.tz_offset = tz_offset
@@ -238,7 +239,7 @@ class LinkedInStealthCrawler:
             print("[Crawler] Phase 1 (Feed Warmup): No profile visits today.")
             print("[Crawler] Will browse the feed to build account history, then exit.")
             # Use the same device profile as regular runs for consistency
-            dpm_phase1 = DeviceProfileManager()
+            dpm_phase1 = DeviceProfileManager(self.sessions_dir)
             dev_phase1 = dpm_phase1.get(self.account_id)
             cookies = self.session_manager.load_cookies(self.account_id)
             launch_kw: dict[str, Any] = {"humanize": True, "headless": False, "addons": []}
@@ -295,7 +296,7 @@ class LinkedInStealthCrawler:
             results: list[LinkedInProfile] = []
 
             # Load consistent device profile for this account
-            dpm = DeviceProfileManager()
+            dpm = DeviceProfileManager(self.sessions_dir)
             device = dpm.get(self.account_id)
 
             # Respect preferred session start time (avoids identical daily start patterns)
@@ -344,7 +345,7 @@ class LinkedInStealthCrawler:
                 # (localStorage can only be set after a page exists and has navigated)
                 page = await context.new_page()
 
-                stored_state = _load_storage_state(self.account_id)
+                stored_state = _load_storage_state(self.account_id, self.sessions_dir)
                 if stored_state:
                     await page.goto("https://www.linkedin.com", wait_until="domcontentloaded")
                     await page.evaluate(f"""
@@ -470,7 +471,9 @@ class LinkedInStealthCrawler:
                         }
                     """)
                     self.session_manager.save_cookies(self.account_id, updated_cookies)
-                    _save_storage_state(self.account_id, {"localStorage": local_storage})
+                    _save_storage_state(
+                        self.account_id, {"localStorage": local_storage}, self.sessions_dir
+                    )
                     await context.close()
         finally:
             # reserve_action already logged the full `reserved` amount up
