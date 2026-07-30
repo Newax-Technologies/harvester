@@ -67,6 +67,51 @@ Return a JSON object with exactly these keys:
   "summary": "<2-3 sentence executive summary of why this lead matters>"
 }}"""
 
+_ANALYSIS_LIST_KEYS = ("pain_points", "buying_signals")
+_ANALYSIS_STR_KEYS = ("best_angle", "suggested_subject", "email_draft", "linkedin_note", "summary")
+
+
+def _validate_analysis_schema(analysis: dict[str, Any]) -> None:
+    """
+    response_format={"type": "json_object"} only guarantees syntactically
+    valid JSON, not that it actually matches ANALYSIS_PROMPT's requested
+    schema -- an empty {} or a response missing/mistyping a required key is
+    still valid JSON. Without this, that garbage analysis passed straight
+    through: _persist_findings fills silent defaults (0, False, "", []) for
+    anything missing and still creates a COMPLETED ResearchJob and a
+    READY_FOR_REVIEW AccountBrief, and _research_record writes the
+    "branch_membership" FieldProvenance link that permanently excludes the
+    profile from retry (see process_all_pending's exclusion query) -- even
+    though nothing useful was actually learned about this lead. Raising
+    here (TypeError/ValueError) is caught by _research_record the same way
+    a timed-out or rejected AI call already is, so a malformed response is
+    retried instead of silently accepted.
+    """
+    if not isinstance(analysis, dict):
+        raise TypeError(f"AI analysis is not a JSON object: {type(analysis).__name__}")
+
+    lead_score = analysis.get("lead_score")
+    if (
+        not isinstance(lead_score, int)
+        or isinstance(lead_score, bool)
+        or not (1 <= lead_score <= 10)
+    ):
+        raise ValueError(f"AI analysis lead_score must be an integer 1-10, got {lead_score!r}")
+
+    decision_maker = analysis.get("decision_maker")
+    if not isinstance(decision_maker, bool):
+        raise TypeError(f"AI analysis decision_maker must be a boolean, got {decision_maker!r}")
+
+    for key in _ANALYSIS_LIST_KEYS:
+        value = analysis.get(key)
+        if not isinstance(value, list):
+            raise TypeError(f"AI analysis {key!r} must be a list, got {value!r}")
+
+    for key in _ANALYSIS_STR_KEYS:
+        value = analysis.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"AI analysis {key!r} must be a non-empty string, got {value!r}")
+
 
 class ResearchBrain:
     """
@@ -227,7 +272,9 @@ class ResearchBrain:
         )
 
         raw = response.choices[0].message.content or "{}"
-        return json.loads(raw)
+        analysis = json.loads(raw)
+        _validate_analysis_schema(analysis)
+        return analysis
 
     # ------------------------------------------------------------------
     # Persist to database

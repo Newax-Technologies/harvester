@@ -1,13 +1,26 @@
 import contextlib
-from unittest.mock import AsyncMock, patch
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lead_harvester.intelligence.researcher import ResearchBrain
+from lead_harvester.intelligence.researcher import ResearchBrain, _validate_analysis_schema
 from lead_harvester.models.canonical import CanonicalInstitution, OperatingStatus
 from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
+
+_VALID_ANALYSIS = {
+    "lead_score": 8,
+    "decision_maker": True,
+    "pain_points": ["scaling issues"],
+    "buying_signals": ["hiring"],
+    "best_angle": "Growth angle",
+    "suggested_subject": "Quick question",
+    "email_draft": "Hi there...",
+    "linkedin_note": "Hi, connecting...",
+    "summary": "Strong lead.",
+}
 
 
 @contextlib.asynccontextmanager
@@ -47,6 +60,67 @@ async def test_research_record_constructs_valid_canonical_institution(db_session
     ).scalar_one()
     assert institution.status == OperatingStatus.OPERATIONAL
     brain.research_profile.assert_awaited_once()
+
+
+def test_validate_analysis_schema_accepts_well_formed_analysis():
+    _validate_analysis_schema(dict(_VALID_ANALYSIS))  # must not raise
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {},  # empty response -- every key missing
+        {"lead_score": 11},  # out of range
+        {"lead_score": 0},  # out of range
+        {"lead_score": True},  # bool is technically an int subclass -- must be rejected
+        {"lead_score": "8"},  # wrong type
+        {"decision_maker": "yes"},  # wrong type
+        {"pain_points": "not-a-list"},  # wrong type
+        {"buying_signals": "not-a-list"},  # wrong type
+        {"best_angle": ""},  # blank required string
+        {"summary": 123},  # wrong type
+    ],
+)
+def test_validate_analysis_schema_rejects_malformed_analysis(overrides):
+    # response_format={"type": "json_object"} only guarantees syntactically
+    # valid JSON -- an empty {} or a response with a missing/wrong-typed/
+    # out-of-range key is still valid JSON and must still be rejected here.
+    analysis = {**_VALID_ANALYSIS, **overrides}
+    if overrides == {}:
+        analysis = {}
+    with pytest.raises((ValueError, TypeError)):
+        _validate_analysis_schema(analysis)
+
+
+@pytest.mark.asyncio
+async def test_call_ai_rejects_response_missing_required_keys():
+    brain = ResearchBrain(api_key="fake-key-for-test")
+
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock(message=MagicMock(content="{}"))]
+    mock_client = AsyncMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    with (
+        patch("openai.AsyncOpenAI", return_value=mock_client),
+        pytest.raises(ValueError, match="lead_score"),
+    ):
+        await brain._call_ai({"full_name": "Jane Doe"})
+
+
+@pytest.mark.asyncio
+async def test_call_ai_accepts_well_formed_response():
+    brain = ResearchBrain(api_key="fake-key-for-test")
+
+    mock_response = MagicMock()
+    mock_response.choices = [MagicMock(message=MagicMock(content=json.dumps(_VALID_ANALYSIS)))]
+    mock_client = AsyncMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+    with patch("openai.AsyncOpenAI", return_value=mock_client):
+        result = await brain._call_ai({"full_name": "Jane Doe"})
+
+    assert result == _VALID_ANALYSIS
 
 
 @pytest.mark.asyncio
