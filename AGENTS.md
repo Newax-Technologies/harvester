@@ -35,6 +35,18 @@ service container for the backend test suite and a Semgrep static-analysis scan.
   `pydantic_settings.BaseSettings` attributes in `config.py`), and migrations (staged
   nullable-then-backfill-then-not-null for any new required column on a table that may
   already have rows).
+- **Read `docs/CODE_REVIEW_LESSONS.md` before touching multi-step external side effects,
+  worker pools/subprocesses, dedup/grouping keys, merge/update paths, or anything with a
+  cooldown/budget/rate-limit.** It's a living record of bug classes Codex review has
+  actually caught in this codebase (ordering DB writes before permanent-exclusion side
+  effects, keeping a grouping key and its derived identity in sync, savepoint-isolating
+  batch work, atomic claiming under concurrency, preserving partial results on abort,
+  stable vs. ordinal identity, shared guards for parallel write paths, merge-not-overwrite,
+  worker-result completeness, recording cooldowns before the risky action, terminal-state
+  completeness, normalizing at every new write path). When a new finding matches one of
+  these patterns, fix it per that pattern's rule and add the example to the doc instead of
+  re-discovering the lesson from scratch; when it's a genuinely new class of mistake, add a
+  new pattern there.
 
 ## Merge Policy
 
