@@ -149,6 +149,14 @@ class SessionManager:
                 "warmup_started_at", datetime.now(UTC).date().isoformat() if first_login else None
             ),
             "run_log": existing.get("run_log", []),
+            # Without this, save_cookies (called from the crawler's own
+            # cleanup finally-block after a CAPTCHA-triggered abort)
+            # overwrote the whole session file and silently dropped the
+            # last_captcha_at that record_captcha_challenge had JUST
+            # written moments earlier in that same run -- the very next
+            # invocation then saw no cooldown recorded at all and reused
+            # the flagged account immediately.
+            "last_captcha_at": existing.get("last_captcha_at"),
             "cookies": cookies,
         }
 

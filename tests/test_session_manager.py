@@ -100,3 +100,24 @@ def test_captcha_cooldown_remaining_reflects_elapsed_real_time(tmp_path):
     path.write_text(json.dumps(payload))
 
     assert sm.captcha_cooldown_remaining("burner_06") == timedelta(0)
+
+
+def test_save_cookies_preserves_last_captcha_at(tmp_path):
+    # save_cookies previously reconstructed the whole session payload from
+    # scratch, preserving only warmup_started_at/run_log -- called from the
+    # crawler's own cleanup finally-block after a CAPTCHA-triggered abort,
+    # it silently overwrote the session file and dropped the
+    # last_captcha_at that record_captcha_challenge had JUST written
+    # moments earlier in that same run, so the very next invocation saw no
+    # cooldown recorded at all and reused the flagged account immediately.
+    sm = SessionManager(tmp_path)
+    sm.save_cookies("burner_07", [{"name": "x", "value": "y"}], first_login=True)
+
+    sm.record_captcha_challenge("burner_07")
+    assert sm.captcha_cooldown_remaining("burner_07") > timedelta(0)
+
+    # Simulates the crawler's cleanup finally-block re-saving cookies after
+    # the CAPTCHA-triggered abort.
+    sm.save_cookies("burner_07", [{"name": "x", "value": "z"}])
+
+    assert sm.captcha_cooldown_remaining("burner_07") > timedelta(0)
