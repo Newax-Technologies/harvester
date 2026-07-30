@@ -470,6 +470,8 @@ async def attach_record_to_institution(
         institution.website = fields["website"]
     if not institution.domain and record.normalized_domain:
         institution.domain = record.normalized_domain
+    if not institution.institution_type and fields["institution_type"]:
+        institution.institution_type = fields["institution_type"]
 
     if target_branch is not None:
         # Operating status is per-location evidence -- only trust it as the

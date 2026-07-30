@@ -6,7 +6,7 @@ from sqlalchemy import cast, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.provenance import FieldProvenance
-from lead_harvester.models.resolution import ResolutionCandidate
+from lead_harvester.models.resolution import MatchDecision, ResolutionCandidate
 from lead_harvester.models.source import RawSourceRecord
 
 # Trigram similarity threshold (0 to 1). pg_trgm default is 0.3
@@ -18,12 +18,61 @@ GEOGRAPHIC_DISTANCE_METERS = 500
 # geo_name (matching name AND physical proximity) is far more discriminating
 # than a bare phone match (routinely shared across an entire franchise's
 # unrelated branches) or a bare domain match (a shared portal/CMS domain).
-# Used to pick which sibling to keep as the representative for an
-# already-canonicalized institution when several match -- keeping an
-# arbitrary (e.g. first-in-DB-order) sibling instead could discard the one
-# match that actually carries strong evidence in favor of a weaker one,
-# understating the eventual score_candidate result.
+# Used only to pick a representative's blocking_strategy label when a
+# record matches via more than one blocking query -- NOT for ranking which
+# sibling to keep (see _MatchInfo.sort_key, which ranks by the decision
+# score_candidate would actually produce instead: a strategy tier alone
+# doesn't mean much when the actual evidence is weak, e.g. a geo_name match
+# that barely clears the 0.4-similarity/500m thresholds is much weaker
+# evidence than an exact-name domain match, even though geo_name ranks
+# "first" here).
 _STRATEGY_PRIORITY = {"geo_name": 0, "domain": 1, "phone": 2}
+
+# Mirrors scoring.py::score_candidate's decision matrix, applied to a
+# blocking match's own (distance, name_similarity, strategy) evidence so
+# generate_candidates can rank siblings by the decision they'd actually
+# reach instead of by blocking-strategy label alone (see _STRATEGY_PRIORITY
+# above). phone_match/domain_match are inferred from the strategy itself --
+# _note_matches already picked the strongest single strategy a record
+# qualified under, so a phone/domain match on a record ALSO reachable via
+# geo_name is not distinguishable here, but that only means this ranking
+# treats it as an equally strong geo_name match, which is correct (geo_name
+# implies phone/domain-tier evidence at least as strong). Kept in sync with
+# scoring.py by hand -- if that matrix changes, this one needs to as well.
+_DECISION_PRIORITY = {
+    MatchDecision.MERGE: 0,
+    MatchDecision.PENDING: 1,
+    MatchDecision.LINK_ONLY: 2,
+    MatchDecision.REJECT: 3,
+}
+
+
+def _predicted_decision(
+    strategy: str, distance_meters: float | None, name_similarity: float | None
+) -> MatchDecision:
+    similarity = name_similarity if name_similarity is not None else 0.0
+    phone_match = strategy == "phone"
+    domain_match = strategy == "domain"
+
+    if similarity > 0.8 and distance_meters is not None and distance_meters < 100:
+        return MatchDecision.MERGE
+    if (domain_match or phone_match) and similarity > 0.8:
+        return MatchDecision.PENDING
+    if phone_match or domain_match:
+        return MatchDecision.LINK_ONLY
+
+    total_score = 0.0
+    if similarity > 0.8:
+        total_score += 40
+    elif similarity > 0.5:
+        total_score += 20
+    if distance_meters is not None and distance_meters < 50:
+        total_score += 40
+    elif distance_meters is not None and distance_meters < 200:
+        total_score += 20
+    if total_score >= 60:
+        return MatchDecision.PENDING
+    return MatchDecision.REJECT
 
 
 class _MatchInfo:
@@ -53,19 +102,21 @@ class _MatchInfo:
         self.name_similarity = name_similarity
 
     def sort_key(self) -> tuple[int, float, float]:
-        # name_similarity ranks before distance -- it's the dominant signal
-        # across every branch of scoring.py's decision logic (the MERGE
-        # gate requires similarity>0.8 explicitly; the phone/domain
-        # PENDING-vs-LINK_ONLY split is ALSO purely gated on similarity>0.8;
-        # distance only ever matters as MERGE's secondary confirming
-        # condition). Ranking distance first would let a geographically
-        # close-by-coincidence but otherwise unrelated match (finite
-        # distance, low similarity) outrank an exact-name match that simply
-        # has no location data (distance=None), keeping the worse
-        # representative (would score LINK_ONLY) over the better one
-        # (would score PENDING and actually surface for review).
+        # Ranked by the decision score_candidate would actually reach
+        # (_predicted_decision), NOT by strategy label -- a strategy tier
+        # alone doesn't reflect evidence quality: a geo_name match that
+        # barely clears the blocking thresholds (e.g. 0.4 similarity, 400m)
+        # would score REJECT, and ranking it "first" purely for being
+        # geo_name could keep it over a domain-tier sibling with an exact
+        # name match that would score PENDING and actually reach human
+        # review -- silently creating a duplicate institution instead.
+        # name_similarity is the tiebreak WITHIN a decision tier (before
+        # distance) for the same reason as before: it's the dominant signal
+        # in every branch of scoring.py's matrix, distance only ever
+        # confirms MERGE secondarily.
+        predicted = _predicted_decision(self.strategy, self.distance_meters, self.name_similarity)
         return (
-            _STRATEGY_PRIORITY[self.strategy],
+            _DECISION_PRIORITY[predicted],
             -(self.name_similarity if self.name_similarity is not None else 0.0),
             self.distance_meters if self.distance_meters is not None else float("inf"),
         )

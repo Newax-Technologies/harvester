@@ -309,6 +309,93 @@ async def test_sibling_candidate_for_same_raw_record_is_rejected(client_a, db_se
 
 
 @pytest.mark.asyncio
+async def test_merge_onto_unresolved_target_with_own_pending_candidate_is_rejected(
+    client_a, db_session
+):
+    # B is unresolved and has its OWN separate pending candidate B -> C
+    # (some earlier ingestion found B ambiguously similar to C, still
+    # awaiting review). A reviewer now decides an unrelated A -> B
+    # candidate. If that were allowed to canonicalize B, list_pending()'s
+    # already-canonicalized exclusion would silently drop B -> C from the
+    # queue even though nobody ever actually resolved whether B and C are
+    # the same institution -- the new A/B institution could be duplicating
+    # C with no remaining path back to that conflict.
+    run = SourceRun(source_type=SourceType.GOOGLE_PLACES, run_metadata={}, status=RunStatus.STARTED)
+    db_session.add(run)
+    await db_session.flush()
+
+    a = _record(run.id, "School A", "+923001110000", "gp-a")
+    b = _record(run.id, "School B", "+923002220000", "gp-b")
+    c = _record(run.id, "School C", "+923003330000", "gp-c")
+    db_session.add_all([a, b, c])
+    await db_session.flush()
+
+    candidate_bc = ResolutionCandidate(
+        raw_record_id=b.id,
+        target_raw_record_id=c.id,
+        blocking_strategy="geo_name",
+        version=1,
+    )
+    candidate_ab = ResolutionCandidate(
+        raw_record_id=a.id,
+        target_raw_record_id=b.id,
+        blocking_strategy="phone",
+        version=1,
+    )
+    db_session.add_all([candidate_bc, candidate_ab])
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            MatchAssessment(
+                candidate_id=candidate_bc.id,
+                name_similarity=0.6,
+                distance_meters=None,
+                phone_match=False,
+                domain_match=False,
+                total_score=65.0,
+                decision=MatchDecision.PENDING,
+            ),
+            MatchAssessment(
+                candidate_id=candidate_ab.id,
+                name_similarity=0.5,
+                distance_meters=None,
+                phone_match=True,
+                domain_match=False,
+                total_score=65.0,
+                decision=MatchDecision.PENDING,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    # Captured before the request -- the 409's internal rollback expires
+    # session-tracked ORM objects, so any attribute access on a/b/candidate_ab
+    # afterwards (even just `.id`) would need a lazy-load outside the
+    # active greenlet context. Look up by these plain UUIDs instead.
+    candidate_bc_id, candidate_ab_id, a_id, b_id = (
+        candidate_bc.id,
+        candidate_ab.id,
+        a.id,
+        b.id,
+    )
+
+    response = await client_a.post(
+        f"/api/v1/resolution-reviews/{candidate_ab_id}/decision",
+        json={"decision": "merge", "feedback": "looks the same", "expected_version": 1},
+    )
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "target_has_pending_conflict"
+
+    assert await find_canonical_for_raw_record(db_session, b_id) is None
+    assert await find_canonical_for_raw_record(db_session, a_id) is None
+
+    listing = await client_a.get("/api/v1/resolution-reviews")
+    ids = [r["id"] for r in listing.json()]
+    assert str(candidate_bc_id) in ids
+
+
+@pytest.mark.asyncio
 async def test_resolved_candidate_disappears_from_pending_list(client_a, db_session):
     candidate, _record, _target = await _seed_pending_pair(db_session)
 

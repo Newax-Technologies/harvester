@@ -10,6 +10,7 @@ from lead_harvester.api.errors import (
     RecordAlreadyCanonicalizedError,
     ResourceNotFoundError,
     StaleDataError,
+    TargetHasPendingConflictError,
 )
 from lead_harvester.canonical.merger import (
     attach_record_to_institution,
@@ -280,6 +281,46 @@ async def _assemble_detail(session: AsyncSession, candidate: ResolutionCandidate
     }
 
 
+async def _has_other_pending_candidate(
+    session: AsyncSession, raw_record_id: UUID, *, exclude_id: UUID
+) -> bool:
+    """
+    True if raw_record_id was ITSELF an incoming record with its own
+    unresolved ambiguity -- i.e. it is the raw_record_id (not merely the
+    target) of some OTHER still-open ResolutionCandidate (review_outcome is
+    null) whose latest assessment is PENDING.
+
+    Deliberately checks only the raw_record_id side, not target_raw_record_id:
+    two DIFFERENT candidates both targeting the same popular target record
+    (e.g. two reviewers independently deciding A->target and B->target) is
+    not this risk -- deciding one legitimately canonicalizes target, and the
+    other candidate's own decision (by the reviewer who owns IT) then
+    correctly routes to attaching rather than re-merging; nothing gets
+    silently swept away, since that second candidate is being explicitly
+    decided too. The actual risk is only when raw_record_id was blocked
+    against something as an INCOMING record in a still-unresolved pairing
+    that nobody is deciding right now.
+
+    exclude_id is always the candidate currently being decided -- without
+    excluding it, this would find itself whenever raw_record_id is the
+    current candidate's own target (the common case) and block every
+    decision unconditionally.
+    """
+    stmt = (
+        select(ResolutionCandidate.id)
+        .join(MatchAssessment, MatchAssessment.candidate_id == ResolutionCandidate.id)
+        .where(
+            ResolutionCandidate.id != exclude_id,
+            ResolutionCandidate.review_outcome.is_(None),
+            MatchAssessment.decision == MatchDecision.PENDING,
+            ResolutionCandidate.raw_record_id == raw_record_id,
+        )
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none() is not None
+
+
 async def _apply_decision(
     session: AsyncSession, candidate: ResolutionCandidate, decision: str
 ) -> UUID | None:
@@ -340,6 +381,21 @@ async def _apply_decision(
             session, record, institution, target_branch=target_branch
         )
         return institution.id if institution.lead_synced_at is not None else None
+
+    # matched_record (B) is itself still unresolved -- unlike the
+    # existing_canonical_id branch above (where B is already canonicalized,
+    # so any B-target candidate is already excluded from list_pending
+    # independent of this decision), merging A into B here is what WOULD
+    # canonicalize B for the first time. If B has its own separate pending
+    # candidate (e.g. B was also blocked against C and that pairing scored
+    # PENDING), canonicalizing B now makes list_pending's
+    # already-canonicalized exclusion silently drop that B/C candidate from
+    # the queue -- hiding a genuine, never-actually-resolved ambiguity
+    # (is B the same institution as C?) behind a decision that only ever
+    # asked "is A the same institution as B?". Block it and make the
+    # reviewer resolve B's own conflict first.
+    if await _has_other_pending_candidate(session, matched_record.id, exclude_id=candidate.id):
+        raise TargetHasPendingConflictError(str(matched_record.id))
 
     await merge_records(session, [record, matched_record], same_location=same_location)
     return None

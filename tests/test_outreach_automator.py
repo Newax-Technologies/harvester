@@ -1,5 +1,7 @@
 import asyncio
+import contextlib
 import uuid
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import select
@@ -7,6 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.canonical import CanonicalInstitution, OperatingStatus
 from lead_harvester.models.outreach import AccountBrief, DraftStatus, OutreachDraft
+from lead_harvester.outreach.automator import OutreachAutomator
+
+
+@contextlib.asynccontextmanager
+async def _fake_get_session(session: AsyncSession):
+    yield session
 
 
 def _draft(brief_id: uuid.UUID, name: str) -> OutreachDraft:
@@ -96,3 +104,42 @@ async def test_concurrent_claims_never_double_claim_the_same_draft(async_engine)
         finally:
             await cleanup_session.close()
             await cleanup_conn.close()
+
+
+@pytest.mark.asyncio
+async def test_run_releases_unsent_draft_back_to_approved(db_session):
+    # No SMTP host is configured, so _send_email_batch returns immediately
+    # without ever calling _send_email/_mark_sent for this email-style
+    # draft -- before this fix, the draft was claimed to SENDING at the
+    # start of run() and then permanently stuck there, silently dropped
+    # from every future run despite nothing ever having been sent.
+    institution = CanonicalInstitution(
+        canonical_name="Release Test School",
+        institution_type="school",
+        status=OperatingStatus.OPERATIONAL,
+        confidence_score=0.7,
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    brief = AccountBrief(institution_id=institution.id)
+    db_session.add(brief)
+    await db_session.flush()
+
+    draft = _draft(brief.id, "No Smtp Contact")
+    db_session.add(draft)
+    await db_session.flush()
+
+    automator = OutreachAutomator(account_id="test-account")
+
+    with (
+        patch(
+            "lead_harvester.outreach.automator.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch("lead_harvester.outreach.automator.within_working_hours", return_value=True),
+    ):
+        await automator.run()
+
+    await db_session.refresh(draft)
+    assert draft.status == DraftStatus.APPROVED

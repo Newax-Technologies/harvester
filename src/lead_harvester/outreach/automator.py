@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import smtplib
 import ssl
+import uuid
 from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -119,16 +120,31 @@ class OutreachAutomator:
             return
 
         print(f"[Automator] Found {len(drafts)} approved draft(s) to send.")
+        claimed_ids = [d.id for d in drafts]
 
-        # Open browser session once for all LinkedIn messages
-        li_drafts = [d for d in drafts if d.target_contact_value.startswith("http")]
-        email_drafts = [d for d in drafts if "@" in d.target_contact_value]
+        # Only a successful send calls _mark_sent (SENDING -> SENT) --
+        # dry-run mode, a missing SMTP host, a missing camoufox install, no
+        # saved LinkedIn session, an exhausted action budget, no Message
+        # button on the profile, or any other per-draft send failure all
+        # leave a claimed draft sitting in SENDING with nothing to ever move
+        # it forward again, permanently removing it from every future run
+        # even though nothing was actually sent. Release whatever this run
+        # claimed but never sent back to APPROVED once every send attempt
+        # has finished (or raised) -- a genuine process crash before this
+        # point is the already-documented v1 limitation above, not solved
+        # here, since it requires reaching this point at all.
+        try:
+            # Open browser session once for all LinkedIn messages
+            li_drafts = [d for d in drafts if d.target_contact_value.startswith("http")]
+            email_drafts = [d for d in drafts if "@" in d.target_contact_value]
 
-        if li_drafts:
-            await self._send_linkedin_batch(li_drafts)
+            if li_drafts:
+                await self._send_linkedin_batch(li_drafts)
 
-        if email_drafts:
-            await self._send_email_batch(email_drafts)
+            if email_drafts:
+                await self._send_email_batch(email_drafts)
+        finally:
+            await self._release_unsent_drafts(claimed_ids)
 
     # ------------------------------------------------------------------
     # LinkedIn batch
@@ -280,3 +296,18 @@ class OutreachAutomator:
                     recorded_at=datetime.now(UTC),
                 )
                 session.add(outcome)
+
+    async def _release_unsent_drafts(self, claimed_ids: list[uuid.UUID]) -> None:
+        from sqlalchemy import update
+
+        if not claimed_ids:
+            return
+        async with get_session() as session:
+            await session.execute(
+                update(OutreachDraft)
+                .where(
+                    OutreachDraft.id.in_(claimed_ids),
+                    OutreachDraft.status == DraftStatus.SENDING,
+                )
+                .values(status=DraftStatus.APPROVED)
+            )

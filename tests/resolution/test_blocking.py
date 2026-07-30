@@ -272,6 +272,61 @@ async def test_generate_candidates_prefers_name_similarity_over_coincidental_pro
 
 
 @pytest.mark.asyncio
+async def test_generate_candidates_ranks_by_predicted_decision_not_strategy_tier(
+    db_session, source_run
+):
+    # weak_geo barely clears the geo_name blocking thresholds (name
+    # similarity ~0.46, ~399m -- both below the scoring.py buckets that
+    # would contribute any points) and would actually score REJECT.
+    # exact_domain shares the incoming record's domain with an EXACT name
+    # match (similarity 1.0) but no location data, and would score PENDING.
+    # A strategy-tier-first ranking (geo_name ranks above domain) would
+    # wrongly keep weak_geo -- a match that's actually worthless -- over
+    # exact_domain, which is strong enough to reach human review; ranking
+    # by the decision each would actually receive must prefer exact_domain.
+    weak_geo = google_places_record(
+        source_run.id,
+        name="Shared Name Academy",
+        phone=None,
+        website=None,
+        lat=24.8643,
+        lng=67.0011,
+    )
+    exact_domain = google_places_record(
+        source_run.id,
+        name="Shared Name School",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=None,
+        lng=None,
+    )
+    db_session.add_all([weak_geo, exact_domain])
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [weak_geo, exact_domain])
+    await db_session.flush()
+
+    d = google_places_record(
+        source_run.id,
+        name="Shared Name School",
+        phone=None,
+        website="https://shared-portal.example.edu",
+        lat=24.8607,
+        lng=67.0011,
+    )
+    db_session.add(d)
+    await db_session.flush()
+
+    candidates = await generate_candidates(db_session, d)
+
+    assert len(candidates) == 1
+    assert candidates[0].target_raw_record_id == exact_domain.id
+
+    surviving_canonical_id = await find_canonical_for_raw_record(db_session, exact_domain.id)
+    assert surviving_canonical_id == institution.id
+
+
+@pytest.mark.asyncio
 async def test_generate_candidates_does_not_dedupe_unresolved_matches(db_session, source_run):
     # Two records sharing a phone that have NOT yet been canonicalized are
     # each a genuine, independent candidate (a human may need to review

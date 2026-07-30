@@ -51,6 +51,21 @@ class RecordAlreadyCanonicalizedError(BaseAPIException):
         )
 
 
+class TargetHasPendingConflictError(BaseAPIException):
+    def __init__(self, target_raw_record_id: str):
+        super().__init__(
+            status_code=409,
+            code="target_has_pending_conflict",
+            message=(
+                "The target record for this decision is itself unresolved and has "
+                "its own pending candidate awaiting review. Resolve that candidate "
+                "first, or this decision would silently hide it from the review "
+                "queue once the target becomes canonicalized."
+            ),
+            details={"target_raw_record_id": str(target_raw_record_id)},
+        )
+
+
 class ResourceNotFoundError(BaseAPIException):
     def __init__(self, resource_id: str = "unknown"):
         super().__init__(

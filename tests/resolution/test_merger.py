@@ -255,6 +255,30 @@ async def test_attach_record_to_institution_enriches_existing_branch(db_session,
 
 
 @pytest.mark.asyncio
+async def test_attach_record_to_institution_backfills_institution_type(db_session, source_run):
+    # A website-first institution has institution_type="" (WEBSITE's
+    # display_fields never supplies one). A later Google Places record
+    # confirmed to be the same institution DOES supply a primaryType, but
+    # that evidence previously stayed stranded in the raw ledger --
+    # institution.institution_type (and everything reading it downstream,
+    # including sync) stayed permanently blank even after this attach.
+    a = website_record(source_run.id, name="Riverside Academy", organization="Riverside Academy")
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+    assert institution.institution_type == ""
+
+    b = google_places_record(source_run.id, name="Riverside Academy")
+    db_session.add(b)
+    await db_session.flush()
+
+    await attach_record_to_institution(db_session, b, institution, target_branch=None)
+
+    assert institution.institution_type == "school"
+
+
+@pytest.mark.asyncio
 async def test_attach_record_to_institution_does_not_boost_score_for_duplicate_source(
     db_session, source_run
 ):

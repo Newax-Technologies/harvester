@@ -34,6 +34,7 @@ from lead_harvester.models import (
     ResearchFinding,
     ResearchJob,
 )
+from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, SourceType
 
 SYSTEM_PROMPT = """You are an elite B2B sales intelligence analyst.
@@ -107,12 +108,27 @@ class ResearchBrain:
         from sqlalchemy import select
 
         async with get_session() as session:
+            # Excludes records _research_record has already processed, via
+            # the same "branch_membership" FieldProvenance link
+            # canonical/merger.py's merge_records() uses to mark a raw
+            # record as having produced a canonical entity. Without this,
+            # every invocation re-queried the same first 50 LinkedIn
+            # records forever (this was a known, documented gap -- "full
+            # implementation would use a processed flag" -- that stayed
+            # harmless only because cli.py's shadowing duplicate main()
+            # made this command unreachable until this same PR removed it),
+            # paying for the same AI calls repeatedly, creating a new
+            # duplicate CanonicalInstitution/ResearchJob/AccountBrief per
+            # profile each run, and starving any record past the first 50
+            # once that many exist.
+            already_researched = select(FieldProvenance.raw_record_id).where(
+                FieldProvenance.field_name == "branch_membership"
+            )
             records = await session.scalars(
                 select(RawSourceRecord)
                 .where(RawSourceRecord.source_type == SourceType.LINKEDIN)
                 .where(RawSourceRecord.normalized_name.isnot(None))
-                # Only records not yet linked to a research job
-                # (simplified — full implementation would use a processed flag)
+                .where(RawSourceRecord.id.not_in(already_researched))
                 .limit(50)
             )
             for record in records:
@@ -273,4 +289,17 @@ class ResearchBrain:
         )
         session.add(institution)
         await session.flush()
+        # Marks this record as processed for process_all_pending's own
+        # exclusion query above -- same "branch_membership" FieldProvenance
+        # shape merge_records()/manual_leads.py already use to link a raw
+        # record to the canonical entity it produced.
+        session.add(
+            FieldProvenance(
+                canonical_id=institution.id,
+                raw_record_id=record.id,
+                field_name="branch_membership",
+                asserted_value=record.source_id,
+                assertion_trust=1.0,
+            )
+        )
         await self.research_profile(session, payload, institution.id)
