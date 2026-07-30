@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.canonical import (
@@ -585,11 +585,33 @@ async def attach_record_to_institution(
         # once known), operating status is a point-in-time fact that a
         # rediscovery can genuinely update in either direction (closed
         # permanently, or reopened), so this always trusts the newest
-        # same-branch record's asserted status rather than only filling a
-        # gap.
+        # same-branch record's asserted status.
+        #
+        # But that trust only extends as far as this record's own branch --
+        # Branch has no per-branch status column, so once an institution has
+        # more than one branch there's no way to re-derive the institution-
+        # wide status from every branch's latest known state the way
+        # _aggregate_institution_status does at creation time. Applying this
+        # one branch's status directly to the whole institution would
+        # silently mark every other still-operational campus closed just
+        # because one of them reported closure. OPERATIONAL is always safe
+        # to apply regardless of branch count (an institution with at least
+        # one confirmed-active branch is still a live lead overall, matching
+        # _aggregate_institution_status's own "OPERATIONAL wins" policy);
+        # a closure is only applied directly when this is the institution's
+        # only branch, where branch-level and institution-level status are
+        # the same fact.
         new_status = _operating_status(record)
-        if new_status != OperatingStatus.UNKNOWN:
+        if new_status == OperatingStatus.OPERATIONAL:
             institution.status = new_status
+        elif new_status != OperatingStatus.UNKNOWN:
+            branch_count = await session.scalar(
+                select(func.count())
+                .select_from(Branch)
+                .where(Branch.institution_id == institution.id)
+            )
+            if branch_count <= 1:
+                institution.status = new_status
 
         if not target_branch.address and fields["address"]:
             target_branch.address = fields["address"]

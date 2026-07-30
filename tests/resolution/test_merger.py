@@ -467,6 +467,57 @@ async def test_attach_record_to_institution_refreshes_operating_status_for_same_
 
 
 @pytest.mark.asyncio
+async def test_attach_record_to_institution_multi_branch_closure_does_not_overwrite_status(
+    db_session, source_run
+):
+    # Branch has no per-branch status column, so once an institution has
+    # more than one branch there's no way to re-derive the institution-wide
+    # status from every branch's latest state the way
+    # _aggregate_institution_status does at creation time. One campus
+    # reporting closure (even on its OWN branch, via target_branch) must not
+    # silently overwrite the whole institution's status while another
+    # campus is still operational.
+    a = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone="+923001111111",
+        business_status="OPERATIONAL",
+    )
+    b = google_places_record(
+        source_run.id,
+        name="Riverside Academy Annex",
+        phone="+923002222222",
+        business_status="OPERATIONAL",
+    )
+    db_session.add_all([a, b])
+    await db_session.flush()
+    institution = await merge_records(db_session, [a, b])
+    await db_session.flush()
+    assert institution.status == OperatingStatus.OPERATIONAL
+
+    branch_a = await find_branch_for_raw_record(db_session, institution.id, a)
+
+    a_rediscovered = google_places_record(
+        source_run.id,
+        name="Riverside Academy",
+        phone="+923001111111",
+        business_status="CLOSED_PERMANENTLY",
+    )
+    db_session.add(a_rediscovered)
+    await db_session.flush()
+
+    await attach_record_to_institution(
+        db_session, a_rediscovered, institution, target_branch=branch_a
+    )
+    await db_session.flush()
+
+    # Branch A's own closure must not overwrite the institution while
+    # Branch B is still (as far as this institution's evidence shows)
+    # operational.
+    assert institution.status == OperatingStatus.OPERATIONAL
+
+
+@pytest.mark.asyncio
 async def test_attach_record_to_institution_new_branch_does_not_change_institution_status(
     db_session, source_run
 ):
