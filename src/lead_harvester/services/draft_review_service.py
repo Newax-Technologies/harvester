@@ -38,7 +38,12 @@ class DraftReviewService:
             # version) and silently mutate a body the automator has
             # already read and is actively sending, leaving the database
             # record content different from what was actually delivered.
-            if draft.status == DraftStatus.SENDING:
+            # SENT is included too: the SENDING -> SENT transition ALSO
+            # doesn't bump version (see _mark_sent), so a stale-version
+            # request loaded before the send still passes the version
+            # check below and could rewrite the recorded body of a message
+            # that has already been delivered.
+            if draft.status in (DraftStatus.SENDING, DraftStatus.SENT):
                 raise DraftBeingSentError(str(draft_id))
 
             if draft.version != req.expected_version:
@@ -79,9 +84,11 @@ class DraftReviewService:
                 raise ResourceNotFoundError(str(draft_id))
 
             # See the matching check in edit_draft above: a draft already
-            # claimed by OutreachAutomator.run() must not have its status
-            # changed out from under the send in progress either.
-            if draft.status == DraftStatus.SENDING:
+            # claimed by OutreachAutomator.run() (or already delivered)
+            # must not have its status changed out from under the send --
+            # otherwise a stale-version decision could move an already-SENT
+            # draft back to APPROVED and have it sent a second time.
+            if draft.status in (DraftStatus.SENDING, DraftStatus.SENT):
                 raise DraftBeingSentError(str(draft_id))
 
             if draft.version != req.expected_version:

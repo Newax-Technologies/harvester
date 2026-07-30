@@ -275,176 +275,190 @@ class LinkedInStealthCrawler:
         reserved = self._reserve_daily_budget(warmup)
         self.budget.DAILY_LIMITS = {**self.budget.DAILY_LIMITS, **reserved}
 
-        cookies = self.session_manager.load_cookies(self.account_id)
-        results: list[LinkedInProfile] = []
+        # Wraps EVERYTHING from the reservation above onward -- cookie
+        # loading, the device profile lookup, the preferred-start-time
+        # delay, and browser launch/context setup -- not just the
+        # established browser session's own cleanup (the inner finally
+        # below). A corrupt session file, a cancelled delay, or a
+        # browser-launch failure previously skipped the release entirely,
+        # since none of those failures ever reached that inner finally,
+        # consuming the account's whole remaining daily quota for zero
+        # actions and blocking every later run until the next day.
+        try:
+            cookies = self.session_manager.load_cookies(self.account_id)
+            results: list[LinkedInProfile] = []
 
-        # Load consistent device profile for this account
-        dpm = DeviceProfileManager()
-        device = dpm.get(self.account_id)
+            # Load consistent device profile for this account
+            dpm = DeviceProfileManager()
+            device = dpm.get(self.account_id)
 
-        # Respect preferred session start time (avoids identical daily start patterns)
-        delay_secs = session_start_delay_seconds(
-            device.preferred_start_hour,
-            device.preferred_start_jitter,
-        )
-        if delay_secs > 60:
-            print(
-                f"[Crawler] Waiting {delay_secs / 60:.1f} min before starting "
-                f"(preferred start: ~{device.preferred_start_hour}:00 PKT)..."
+            # Respect preferred session start time (avoids identical daily start patterns)
+            delay_secs = session_start_delay_seconds(
+                device.preferred_start_hour,
+                device.preferred_start_jitter,
             )
-            await asyncio.sleep(delay_secs)
+            if delay_secs > 60:
+                print(
+                    f"[Crawler] Waiting {delay_secs / 60:.1f} min before starting "
+                    f"(preferred start: ~{device.preferred_start_hour}:00 PKT)..."
+                )
+                await asyncio.sleep(delay_secs)
 
-        # Camoufox: Firefox-based, patches at engine level
-        # humanize=True adds further mouse/timing randomisation at the engine level
-        launch_kwargs: dict[str, Any] = {"humanize": True, "headless": False, "addons": []}
-        if self.proxy:
-            launch_kwargs["proxy"] = {"server": self.proxy}
+            # Camoufox: Firefox-based, patches at engine level
+            # humanize=True adds further mouse/timing randomisation at the engine level
+            launch_kwargs: dict[str, Any] = {"humanize": True, "headless": False, "addons": []}
+            if self.proxy:
+                launch_kwargs["proxy"] = {"server": self.proxy}
 
-        async with AsyncCamoufox(**launch_kwargs) as browser:
-            context = await browser.new_context(
-                locale=device.locale,
-                timezone_id=device.timezone_id,
-                geolocation={
-                    "latitude": device.geo_latitude,
-                    "longitude": device.geo_longitude,
-                },
-                permissions=["geolocation"],
-                viewport={"width": device.viewport_width, "height": device.viewport_height},
-                screen={"width": device.screen_width, "height": device.screen_height},
-                user_agent=device.user_agent,
-                extra_http_headers={
-                    "Accept-Language": device.accept_language,
-                    "Accept-Encoding": "gzip, deflate, br",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                    "Sec-Ch-Ua-Platform": '"Windows"',
-                    "Upgrade-Insecure-Requests": "1",
-                },
-            )
+            async with AsyncCamoufox(**launch_kwargs) as browser:
+                context = await browser.new_context(
+                    locale=device.locale,
+                    timezone_id=device.timezone_id,
+                    geolocation={
+                        "latitude": device.geo_latitude,
+                        "longitude": device.geo_longitude,
+                    },
+                    permissions=["geolocation"],
+                    viewport={"width": device.viewport_width, "height": device.viewport_height},
+                    screen={"width": device.screen_width, "height": device.screen_height},
+                    user_agent=device.user_agent,
+                    extra_http_headers={
+                        "Accept-Language": device.accept_language,
+                        "Accept-Encoding": "gzip, deflate, br",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                        "Sec-Ch-Ua-Platform": '"Windows"',
+                        "Upgrade-Insecure-Requests": "1",
+                    },
+                )
 
-            # Inject saved session cookies
-            await context.add_cookies(cookies)
+                # Inject saved session cookies
+                await context.add_cookies(cookies)
 
-            # Create the page FIRST, then restore localStorage
-            # (localStorage can only be set after a page exists and has navigated)
-            page = await context.new_page()
+                # Create the page FIRST, then restore localStorage
+                # (localStorage can only be set after a page exists and has navigated)
+                page = await context.new_page()
 
-            stored_state = _load_storage_state(self.account_id)
-            if stored_state:
-                await page.goto("https://www.linkedin.com", wait_until="domcontentloaded")
-                await page.evaluate(f"""
-                    const state = {json.dumps(stored_state)};
-                    for (const [k, v] of Object.entries(state.localStorage || {{}})) {{
-                        try {{ localStorage.setItem(k, v); }} catch(e) {{}}
+                stored_state = _load_storage_state(self.account_id)
+                if stored_state:
+                    await page.goto("https://www.linkedin.com", wait_until="domcontentloaded")
+                    await page.evaluate(f"""
+                        const state = {json.dumps(stored_state)};
+                        for (const [k, v] of Object.entries(state.localStorage || {{}})) {{
+                            try {{ localStorage.setItem(k, v); }} catch(e) {{}}
+                        }}
+                    """)
+
+                # Inject JS to track mouse position AND override hardware/device signals
+                await page.add_init_script(f"""
+                    // Mouse position tracker (used by human_move_to)
+                    window.mouseX = 0;
+                    window.mouseY = 0;
+                    document.addEventListener('mousemove', e => {{
+                        window.mouseX = e.clientX;
+                        window.mouseY = e.clientY;
+                    }});
+
+                    // Override hardware concurrency (CPU cores)
+                    Object.defineProperty(navigator, 'hardwareConcurrency', {{
+                        get: () => {device.hardware_concurrency}
+                    }});
+
+                    // Override device memory
+                    Object.defineProperty(navigator, 'deviceMemory', {{
+                        get: () => {device.device_memory}
+                    }});
+
+                    // Override platform
+                    Object.defineProperty(navigator, 'platform', {{
+                        get: () => '{device.platform}'
+                    }});
+
+                    // Disable WebRTC to prevent real IP leaks
+                    if (window.RTCPeerConnection) {{
+                        window.RTCPeerConnection = undefined;
                     }}
+                    if (window.webkitRTCPeerConnection) {{
+                        window.webkitRTCPeerConnection = undefined;
+                    }}
+
+                    // Canvas fingerprint noise (consistent per account)
+                    const _toDataURL = HTMLCanvasElement.prototype.toDataURL;
+                    HTMLCanvasElement.prototype.toDataURL = function(type) {{
+                        const seed = {device.canvas_noise_seed};
+                        const ctx = this.getContext('2d');
+                        if (ctx) {{
+                            const pixel = ctx.getImageData(0, 0, 1, 1);
+                            pixel.data[0] = (pixel.data[0] + seed % 5) % 256;
+                            ctx.putImageData(pixel, 0, 0);
+                        }}
+                        return _toDataURL.apply(this, arguments);
+                    }};
                 """)
 
-            # Inject JS to track mouse position AND override hardware/device signals
-            await page.add_init_script(f"""
-                // Mouse position tracker (used by human_move_to)
-                window.mouseX = 0;
-                window.mouseY = 0;
-                document.addEventListener('mousemove', e => {{
-                    window.mouseX = e.clientX;
-                    window.mouseY = e.clientY;
-                }});
+                try:
+                    await self._warm_up_feed(page)
 
-                // Override hardware concurrency (CPU cores)
-                Object.defineProperty(navigator, 'hardwareConcurrency', {{
-                    get: () => {device.hardware_concurrency}
-                }});
+                    for url in self.target_urls:
+                        if not within_working_hours(self.tz_offset):
+                            print("[Crawler] Reached end of working hours. Stopping gracefully.")
+                            break
 
-                // Override device memory
-                Object.defineProperty(navigator, 'deviceMemory', {{
-                    get: () => {device.device_memory}
-                }});
+                        try:
+                            self.budget.charge("profile_view")
+                        except RuntimeError as e:
+                            print(f"[Crawler] {e}")
+                            break
 
-                // Override platform
-                Object.defineProperty(navigator, 'platform', {{
-                    get: () => '{device.platform}'
-                }});
+                        print(f"[Crawler] Visiting: {url} | Budget: {self.budget.summary()}")
 
-                // Disable WebRTC to prevent real IP leaks
-                if (window.RTCPeerConnection) {{
-                    window.RTCPeerConnection = undefined;
-                }}
-                if (window.webkitRTCPeerConnection) {{
-                    window.webkitRTCPeerConnection = undefined;
-                }}
+                        # Occasionally navigate via search instead of direct URL
+                        # This makes the navigation graph look human
+                        if random.random() < 0.40:
+                            profile = await self._visit_via_search(page, url)
+                        else:
+                            profile = await self._visit_profile(page, url)
+                        if profile:
+                            results.append(profile)
+                            print(f"[Crawler] ✓ Extracted: {profile.full_name} @ {profile.company}")
 
-                // Canvas fingerprint noise (consistent per account)
-                const _toDataURL = HTMLCanvasElement.prototype.toDataURL;
-                HTMLCanvasElement.prototype.toDataURL = function(type) {{
-                    const seed = {device.canvas_noise_seed};
-                    const ctx = this.getContext('2d');
-                    if (ctx) {{
-                        const pixel = ctx.getImageData(0, 0, 1, 1);
-                        pixel.data[0] = (pixel.data[0] + seed % 5) % 256;
-                        ctx.putImageData(pixel, 0, 0);
-                    }}
-                    return _toDataURL.apply(this, arguments);
-                }};
-            """)
+                        # Occasionally idle drift and/or simulate tab switch
+                        if random.random() < 0.20:
+                            await idle_drift(page)
+                        if random.random() < 0.15:
+                            await simulate_tab_blur(page)
 
-            try:
-                await self._warm_up_feed(page)
+                        # Occasionally take a coffee break (1 in 8 profiles)
+                        if random.random() < 0.12:
+                            print("[Crawler] Taking a coffee break...")
+                            await coffee_break()
+                        else:
+                            await between_profiles_pause()
 
-                for url in self.target_urls:
-                    if not within_working_hours(self.tz_offset):
-                        print("[Crawler] Reached end of working hours. Stopping gracefully.")
-                        break
-
-                    try:
-                        self.budget.charge("profile_view")
-                    except RuntimeError as e:
-                        print(f"[Crawler] {e}")
-                        break
-
-                    print(f"[Crawler] Visiting: {url} | Budget: {self.budget.summary()}")
-
-                    # Occasionally navigate via search instead of direct URL
-                    # This makes the navigation graph look human
-                    if random.random() < 0.40:
-                        profile = await self._visit_via_search(page, url)
-                    else:
-                        profile = await self._visit_profile(page, url)
-                    if profile:
-                        results.append(profile)
-                        print(f"[Crawler] ✓ Extracted: {profile.full_name} @ {profile.company}")
-
-                    # Occasionally idle drift and/or simulate tab switch
-                    if random.random() < 0.20:
-                        await idle_drift(page)
-                    if random.random() < 0.15:
-                        await simulate_tab_blur(page)
-
-                    # Occasionally take a coffee break (1 in 8 profiles)
-                    if random.random() < 0.12:
-                        print("[Crawler] Taking a coffee break...")
-                        await coffee_break()
-                    else:
-                        await between_profiles_pause()
-
-            finally:
-                # Save cookies AND localStorage back to disk
-                updated_cookies = await context.cookies()
-                local_storage = await page.evaluate("""
-                    () => {
-                        const s = {};
-                        for (let i = 0; i < localStorage.length; i++) {
-                            const k = localStorage.key(i);
-                            s[k] = localStorage.getItem(k);
+                finally:
+                    # Save cookies AND localStorage back to disk
+                    updated_cookies = await context.cookies()
+                    local_storage = await page.evaluate("""
+                        () => {
+                            const s = {};
+                            for (let i = 0; i < localStorage.length; i++) {
+                                const k = localStorage.key(i);
+                                s[k] = localStorage.getItem(k);
+                            }
+                            return s;
                         }
-                        return s;
-                    }
-                """)
-                self.session_manager.save_cookies(self.account_id, updated_cookies)
-                _save_storage_state(self.account_id, {"localStorage": local_storage})
-                # reserve_action already logged the full `reserved` amount
-                # up front (see _reserve_daily_budget) so a concurrent run
-                # sees it immediately -- give back whatever portion of that
-                # reservation this run didn't actually use.
-                self._release_unused_daily_budget(reserved)
-                await context.close()
+                    """)
+                    self.session_manager.save_cookies(self.account_id, updated_cookies)
+                    _save_storage_state(self.account_id, {"localStorage": local_storage})
+                    await context.close()
+        finally:
+            # reserve_action already logged the full `reserved` amount up
+            # front (see _reserve_daily_budget) so a concurrent run sees it
+            # immediately -- give back whatever portion of that reservation
+            # this run didn't actually use. In the outer finally (not the
+            # inner one above) so it still runs even when a failure
+            # happens before the browser session is ever established --
+            # see the comment where `reserved` is assigned.
+            self._release_unused_daily_budget(reserved)
 
         print(f"[Crawler] Done. Extracted {len(results)} profiles.")
         return results
@@ -747,19 +761,23 @@ class LinkedInStealthCrawler:
 
             print("⚠ [Crawler] CAPTCHA detected — session is flagged by LinkedIn!")
 
+            # Log CAPTCHA event to session (audit trail) and the exact
+            # timestamp run()'s own captcha_cooldown_remaining check reads
+            # to actually enforce the claimed 24h rest before this account
+            # is used again -- log_run alone previously had nothing reading
+            # it back. Recorded immediately, before attempting a solve: the
+            # challenge is already definitively detected at this point
+            # regardless of whether solving it below succeeds, times out,
+            # or raises, so the cooldown must not depend on reaching the
+            # code after the solve attempt.
+            self.session_manager.log_run(self.account_id, {"captcha_triggered": 1})
+            self.session_manager.record_captcha_challenge(self.account_id)
+
             if self.captcha_api_key:
                 await self._solve_captcha_2captcha(page)
             else:
                 print("[Crawler] No 2Captcha key. Pausing 5 min for manual solve...")
                 await asyncio.sleep(300)
-
-            # Log CAPTCHA event to session (audit trail) and the exact
-            # timestamp run()'s own captcha_cooldown_remaining check reads
-            # to actually enforce the claimed 24h rest before this account
-            # is used again -- log_run alone previously had nothing reading
-            # it back.
-            self.session_manager.log_run(self.account_id, {"captcha_triggered": 1})
-            self.session_manager.record_captcha_challenge(self.account_id)
 
             # Raise to abort remaining URLs — account needs 24h rest regardless of solve outcome
             raise RuntimeError(

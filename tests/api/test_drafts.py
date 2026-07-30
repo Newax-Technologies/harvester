@@ -112,3 +112,56 @@ async def test_decision_rejected_while_draft_is_being_sent(client_a, seeded_draf
 
     await db_session.refresh(seeded_draft)
     assert seeded_draft.status == DraftStatus.SENDING
+
+
+@pytest.mark.asyncio
+async def test_edit_rejected_after_draft_already_sent(client_a, seeded_draft, db_session):
+    # The SENDING -> SENT transition doesn't bump version either (see
+    # _mark_sent), so a stale-version edit loaded before the send would
+    # otherwise still pass the version check and rewrite the recorded body
+    # of a message that has already been delivered.
+    version = seeded_draft.version
+    seeded_draft.status = DraftStatus.SENT
+    await db_session.commit()
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id="reviewer_A", username="Alice", role="reviewer"
+    )
+    response = await client_a.patch(
+        f"/api/v1/drafts/{seeded_draft.id}",
+        json={"message": "Edited after sent!", "expected_version": version},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "draft_being_sent"
+
+    await db_session.refresh(seeded_draft)
+    assert seeded_draft.body == "World"
+    assert seeded_draft.status == DraftStatus.SENT
+
+
+@pytest.mark.asyncio
+async def test_decision_rejected_after_draft_already_sent(client_a, seeded_draft, db_session):
+    # Without this, a stale-version decision could move an already-SENT
+    # draft back to APPROVED, letting the next automator run send it again.
+    version = seeded_draft.version
+    seeded_draft.status = DraftStatus.SENT
+    await db_session.commit()
+
+    app.dependency_overrides[get_current_user] = lambda: User(
+        id="reviewer_A", username="Alice", role="reviewer"
+    )
+    response = await client_a.post(
+        f"/api/v1/drafts/{seeded_draft.id}/decision",
+        json={
+            "decision": "approved",
+            "expected_version": version,
+            "feedback": "Approving after it's already sent.",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "draft_being_sent"
+
+    await db_session.refresh(seeded_draft)
+    assert seeded_draft.status == DraftStatus.SENT

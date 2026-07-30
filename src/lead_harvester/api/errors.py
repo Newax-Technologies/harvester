@@ -72,11 +72,12 @@ class DraftBeingSentError(BaseAPIException):
             status_code=409,
             code="draft_being_sent",
             message=(
-                "This draft has already been claimed by an outreach send and cannot "
-                "be edited or decided on. The automator loaded its current body/"
-                "status into memory before this claim; a mutation here would not "
-                "change what's actually sent, and could leave the database "
-                "recording content different from what was delivered."
+                "This draft has already been claimed by an outreach send, or has "
+                "already been sent, and cannot be edited or decided on. The "
+                "automator loaded its current body/status into memory before "
+                "claiming it; a mutation here would not change what's actually "
+                "sent, and could leave the database recording content different "
+                "from what was delivered."
             ),
             details={"draft_id": str(draft_id)},
         )
