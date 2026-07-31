@@ -3,7 +3,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,6 +23,21 @@ class SizeTier(str, enum.Enum):
     SMALL = "small"
     MEDIUM = "medium"
     LARGE = "large"
+
+
+class WebsiteQualityTier(str, enum.Enum):
+    """
+    See docs/ROADMAP.md module 20's website quality engine --
+    intelligence/website_quality.py computes this from a weighted checklist
+    over the institution's crawled RawPageSnapshot rows. NONE is forced
+    whenever the institution has no website at all (no scoring needed).
+    """
+
+    NONE = "none"
+    POOR = "poor"
+    ADEQUATE = "adequate"
+    GOOD = "good"
+    EXCEPTIONAL = "exceptional"
 
 
 class LeadProfile(Base):
@@ -80,6 +95,16 @@ class LeadProfile(Base):
     )
     operational_maturity_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     icp_match_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # docs/ROADMAP.md module 20 additions -- computed by
+    # intelligence/website_quality.py and intelligence/service_gap.py
+    # respectively, refreshed alongside everything else above.
+    website_quality_tier: Mapped[WebsiteQualityTier] = mapped_column(
+        Enum(WebsiteQualityTier, name="websitequalitytier"),
+        default=WebsiteQualityTier.NONE,
+        nullable=False,
+    )
+    service_gap_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)

@@ -21,13 +21,17 @@ from lead_harvester.config import settings as app_settings
 from lead_harvester.intelligence.icp_matching import score_icp_fit
 from lead_harvester.intelligence.operational_maturity import compute_operational_maturity
 from lead_harvester.intelligence.research_summary import summarize_signals
+from lead_harvester.intelligence.service_gap import compute_service_gap_score
 from lead_harvester.intelligence.size_estimation import estimate_size_tier
+from lead_harvester.intelligence.website_quality import compute_website_quality_tier
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot
+from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.qualification import QualificationAssessment
 from lead_harvester.models.research import ResearchFinding
 from lead_harvester.models.sector import Sector
 from lead_harvester.models.signal import Signal
+from lead_harvester.models.source import RawPageSnapshot, RawSourceRecord, SourceType
 from lead_harvester.profiles.scoring import compute_lead_score
 from lead_harvester.qualification.agent import QualificationAgent
 from lead_harvester.schemas.profiles import (
@@ -122,6 +126,14 @@ async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID)
     operational_maturity_score = compute_operational_maturity(institution, signals)
     icp_match_score = score_icp_fit(institution, len(branches), app_settings, sector=sector)
 
+    # docs/ROADMAP.md module 20: scope to snapshots from crawl runs that
+    # actually contributed to this institution's canonical record (via
+    # FieldProvenance -> RawSourceRecord -> source_run_id), not a domain-
+    # string match against every crawl this harvester has ever run.
+    website_snapshots = await _get_website_snapshots(session, institution_id)
+    website_quality_tier = compute_website_quality_tier(institution.website, website_snapshots)
+    service_gap_score = compute_service_gap_score(website_quality_tier, signals, size_tier)
+
     profile = (
         await session.scalars(
             select(LeadProfile).where(LeadProfile.institution_id == institution_id)
@@ -140,6 +152,8 @@ async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID)
     profile.size_tier = size_tier
     profile.operational_maturity_score = operational_maturity_score
     profile.icp_match_score = icp_match_score
+    profile.website_quality_tier = website_quality_tier
+    profile.service_gap_score = service_gap_score
     profile.organization_summary = organization_summary
     profile.evidence_count = result.evidence_count
     profile.computed_at = datetime.now(UTC)
@@ -154,6 +168,36 @@ async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID)
 
     await session.flush()
     return profile
+
+
+async def _get_website_snapshots(
+    session: AsyncSession, institution_id: uuid.UUID
+) -> list[RawPageSnapshot]:
+    """
+    docs/ROADMAP.md module 20: the RawPageSnapshot rows from WEBSITE crawl
+    runs that actually contributed a field to this institution -- traced
+    via FieldProvenance rather than a domain-string match, since that's
+    the same provenance link canonical/merger.py already relies on
+    elsewhere for "which raw record asserted this".
+    """
+    run_ids = (
+        await session.scalars(
+            select(RawSourceRecord.source_run_id)
+            .join(FieldProvenance, FieldProvenance.raw_record_id == RawSourceRecord.id)
+            .where(FieldProvenance.canonical_id == institution_id)
+            .where(RawSourceRecord.source_type == SourceType.WEBSITE)
+            .distinct()
+        )
+    ).all()
+    if not run_ids:
+        return []
+    return list(
+        (
+            await session.scalars(
+                select(RawPageSnapshot).where(RawPageSnapshot.source_run_id.in_(run_ids))
+            )
+        ).all()
+    )
 
 
 def _latest_summary(findings: list[ResearchFinding]) -> str | None:
@@ -265,6 +309,8 @@ async def list_lead_profiles(
             size_tier=profile.size_tier,
             operational_maturity_score=profile.operational_maturity_score,
             icp_match_score=profile.icp_match_score,
+            website_quality_tier=profile.website_quality_tier,
+            service_gap_score=profile.service_gap_score,
             computed_at=profile.computed_at,
             canonical_name=canonical_name,
         )

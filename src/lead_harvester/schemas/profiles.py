@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from lead_harvester.models.profile import SizeTier
+from lead_harvester.models.profile import SizeTier, WebsiteQualityTier
 from lead_harvester.models.qualification import QualificationStatus
 from lead_harvester.schemas.common import BaseSchema
 
@@ -21,6 +21,9 @@ class LeadProfileResponse(BaseSchema):
     size_tier: SizeTier
     operational_maturity_score: int
     icp_match_score: int
+    # docs/ROADMAP.md module 20 fields.
+    website_quality_tier: WebsiteQualityTier
+    service_gap_score: float
     computed_at: datetime
 
 

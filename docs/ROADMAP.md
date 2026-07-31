@@ -186,8 +186,8 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
     `institutions_by_sector` breakdown (sector code → institution count, plus an
     `unclassified` bucket) so a downstream consumer or dashboard can scope to (or compare
     across) sectors instead of only ever seeing one undifferentiated pool of leads.
-20. **Service-Gap / Infrastructure Opportunity Scoring** (`intelligence/`, `profiles/`) — depends
-    on module 6's `technology_detector.py` and module 7's `size_estimation.py`; cross-cutting,
+20. **Service-Gap / Infrastructure Opportunity Scoring** (`intelligence/`, `profiles/`) — done.
+    Depends on module 6's `technology_detector.py` and module 7's `size_estimation.py`; cross-cutting,
     not sector-dependent (NEWAX sells the same infrastructure — websites, LMS/operational
     software, IoT hardware+software integration — regardless of what sector the buyer is in).
     Scoped with the user: the best lead is the one with the *most* service gaps we can sell
@@ -211,47 +211,42 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
     answerable later if that tradeoff turns out to matter in practice, without changing the
     decision now.
 
-    Still to build:
-    - New LMS-detection rules in `enrichment/technology_detector.py` (pattern-matching known
-      LMS/portal names and phrases in crawled page text — Moodle, Google Classroom, Canvas,
-      Blackboard, Schoology, PowerSchool, "parent portal", "student portal", etc.), emitting a
-      new positive-detection `Signal` (needs a new `SignalType` — e.g. `TECHNOLOGY_PRESENT` —
-      distinct from `PAIN_POINT`/`BUYING_SIGNAL`, since "has an LMS" is a detected fact, not a
-      pain point or buying signal by itself).
-    - IoT hardware/software integration: known v1 limitation stated up front, not discovered
-      later — this is rarely announced on a public website, so v1 treats it as unknown/neutral
-      rather than assumed-absent (unlike website/LMS above, since there's no realistic way to
-      even attempt detecting it from a public site). A real signal here would come from manual
-      entry or authorized-import data, not the crawler, and detecting it automatically is out of
-      scope for this module.
-    - **Website quality engine** (decided with the user: rule-based, built on the existing static
-      crawler — no headless-browser/JS-rendering pass in v1, since `sources/web.py`'s httpx+
-      BeautifulSoup fetch already captures everything this checklist needs). A `WebsiteQualityTier`
-      enum (`NONE`/`POOR`/`ADEQUATE`/`GOOD`/`EXCEPTIONAL`) computed per institution from a weighted
-      checklist over its crawled `RawPageSnapshot` rows: `has_https` (scheme), `has_mobile_viewport`
-      (a `<meta name="viewport">` tag present), `has_contact_or_booking_form` (a real `<form>`, not
-      just a "contact us" mention), `page_count_crawled` (site depth — 1 page is shallow, 2-5
-      adequate, 6+ comprehensive), `broken_internal_link_rate` (fraction of this site's own
-      `RawPageSnapshot.fetch_error` rows that are HTTP errors, not robots/oversized/other
-      exclusions — a real, already-captured signal from module 3). `NONE` is forced whenever
-      `institution.website` is absent (no scoring needed); otherwise the checklist's weighted sum
-      maps to a tier. Known v1 limitation, explicit rather than silent: purely structural/technical
-      signals, no design/copywriting/visual-quality judgment (that would need the LLM-based path
-      not chosen for v1) — a site that is technically solid but ugly, or vice versa, isn't
-      distinguished.
-    - A new `service_gap_score` (`profiles/scoring.py`, or a new `intelligence/service_gap.py`).
-      Decided formula: `opportunity_score = missing_product_count * size_multiplier` — directly
-      implements "most services they could buy AND can afford to pay," so a small single-branch
-      institution missing every product still scores lower than a multi-branch institution
-      missing the same things. `missing_product_count` counts website and LMS as missing whenever
-      not detected (per the assume-absent policy above); `WebsiteQualityTier` further modulates a
-      present-but-weak website's contribution (`NONE` counts as fully missing; `POOR`/`ADEQUATE`
-      count as a partial gap — still real upsell/redesign opportunity; `GOOD`/`EXCEPTIONAL` count
-      as no gap). `size_multiplier` comes from `intelligence/size_estimation.py::estimate_size_tier`'s
-      existing `SizeTier` (`SMALL`/`MEDIUM`/`LARGE`/`UNKNOWN`) via a small, tunable mapping — e.g.
-      `UNKNOWN`/`SMALL` → `1.0`, `MEDIUM` → `1.5`, `LARGE` → `2.0` (exact values configurable, not
-      load-bearing on the formula itself). Feeds into `LeadProfile`'s existing `qualification`
-      score category rather than adding a second, competing scoring path.
+    Built:
+    - LMS-detection rules in `enrichment/technology_detector.py::_LMS_SIGNAL_RULES` (Moodle,
+      Google Classroom, Canvas, Blackboard, Schoology, PowerSchool, "parent portal", "student
+      portal"), emitting `Signal` rows of the new `SignalType.TECHNOLOGY_PRESENT` (distinct from
+      `PAIN_POINT`/`BUYING_SIGNAL`, since "has an LMS" is a detected fact, not a pain point or
+      buying signal by itself).
+    - IoT hardware/software integration remains a known v1 limitation, deliberately unbuilt: it's
+      rarely announced on a public website, so it stays unknown/neutral (no product slot at all in
+      `service_gap.py`) rather than assumed-absent like website/LMS below — a real signal here
+      would need manual entry or authorized-import data, not the crawler.
+    - **Website quality engine** (`intelligence/website_quality.py::compute_website_quality_tier`)
+      — rule-based, built on the existing static crawler, no headless-browser/JS-rendering pass, as
+      decided with the user. A `WebsiteQualityTier` enum (`NONE`/`POOR`/`ADEQUATE`/`GOOD`/
+      `EXCEPTIONAL`, `models/profile.py`) computed per institution from a weighted checklist over
+      its own crawled `RawPageSnapshot` rows — scoped via
+      `services/lead_profile_service.py::_get_website_snapshots`'s
+      `FieldProvenance → RawSourceRecord → source_run_id` join (a precise link to "which crawl
+      runs actually contributed to this institution", not a domain-string match): `has_https`,
+      `has_mobile_viewport` (a `<meta name="viewport">` tag), `has_contact_or_booking_form` (a real
+      `<form>` tag), `page_count_crawled` (2-5 pages adequate, 6+ comprehensive), and
+      `broken_internal_link_rate` (fraction of this site's own snapshots whose `fetch_error` starts
+      with `http_error`, excluding robots/oversized/decode-error rows). `NONE` is forced whenever
+      `institution.website` is absent. Known v1 limitation, explicit rather than silent: purely
+      structural/technical signals, no design/copywriting/visual-quality judgment.
+    - `service_gap_score` (`intelligence/service_gap.py::compute_service_gap_score`, stored on
+      `LeadProfile.service_gap_score`). Implements `missing_product_count * size_multiplier`: a
+      small single-branch institution missing every product still scores lower than a multi-branch
+      institution missing the same things. `missing_product_count` sums the website gap
+      (`WebsiteQualityTier` → `0`/`0.5`/`1.0`: `NONE` fully missing, `POOR`/`ADEQUATE` a partial
+      gap, `GOOD`/`EXCEPTIONAL` no gap) and the LMS gap (`1.0` unless a `TECHNOLOGY_PRESENT` signal
+      mentions an LMS/portal, `0.0` otherwise). `size_multiplier` comes from
+      `intelligence/size_estimation.py::estimate_size_tier`'s `SizeTier` via `UNKNOWN`/`SMALL` →
+      `1.0`, `MEDIUM` → `1.5`, `LARGE` → `2.0`. Both new fields are computed and persisted inside
+      the same `services/lead_profile_service.py::refresh_lead_profile` call as everything else,
+      not a second, competing scoring path. Invokable via the existing `GET /api/v1/lead-profiles*`
+      read API (`LeadProfileResponse`/`LeadProfileListItem` in `schemas/profiles.py`).
 
 ## Explicitly not part of Harvester
 

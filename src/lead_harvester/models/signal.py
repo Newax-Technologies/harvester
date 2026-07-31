@@ -34,6 +34,9 @@ from lead_harvester.database import Base
 class SignalType(str, enum.Enum):
     PAIN_POINT = "pain_point"
     BUYING_SIGNAL = "buying_signal"
+    # docs/ROADMAP.md module 20: a detected fact ("has an LMS"), distinct
+    # from a pain point or buying signal by itself.
+    TECHNOLOGY_PRESENT = "technology_present"
 
 
 class Signal(Base):
