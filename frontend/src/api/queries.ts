@@ -21,54 +21,76 @@ export const queryKeys = {
 };
 
 export const dashboardQueries = {
-  summary: () => queryOptions({
-    queryKey: queryKeys.dashboard.summary(),
-    queryFn: () => apiClient.GET("/api/v1/dashboard/summary").then(handleApiResponse)
-  }),
-  activity: () => queryOptions({
-    queryKey: queryKeys.dashboard.activity(),
-    queryFn: () => apiClient.GET("/api/v1/dashboard/activity").then(handleApiResponse)
-  })
+  summary: () =>
+    queryOptions({
+      queryKey: queryKeys.dashboard.summary(),
+      queryFn: () =>
+        apiClient.GET("/api/v1/dashboard/summary").then(handleApiResponse),
+    }),
+  activity: () =>
+    queryOptions({
+      queryKey: queryKeys.dashboard.activity(),
+      queryFn: () =>
+        apiClient.GET("/api/v1/dashboard/activity").then(handleApiResponse),
+    }),
 };
 
 export const institutionQueries = {
-  list: (limit: number, offset: number, city?: string) => queryOptions({
-    queryKey: queryKeys.institutions.list({ limit, offset, city }),
-    queryFn: () => apiClient.GET("/api/v1/institutions", {
-      params: { query: { limit, offset, city } }
-    }).then(handleApiResponse)
-  }),
-  detail: (id: string) => queryOptions({
-    queryKey: queryKeys.institutions.detail(id),
-    queryFn: () => apiClient.GET("/api/v1/institutions/{institution_id}", {
-      params: { path: { institution_id: id } }
-    }).then(handleApiResponse)
-  })
+  list: (limit: number, offset: number, city?: string) =>
+    queryOptions({
+      queryKey: queryKeys.institutions.list({ limit, offset, city }),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/institutions", {
+            params: { query: { limit, offset, city } },
+          })
+          .then(handleApiResponse),
+    }),
+  detail: (id: string) =>
+    queryOptions({
+      queryKey: queryKeys.institutions.detail(id),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/institutions/{institution_id}", {
+            params: { path: { institution_id: id } },
+          })
+          .then(handleApiResponse),
+    }),
 };
 
 export const draftQueries = {
-  list: () => queryOptions({
-    queryKey: queryKeys.drafts.list(),
-    queryFn: () => apiClient.GET("/api/v1/drafts").then(handleApiResponse)
-  }),
-  detail: (id: string) => queryOptions({
-    queryKey: queryKeys.drafts.detail(id),
-    queryFn: () => apiClient.GET("/api/v1/drafts/{draft_id}", {
-      params: { path: { draft_id: id } }
-    }).then(handleApiResponse)
-  })
+  list: () =>
+    queryOptions({
+      queryKey: queryKeys.drafts.list(),
+      queryFn: () => apiClient.GET("/api/v1/drafts").then(handleApiResponse),
+    }),
+  detail: (id: string) =>
+    queryOptions({
+      queryKey: queryKeys.drafts.detail(id),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/drafts/{draft_id}", {
+            params: { path: { draft_id: id } },
+          })
+          .then(handleApiResponse),
+    }),
 };
 
 export const resolutionQueries = {
-  list: () => queryOptions({
-    queryKey: queryKeys.resolutions.list(),
-    queryFn: () => apiClient.GET("/api/v1/resolution-reviews").then(handleApiResponse)
-  }),
-  detail: (id: string) => queryOptions({
-    queryKey: queryKeys.resolutions.detail(id),
-    queryFn: () => apiClient.GET("/api/v1/resolution-reviews/{review_id}", {
-      params: { path: { review_id: id } }
-    }).then(handleApiResponse)
-  })
+  list: () =>
+    queryOptions({
+      queryKey: queryKeys.resolutions.list(),
+      queryFn: () =>
+        apiClient.GET("/api/v1/resolution-reviews").then(handleApiResponse),
+    }),
+  detail: (id: string) =>
+    queryOptions({
+      queryKey: queryKeys.resolutions.detail(id),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/resolution-reviews/{review_id}", {
+            params: { path: { review_id: id } },
+          })
+          .then(handleApiResponse),
+    }),
 };
-

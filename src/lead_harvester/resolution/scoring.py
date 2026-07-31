@@ -1,18 +1,57 @@
+from geoalchemy2.functions import ST_Distance
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
-from geoalchemy2.functions import ST_Distance
 
+from lead_harvester.models.resolution import MatchAssessment, MatchDecision, ResolutionCandidate
 from lead_harvester.models.source import RawSourceRecord
-from lead_harvester.models.canonical import CanonicalInstitution, Branch
-from lead_harvester.models.resolution import ResolutionCandidate, MatchAssessment, MatchDecision
 
 
-def _decide(name_similarity: float, distance_meters: float | None, phone_match: bool, domain_match: bool) -> tuple[float, MatchDecision]:
-    """Shared scoring matrix / decision logic for both raw-record and canonical-institution targets."""
+async def score_candidate(session: AsyncSession, candidate: ResolutionCandidate) -> MatchAssessment:
+    """
+    Evaluates a candidate pairing and returns a MatchAssessment with a decision.
+    Currently compares two raw records (target_raw_record_id).
+    """
+    if not candidate.target_raw_record_id:
+        raise NotImplementedError("Canonical target scoring not yet implemented")
+
+    # Fetch both records
+    stmt = select(RawSourceRecord).where(
+        RawSourceRecord.id.in_([candidate.raw_record_id, candidate.target_raw_record_id])
+    )
+    result = await session.execute(stmt)
+    records = {r.id: r for r in result.scalars()}
+
+    source = records[candidate.raw_record_id]
+    target = records[candidate.target_raw_record_id]
+
+    # 1. Evaluate Phone Match
+    phone_match = False
+    if source.normalized_phone and target.normalized_phone:
+        phone_match = source.normalized_phone == target.normalized_phone
+
+    # 2. Evaluate Domain Match
+    domain_match = False
+    if source.normalized_domain and target.normalized_domain:
+        domain_match = source.normalized_domain == target.normalized_domain
+
+    # 3. Evaluate Name Similarity and Geographic Distance
+    # Since these require DB functions, we can execute a quick query, or compute in python if simple.
+    # We'll use the DB to calculate similarity and distance.
+    sim_dist_stmt = select(
+        func.similarity(source.normalized_name, target.normalized_name).label("sim"),
+        ST_Distance(source.location, target.location).label("dist"),
+    )
+    res = await session.execute(sim_dist_stmt)
+    sim, dist = res.one()
+
+    name_similarity = float(sim) if sim is not None else 0.0
+    distance_meters = float(dist) if dist is not None else None
+
+    # --- Scoring Matrix & Decision Logic ---
     decision = MatchDecision.REJECT
     total_score = 0.0
 
+    # Base scoring
     if name_similarity > 0.8:
         total_score += 40
     elif name_similarity > 0.5:
@@ -28,131 +67,44 @@ def _decide(name_similarity: float, distance_meters: float | None, phone_match: 
     if domain_match:
         total_score += 20
 
+    # Decision Rules
     if name_similarity > 0.8 and distance_meters is not None and distance_meters < 100:
         # Same name, same location -> Definitely the same entity (MERGE)
         decision = MatchDecision.MERGE
+    elif (domain_match or phone_match) and name_similarity > 0.8:
+        # An exact domain match, or an exact phone match, plus a strong name
+        # match is too confident to auto-dismiss as LINK_ONLY (unlike a bare
+        # phone/domain match alone, which franchises commonly share across
+        # genuinely distinct locations) but can't auto-MERGE without
+        # geographic confirmation -- a web-crawled record has no coordinates
+        # at all (location is always None), and manual entries never have
+        # one either, so cross-source matches involving either never reach
+        # the MERGE branch above. Flag for human review instead of silently
+        # treating it as confidently distinct.
+        decision = MatchDecision.PENDING
     elif phone_match or domain_match:
         # Shared contact details, but potentially different physical locations/names.
         # This prevents merging a franchise network into a single school.
         decision = MatchDecision.LINK_ONLY
-    elif total_score > 60:
+    elif total_score >= 60:
+        # >= not >: the highest score reachable without tripping either MERGE
+        # (needs name>0.8 AND distance<100) or LINK_ONLY (needs phone/domain)
+        # is exactly 60 (one "secondary" bucket each from name and distance,
+        # e.g. name in (0.5,0.8]+distance<50, or name>0.8+distance in
+        # [100,200)) -- a strict `> 60` made this branch unreachable and the
+        # review queue would never receive a candidate.
         # High overall confidence but lacking definitive proof
         decision = MatchDecision.PENDING
 
-    return total_score, decision
-
-
-async def score_candidate(session: AsyncSession, candidate: ResolutionCandidate) -> MatchAssessment:
-    """
-    Evaluates a candidate pairing and returns a MatchAssessment with a decision.
-    Supports two target types:
-      - target_raw_record_id: compares two raw records against each other.
-      - target_canonical_id: compares a raw record against an already-merged
-        CanonicalInstitution (its aggregate name/domain/branches/contacts).
-    """
-    if candidate.target_raw_record_id:
-        assessment = await _score_against_raw_record(session, candidate)
-    elif candidate.target_canonical_id:
-        assessment = await _score_against_canonical(session, candidate)
-    else:
-        raise ValueError("ResolutionCandidate has neither target_raw_record_id nor target_canonical_id")
+    assessment = MatchAssessment(
+        candidate_id=candidate.id,
+        name_similarity=name_similarity,
+        distance_meters=distance_meters,
+        phone_match=phone_match,
+        domain_match=domain_match,
+        total_score=total_score,
+        decision=decision,
+    )
 
     session.add(assessment)
     return assessment
-
-
-async def _score_against_raw_record(session: AsyncSession, candidate: ResolutionCandidate) -> MatchAssessment:
-    # Fetch both records
-    stmt = select(RawSourceRecord).where(
-        RawSourceRecord.id.in_([candidate.raw_record_id, candidate.target_raw_record_id])
-    )
-    result = await session.execute(stmt)
-    records = {r.id: r for r in result.scalars()}
-
-    source = records[candidate.raw_record_id]
-    target = records[candidate.target_raw_record_id]
-
-    # 1. Evaluate Phone Match
-    phone_match = False
-    if source.normalized_phone and target.normalized_phone:
-        phone_match = (source.normalized_phone == target.normalized_phone)
-
-    # 2. Evaluate Domain Match
-    domain_match = False
-    if source.normalized_domain and target.normalized_domain:
-        domain_match = (source.normalized_domain == target.normalized_domain)
-
-    # 3. Evaluate Name Similarity and Geographic Distance
-    sim_dist_stmt = select(
-        func.similarity(source.normalized_name, target.normalized_name).label("sim"),
-        ST_Distance(source.location, target.location).label("dist")
-    )
-    res = await session.execute(sim_dist_stmt)
-    sim, dist = res.one()
-
-    name_similarity = float(sim) if sim is not None else 0.0
-    distance_meters = float(dist) if dist is not None else None
-
-    total_score, decision = _decide(name_similarity, distance_meters, phone_match, domain_match)
-
-    return MatchAssessment(
-        candidate_id=candidate.id,
-        name_similarity=name_similarity,
-        distance_meters=distance_meters,
-        phone_match=phone_match,
-        domain_match=domain_match,
-        total_score=total_score,
-        decision=decision
-    )
-
-
-async def _score_against_canonical(session: AsyncSession, candidate: ResolutionCandidate) -> MatchAssessment:
-    source = await session.get(RawSourceRecord, candidate.raw_record_id)
-
-    institution_stmt = select(CanonicalInstitution).options(
-        selectinload(CanonicalInstitution.branches),
-        selectinload(CanonicalInstitution.contact_points),
-    ).where(CanonicalInstitution.id == candidate.target_canonical_id)
-    institution = (await session.execute(institution_stmt)).scalar_one()
-
-    # 1. Evaluate Phone Match against any phone ContactPoint on the institution
-    phone_match = False
-    if source.normalized_phone:
-        institution_phones = {
-            cp.contact_value for cp in institution.contact_points if cp.contact_type == "phone"
-        }
-        phone_match = source.normalized_phone in institution_phones
-
-    # 2. Evaluate Domain Match
-    domain_match = False
-    if source.normalized_domain and institution.domain:
-        domain_match = (source.normalized_domain == institution.domain)
-
-    # 3. Evaluate Name Similarity against the canonical name
-    name_similarity = 0.0
-    if source.normalized_name and institution.canonical_name:
-        sim_stmt = select(func.similarity(source.normalized_name, institution.canonical_name))
-        sim = (await session.execute(sim_stmt)).scalar()
-        name_similarity = float(sim) if sim is not None else 0.0
-
-    # 4. Evaluate Geographic Distance: closest branch to the source location
-    distance_meters = None
-    branch_ids = [b.id for b in institution.branches if b.location is not None]
-    if source.location is not None and branch_ids:
-        dist_stmt = select(func.min(ST_Distance(source.location, Branch.location))).where(
-            Branch.id.in_(branch_ids)
-        )
-        dist = (await session.execute(dist_stmt)).scalar()
-        distance_meters = float(dist) if dist is not None else None
-
-    total_score, decision = _decide(name_similarity, distance_meters, phone_match, domain_match)
-
-    return MatchAssessment(
-        candidate_id=candidate.id,
-        name_similarity=name_similarity,
-        distance_meters=distance_meters,
-        phone_match=phone_match,
-        domain_match=domain_match,
-        total_score=total_score,
-        decision=decision
-    )

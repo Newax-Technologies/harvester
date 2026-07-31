@@ -34,9 +34,12 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=8.3,<9",
-  "pytest-asyncio>=0.25,<1",
+  "pytest>=9.0.3,<10",
+  "pytest-asyncio>=1.4,<2",
   "ruff>=0.9,<1",
+  "pip-audit>=2.7,<3",
+  "pre-commit>=4,<5",
+  "setuptools>=83.0.0",
 ]
 
 [project.scripts]
@@ -52,3 +55,27 @@ testpaths = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+# B008 (flake8-bugbear "no function calls in argument defaults") flags
+# FastAPI's own Depends(...)/Query(...)/etc. pattern, which is how dependency
+# injection is meant to be written in this framework -- not a real bug here.
+#
+# BLE001 (flake8-blind-except "no bare `except Exception`") was reviewed
+# site-by-site across the whole codebase rather than blanket-suppressed
+# blind: every catch is at a real boundary (an external website fetch, an AI
+# API call, sending a LinkedIn message/email, browser-automation calls that
+# may fail because a page navigated away or LinkedIn's DOM shifted, reading
+# a possibly-corrupt local session/log file) and every one now logs what it
+# caught before degrading gracefully -- narrowing 30+ call sites to specific
+# exception types without being able to exercise them against a live browser
+# session here would be guessing, and guessing wrong would quietly remove
+# the resilience this crawler depends on.
+ignore = ["B008", "BLE001"]
+
+[tool.ruff.lint.per-file-ignores]
+# RUF012 (mutable class-attribute default) is a false positive for Pydantic
+# BaseModel fields: Pydantic deep-copies `= []`/`= {}` defaults per instance,
+# it does not share mutable state across instances the way a plain class or
+# dataclass would.
+"src/lead_harvester/schemas/*.py" = ["RUF012"]

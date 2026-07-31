@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import dataclasses
+import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
-import time
 from typing import Any
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
@@ -22,9 +21,8 @@ from ..extractors import (
     extract_social_profiles,
     visible_text,
 )
-from ..models.source import SourceType
-from .base import NormalizedRecord, SourceConnector
-from .search import BraveSearchSource
+
+
 @dataclass
 class Lead:
     source: str
@@ -39,7 +37,6 @@ class Lead:
     social_profiles: list[str]
     evidence: str
     raw: dict[str, Any]
-
 
 
 @dataclass(slots=True)
@@ -170,7 +167,10 @@ class WebCrawler:
                 async with client.stream("GET", item.url) as response:
                     response.raise_for_status()
                     content_type = response.headers.get("content-type", "").lower()
-                    if "text/html" not in content_type and "application/xhtml+xml" not in content_type:
+                    if (
+                        "text/html" not in content_type
+                        and "application/xhtml+xml" not in content_type
+                    ):
                         return None
                     chunks: list[bytes] = []
                     size = 0
@@ -250,54 +250,3 @@ class WebCrawler:
     @staticmethod
     def _domain(url: str) -> str:
         return urlparse(url).netloc.lower().removeprefix("www.")
-
-
-class WebSourceConnector(SourceConnector):
-    """
-    Adapter that fits WebCrawler into the shared SourceConnector interface.
-
-    job_config["seeds"] are crawled directly. job_config["queries"] are first
-    resolved to URLs via the Brave Search API (an official, ToS-compliant
-    search API), and those discovered URLs are crawled the same way.
-    """
-
-    source_type = SourceType.WEBSITE
-
-    def __init__(self, settings: Settings, brave_search_api_key: str | None = None):
-        self.settings = settings
-        self.brave_search_api_key = brave_search_api_key
-
-    async def _discover_seeds_from_queries(self, queries: list[str], count_per_query: int) -> list[str]:
-        if not queries or not self.brave_search_api_key:
-            return []
-        brave = BraveSearchSource(api_key=self.brave_search_api_key)
-        discovered: list[str] = []
-        for query in queries:
-            results = await brave.search(query, count=count_per_query)
-            discovered.extend(result.url for result in results)
-        return discovered
-
-    async def fetch(self, job_config: dict[str, Any]) -> list[NormalizedRecord]:
-        seeds = list(job_config.get("seeds", []))
-        queries = job_config.get("queries", [])
-        seeds.extend(
-            await self._discover_seeds_from_queries(queries, job_config.get("count_per_query", 10))
-        )
-
-        if not seeds:
-            return []
-
-        crawler = WebCrawler(self.settings)
-        leads = await crawler.crawl(seeds)
-
-        return [
-            NormalizedRecord(
-                source_id=lead.website or lead.source_url,
-                raw_payload=dataclasses.asdict(lead),
-                normalized_name=lead.organization or lead.name or None,
-                normalized_phone=lead.phone or None,
-                normalized_domain=lead.website or None,
-                location_wkt=None,
-            )
-            for lead in leads
-        ]

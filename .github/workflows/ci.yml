@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (lint, format, tests, dependency audit)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:17-master
+        env:
+          POSTGRES_PASSWORD: development-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # The runner image's bundled pip (24.0) has known CVEs (see the snyk
+      # job below, which flagged it via pip-audit's own pip-api dependency)
+      # -- upgrade before installing anything else so nothing in this job
+      # runs through the vulnerable version.
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install package with dev extras
+        run: pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Ruff format check
+        run: ruff format --check .
+
+      - name: Provision test database (role, db, extensions)
+        run: python setup_db.py
+
+      - name: pytest
+        run: pytest -q
+
+      - name: pip-audit (dependency vulnerability scan)
+        run: pip-audit --skip-editable
+
+  frontend:
+    name: Frontend (lint, format, build, dependency audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: oxlint
+        run: npm run lint
+
+      - name: Prettier format check
+        run: npx prettier --check "src/**/*.{ts,tsx,css}"
+
+      - name: Build (tsc + vite)
+        run: npm run build
+
+      - name: npm audit (dependency vulnerability scan)
+        run: npm audit --audit-level=high
+
+  semgrep:
+    name: Semgrep (static analysis security scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: semgrep/semgrep-action@v1
+        with:
+          config: p/python
+
+  snyk:
+    name: Snyk (dependency vulnerability scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for SNYK_TOKEN
+        id: token-check
+        run: |
+          if [ -z "${{ secrets.SNYK_TOKEN }}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::SNYK_TOKEN is not configured. Add a Snyk API token under Settings > Secrets and variables > Actions to enable this scan."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.token-check.outputs.configured == 'true'
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      # See the matching step in the backend job: the runner's bundled
+      # pip (24.0) has known CVEs (including a High-severity arbitrary
+      # code injection), pulled into the scanned dependency graph via
+      # pip-audit's own pip-api dependency -- upgrade before Snyk snapshots
+      # the environment so that vulnerability doesn't keep getting flagged.
+      - name: Upgrade pip
+        if: steps.token-check.outputs.configured == 'true'
+        run: python -m pip install --upgrade pip
+
+      - name: Install package with dev extras
+        if: steps.token-check.outputs.configured == 'true'
+        run: pip install -e ".[dev]"
+
+      # snyk/actions/python-3.11 only auto-detects a requirements.txt,
+      # Pipfile, or Poetry-format pyproject.toml -- this repo's PEP
+      # 621/hatchling pyproject.toml matches none of those, so the scan
+      # silently found "No supported files found (SNYK-CLI-0008)" and
+      # exited non-zero with nothing actually scanned. Snapshot the
+      # resolved environment (minus the editable install of this repo
+      # itself, which isn't a third-party dependency to scan) into a
+      # requirements.txt Snyk can parse.
+      - name: Generate requirements.txt for Snyk
+        if: steps.token-check.outputs.configured == 'true'
+        run: pip freeze --exclude-editable > requirements.txt
+
+      - name: Run Snyk to check for vulnerabilities
+        if: steps.token-check.outputs.configured == 'true'
+        uses: snyk/actions/python-3.11@master
+        with:
+          args: --file=requirements.txt --package-manager=pip
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}

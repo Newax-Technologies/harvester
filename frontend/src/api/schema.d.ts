@@ -4,816 +4,822 @@
  */
 
 export interface paths {
-    "/api/v1/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Health Check */
-        get: operations["health_check_api_v1_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+  "/api/v1/health": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/dashboard/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Dashboard Summary
-         * @description Returns key metrics for the Command Center.
-         */
-        get: operations["get_dashboard_summary_api_v1_dashboard_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Health Check */
+    get: operations["health_check_api_v1_health_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/dashboard/summary": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/dashboard/activity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Dashboard Activity
-         * @description Returns a timeline of recent pipeline activity.
-         */
-        get: operations["get_dashboard_activity_api_v1_dashboard_activity_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Get Dashboard Summary
+     * @description Returns key metrics for the Command Center.
+     */
+    get: operations["get_dashboard_summary_api_v1_dashboard_summary_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/dashboard/activity": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/institutions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Institutions
-         * @description List institutions with pagination and filtering.
-         */
-        get: operations["list_institutions_api_v1_institutions_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Get Dashboard Activity
+     * @description Returns a timeline of recent pipeline activity.
+     */
+    get: operations["get_dashboard_activity_api_v1_dashboard_activity_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/institutions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/institutions/{institution_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Institution
-         * @description Get the full dossier for a specific institution.
-         */
-        get: operations["get_institution_api_v1_institutions__institution_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * List Institutions
+     * @description List institutions with pagination and filtering.
+     */
+    get: operations["list_institutions_api_v1_institutions_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/institutions/{institution_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/drafts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Drafts */
-        get: operations["list_drafts_api_v1_drafts_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Get Institution
+     * @description Get the full dossier for a specific institution.
+     */
+    get: operations["get_institution_api_v1_institutions__institution_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/drafts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/drafts/{draft_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Draft */
-        get: operations["get_draft_api_v1_drafts__draft_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Edit Draft */
-        patch: operations["edit_draft_api_v1_drafts__draft_id__patch"];
-        trace?: never;
+    /** List Drafts */
+    get: operations["list_drafts_api_v1_drafts_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/drafts/{draft_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/drafts/{draft_id}/decision": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Make Draft Decision */
-        post: operations["make_draft_decision_api_v1_drafts__draft_id__decision_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Get Draft */
+    get: operations["get_draft_api_v1_drafts__draft_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Edit Draft */
+    patch: operations["edit_draft_api_v1_drafts__draft_id__patch"];
+    trace?: never;
+  };
+  "/api/v1/drafts/{draft_id}/decision": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/resolution-reviews": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Reviews */
-        get: operations["list_reviews_api_v1_resolution_reviews_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /** Make Draft Decision */
+    post: operations["make_draft_decision_api_v1_drafts__draft_id__decision_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/resolution-reviews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/resolution-reviews/{review_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Review */
-        get: operations["get_review_api_v1_resolution_reviews__review_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List Reviews */
+    get: operations["list_reviews_api_v1_resolution_reviews_get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/resolution-reviews/{review_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/api/v1/resolution-reviews/{review_id}/decision": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Make Review Decision */
-        post: operations["make_review_decision_api_v1_resolution_reviews__review_id__decision_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Get Review */
+    get: operations["get_review_api_v1_resolution_reviews__review_id__get"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/resolution-reviews/{review_id}/decision": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
+    get?: never;
+    put?: never;
+    /** Make Review Decision */
+    post: operations["make_review_decision_api_v1_resolution_reviews__review_id__decision_post"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        /** BranchSchema */
-        BranchSchema: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Branch Name */
-            branch_name: string;
-            /** Address */
-            address: string;
-            /** Provider Ids */
-            provider_ids: {
-                [key: string]: unknown;
-            };
-        };
-        /** ContactPointSchema */
-        ContactPointSchema: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Contact Type */
-            contact_type: string;
-            /** Contact Value */
-            contact_value: string;
-            /** Person Name */
-            person_name?: string | null;
-            /** Role */
-            role?: string | null;
-        };
-        /** DraftDecisionRequest */
-        DraftDecisionRequest: {
-            /** Decision */
-            decision: string;
-            /** Feedback */
-            feedback: string;
-            /** Expected Version */
-            expected_version: number;
-        };
-        /** DraftEditRequest */
-        DraftEditRequest: {
-            /** Message */
-            message: string;
-            /** Expected Version */
-            expected_version: number;
-        };
-        /**
-         * DraftStatus
-         * @enum {string}
-         */
-        DraftStatus: "pending_generation" | "generated" | "needs_revision" | "approved" | "sent";
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /** InstitutionDetailResponse */
-        InstitutionDetailResponse: {
-            /** Canonical Name */
-            canonical_name: string;
-            /** Institution Type */
-            institution_type: string;
-            /** Domain */
-            domain?: string | null;
-            /** Website */
-            website?: string | null;
-            status: components["schemas"]["OperatingStatus"];
-            /** Confidence Score */
-            confidence_score: number;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /**
-             * Branches
-             * @default []
-             */
-            branches: components["schemas"]["BranchSchema"][];
-            /**
-             * Contact Points
-             * @default []
-             */
-            contact_points: components["schemas"]["ContactPointSchema"][];
-        };
-        /** InstitutionListResponse */
-        InstitutionListResponse: {
-            /** Canonical Name */
-            canonical_name: string;
-            /** Institution Type */
-            institution_type: string;
-            /** Domain */
-            domain?: string | null;
-            /** Website */
-            website?: string | null;
-            status: components["schemas"]["OperatingStatus"];
-            /** Confidence Score */
-            confidence_score: number;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** MatchAssessmentSchema */
-        MatchAssessmentSchema: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Name Similarity */
-            name_similarity: number;
-            /** Distance Meters */
-            distance_meters?: number | null;
-            /** Phone Match */
-            phone_match: boolean;
-            /** Domain Match */
-            domain_match: boolean;
-            /** Total Score */
-            total_score: number;
-            decision: components["schemas"]["MatchDecision"];
-            /**
-             * Assessed At
-             * Format: date-time
-             */
-            assessed_at: string;
-        };
-        /**
-         * MatchDecision
-         * @enum {string}
-         */
-        MatchDecision: "pending" | "merge" | "link_only" | "reject";
-        /**
-         * OperatingStatus
-         * @enum {string}
-         */
-        OperatingStatus: "operational" | "closed_temporarily" | "closed_permanently" | "unknown";
-        /** OutreachDraftSchema */
-        OutreachDraftSchema: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Brief Id
-             * Format: uuid
-             */
-            brief_id: string;
-            status: components["schemas"]["DraftStatus"];
-            /** Target Name */
-            target_name: string;
-            /** Target Role */
-            target_role: string;
-            /** Target Contact Value */
-            target_contact_value: string;
-            /** Subject Line */
-            subject_line: string;
-            /** Body */
-            body: string;
-            /** Human Feedback */
-            human_feedback: string;
-            /** Version */
-            version: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /** PaginatedInstitutions */
-        PaginatedInstitutions: {
-            /** Items */
-            items: components["schemas"]["InstitutionListResponse"][];
-            /** Total */
-            total: number;
-            /** Page */
-            page: number;
-            /** Size */
-            size: number;
-        };
-        /** ResolutionCandidateSchema */
-        ResolutionCandidateSchema: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Raw Record Id
-             * Format: uuid
-             */
-            raw_record_id: string;
-            /** Target Canonical Id */
-            target_canonical_id?: string | null;
-            /** Target Raw Record Id */
-            target_raw_record_id?: string | null;
-            /** Blocking Strategy */
-            blocking_strategy: string;
-            /** Version */
-            version: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Assessments
-             * @default []
-             */
-            assessments: components["schemas"]["MatchAssessmentSchema"][];
-        };
-        /** ResolutionDecisionRequest */
-        ResolutionDecisionRequest: {
-            /** Decision */
-            decision: string;
-            /** Feedback */
-            feedback: string;
-            /** Expected Version */
-            expected_version: number;
-        };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
-        };
+  schemas: {
+    /** BranchSchema */
+    BranchSchema: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Branch Name */
+      branch_name: string;
+      /** Address */
+      address: string;
+      /** Provider Ids */
+      provider_ids: {
+        [key: string]: unknown;
+      };
     };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+    /** ContactPointSchema */
+    ContactPointSchema: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Contact Type */
+      contact_type: string;
+      /** Contact Value */
+      contact_value: string;
+      /** Person Name */
+      person_name?: string | null;
+      /** Role */
+      role?: string | null;
+    };
+    /** DraftDecisionRequest */
+    DraftDecisionRequest: {
+      /** Decision */
+      decision: string;
+      /** Feedback */
+      feedback: string;
+      /** Expected Version */
+      expected_version: number;
+    };
+    /** DraftEditRequest */
+    DraftEditRequest: {
+      /** Message */
+      message: string;
+      /** Expected Version */
+      expected_version: number;
+    };
+    /**
+     * DraftStatus
+     * @enum {string}
+     */
+    DraftStatus:
+      | "pending_generation"
+      | "generated"
+      | "needs_revision"
+      | "approved"
+      | "sent";
+    /** HTTPValidationError */
+    HTTPValidationError: {
+      /** Detail */
+      detail?: components["schemas"]["ValidationError"][];
+    };
+    /** InstitutionDetailResponse */
+    InstitutionDetailResponse: {
+      /** Canonical Name */
+      canonical_name: string;
+      /** Institution Type */
+      institution_type: string;
+      /** Domain */
+      domain?: string | null;
+      /** Website */
+      website?: string | null;
+      status: components["schemas"]["OperatingStatus"];
+      /** Confidence Score */
+      confidence_score: number;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+      /**
+       * Branches
+       * @default []
+       */
+      branches: components["schemas"]["BranchSchema"][];
+      /**
+       * Contact Points
+       * @default []
+       */
+      contact_points: components["schemas"]["ContactPointSchema"][];
+    };
+    /** InstitutionListResponse */
+    InstitutionListResponse: {
+      /** Canonical Name */
+      canonical_name: string;
+      /** Institution Type */
+      institution_type: string;
+      /** Domain */
+      domain?: string | null;
+      /** Website */
+      website?: string | null;
+      status: components["schemas"]["OperatingStatus"];
+      /** Confidence Score */
+      confidence_score: number;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /** MatchAssessmentSchema */
+    MatchAssessmentSchema: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name Similarity */
+      name_similarity: number;
+      /** Distance Meters */
+      distance_meters?: number | null;
+      /** Phone Match */
+      phone_match: boolean;
+      /** Domain Match */
+      domain_match: boolean;
+      /** Total Score */
+      total_score: number;
+      decision: components["schemas"]["MatchDecision"];
+      /**
+       * Assessed At
+       * Format: date-time
+       */
+      assessed_at: string;
+    };
+    /**
+     * MatchDecision
+     * @enum {string}
+     */
+    MatchDecision: "pending" | "merge" | "link_only" | "reject";
+    /**
+     * OperatingStatus
+     * @enum {string}
+     */
+    OperatingStatus:
+      "operational" | "closed_temporarily" | "closed_permanently" | "unknown";
+    /** OutreachDraftSchema */
+    OutreachDraftSchema: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Brief Id
+       * Format: uuid
+       */
+      brief_id: string;
+      status: components["schemas"]["DraftStatus"];
+      /** Target Name */
+      target_name: string;
+      /** Target Role */
+      target_role: string;
+      /** Target Contact Value */
+      target_contact_value: string;
+      /** Subject Line */
+      subject_line: string;
+      /** Body */
+      body: string;
+      /** Human Feedback */
+      human_feedback: string;
+      /** Version */
+      version: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /** PaginatedInstitutions */
+    PaginatedInstitutions: {
+      /** Items */
+      items: components["schemas"]["InstitutionListResponse"][];
+      /** Total */
+      total: number;
+      /** Page */
+      page: number;
+      /** Size */
+      size: number;
+    };
+    /** ResolutionCandidateSchema */
+    ResolutionCandidateSchema: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Raw Record Id
+       * Format: uuid
+       */
+      raw_record_id: string;
+      /** Target Canonical Id */
+      target_canonical_id?: string | null;
+      /** Target Raw Record Id */
+      target_raw_record_id?: string | null;
+      /** Blocking Strategy */
+      blocking_strategy: string;
+      /** Version */
+      version: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Assessments
+       * @default []
+       */
+      assessments: components["schemas"]["MatchAssessmentSchema"][];
+    };
+    /** ResolutionDecisionRequest */
+    ResolutionDecisionRequest: {
+      /** Decision */
+      decision: string;
+      /** Feedback */
+      feedback: string;
+      /** Expected Version */
+      expected_version: number;
+    };
+    /** ValidationError */
+    ValidationError: {
+      /** Location */
+      loc: (string | number)[];
+      /** Message */
+      msg: string;
+      /** Error Type */
+      type: string;
+      /** Input */
+      input?: unknown;
+      /** Context */
+      ctx?: Record<string, never>;
+    };
+  };
+  responses: never;
+  parameters: never;
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    health_check_api_v1_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
+  health_check_api_v1_health_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    get_dashboard_summary_api_v1_dashboard_summary_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
+        content: {
+          "application/json": unknown;
         };
+      };
     };
-    get_dashboard_activity_api_v1_dashboard_activity_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
+  };
+  get_dashboard_summary_api_v1_dashboard_summary_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    list_institutions_api_v1_institutions_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-                offset?: number;
-                city?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedInstitutions"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
         };
+      };
     };
-    get_institution_api_v1_institutions__institution_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                institution_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InstitutionDetailResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+  };
+  get_dashboard_activity_api_v1_dashboard_activity_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    list_drafts_api_v1_drafts_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
+        content: {
+          "application/json": unknown;
         };
+      };
     };
-    get_draft_api_v1_drafts__draft_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                draft_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OutreachDraftSchema"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+  };
+  list_institutions_api_v1_institutions_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        offset?: number;
+        city?: string | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    edit_draft_api_v1_drafts__draft_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                draft_id: string;
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DraftEditRequest"];
-            };
+        content: {
+          "application/json": components["schemas"]["PaginatedInstitutions"];
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OutreachDraftSchema"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
         };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
     };
-    make_draft_decision_api_v1_drafts__draft_id__decision_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                draft_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DraftDecisionRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OutreachDraftSchema"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+  };
+  get_institution_api_v1_institutions__institution_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        institution_id: string;
+      };
+      cookie?: never;
     };
-    list_reviews_api_v1_resolution_reviews_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
-                };
-            };
+        content: {
+          "application/json": components["schemas"]["InstitutionDetailResponse"];
         };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
     };
-    get_review_api_v1_resolution_reviews__review_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                review_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResolutionCandidateSchema"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+  };
+  list_drafts_api_v1_drafts_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    make_review_decision_api_v1_resolution_reviews__review_id__decision_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                review_id: string;
-            };
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ResolutionDecisionRequest"];
-            };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          }[];
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ResolutionCandidateSchema"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
+      };
     };
+  };
+  get_draft_api_v1_drafts__draft_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        draft_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OutreachDraftSchema"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  edit_draft_api_v1_drafts__draft_id__patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        draft_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DraftEditRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OutreachDraftSchema"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  make_draft_decision_api_v1_drafts__draft_id__decision_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        draft_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DraftDecisionRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OutreachDraftSchema"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  list_reviews_api_v1_resolution_reviews_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          }[];
+        };
+      };
+    };
+  };
+  get_review_api_v1_resolution_reviews__review_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        review_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolutionCandidateSchema"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  make_review_decision_api_v1_resolution_reviews__review_id__decision_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        review_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ResolutionDecisionRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ResolutionCandidateSchema"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
 }

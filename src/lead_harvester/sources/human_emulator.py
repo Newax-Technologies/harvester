@@ -9,13 +9,13 @@ Covers:
 - "Coffee break" idle periods
 - Working-hours guard
 """
+
 from __future__ import annotations
 
 import asyncio
-import math
 import random
-from datetime import datetime, timezone, timedelta
-from typing import TYPE_CHECKING
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from playwright.async_api import Page
@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 # Time helpers
 # ---------------------------------------------------------------------------
+
 
 def _gauss_clamp(mu: float, sigma: float, lo: float, hi: float) -> float:
     """Gaussian sample clamped to [lo, hi]."""
@@ -60,7 +61,7 @@ async def coffee_break() -> None:
     await asyncio.sleep(_gauss_clamp(1200, 400, 300, 2100))
 
 
-async def idle_drift(page: "Page") -> None:
+async def idle_drift(page: Page) -> None:
     """
     Simulate an unfocused user — move the mouse to a random spot and
     leave it still for a moment, like looking away from the screen.
@@ -71,8 +72,10 @@ async def idle_drift(page: "Page") -> None:
         y = random.uniform(100, 600)
         await page.mouse.move(x, y)
         await asyncio.sleep(_gauss_clamp(4.0, 1.5, 1.5, 10.0))
-    except Exception:
-        pass
+    except Exception as e:
+        # Best-effort cosmetic mouse movement -- the page may have navigated
+        # away mid-animation, which is not an error worth stopping for.
+        print(f"human_emulator mouse jiggle skipped: {e}")
 
 
 def session_start_delay_seconds(preferred_hour: int, jitter_minutes: int) -> float:
@@ -83,11 +86,19 @@ def session_start_delay_seconds(preferred_hour: int, jitter_minutes: int) -> flo
 
     Returns 0 if we are already past today's start window.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # Convert PKT preferred_hour to UTC (PKT = UTC+5)
     target_utc_hour = (preferred_hour - 5) % 24
     jitter = random.randint(-jitter_minutes, jitter_minutes)
-    target = now.replace(hour=target_utc_hour, minute=30 + jitter, second=0, microsecond=0)
+    # jitter_minutes can be as large as 45 (device_profile.py's generator
+    # draws preferred_start_jitter from range(10, 45)), so 30 + jitter can
+    # fall well outside 0-59 -- passing that directly as `minute=` to
+    # datetime.replace() raises ValueError before the crawler ever opens a
+    # browser. Building a valid base time first and adding the jitter as a
+    # timedelta lets it carry across hour (and date) boundaries correctly
+    # instead.
+    base = now.replace(hour=target_utc_hour, minute=30, second=0, microsecond=0)
+    target = base + timedelta(minutes=jitter)
     if target < now:
         return 0.0
     return (target - now).total_seconds()
@@ -95,10 +106,10 @@ def session_start_delay_seconds(preferred_hour: int, jitter_minutes: int) -> flo
 
 def is_weekday() -> bool:
     """Return True if today is Monday–Friday (avoid weekends)."""
-    return datetime.now(timezone.utc).weekday() < 5
+    return datetime.now(UTC).weekday() < 5
 
 
-async def simulate_tab_blur(page: "Page") -> None:
+async def simulate_tab_blur(page: Page) -> None:
     """
     Fire browser blur/focus events to simulate the user Alt-Tabbing away
     and coming back (e.g. checking Slack, reading an email).
@@ -116,11 +127,13 @@ async def simulate_tab_blur(page: "Page") -> None:
             document.dispatchEvent(new Event('visibilitychange'));
             window.dispatchEvent(new Event('focus'));
         """)
-    except Exception:
-        pass
+    except Exception as e:
+        # Best-effort blur/focus simulation -- the page may have navigated
+        # away mid-sequence, which is not an error worth stopping for.
+        print(f"human_emulator tab-blur simulation skipped: {e}")
 
 
-async def dwell_for_content(page: "Page") -> None:
+async def dwell_for_content(page: Page) -> None:
     """
     Wait proportionally to the amount of text on the page, as if reading it.
     A 200-word page warrants ~50s dwell; a 800-word page warrants ~190s.
@@ -131,16 +144,16 @@ async def dwell_for_content(page: "Page") -> None:
             "() => document.body.innerText.split(/\\s+/).filter(Boolean).length"
         )
         reading_minutes = word_count / _gauss_clamp(250, 40, 150, 400)
-        dwell_seconds   = reading_minutes * 60
+        dwell_seconds = reading_minutes * 60
         # Clamp: minimum 8s (glance), maximum 4 minutes (deep read)
-        dwell_seconds   = max(8.0, min(240.0, dwell_seconds))
+        dwell_seconds = max(8.0, min(240.0, dwell_seconds))
         await asyncio.sleep(_gauss_clamp(dwell_seconds, dwell_seconds * 0.15, 8, 240))
     except Exception:
         await action_pause()  # Fallback
 
 
 async def human_scroll_with_reversal(
-    page: "Page",
+    page: Page,
     direction: str = "down",
     amount: int = 3,
 ) -> None:
@@ -177,11 +190,11 @@ def within_working_hours(tz_offset_hours: int = 5) -> bool:
     Return True if local time is between 09:00 and 18:30.
     Default offset +5 = Pakistan Standard Time.
     """
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
     local_hour = (now_utc.hour + tz_offset_hours) % 24
     local_minute = now_utc.minute
-    start = 9 * 60          # 09:00
-    end   = 18 * 60 + 30    # 18:30
+    start = 9 * 60  # 09:00
+    end = 18 * 60 + 30  # 18:30
     current = local_hour * 60 + local_minute
     return start <= current <= end
 
@@ -190,19 +203,19 @@ def within_working_hours(tz_offset_hours: int = 5) -> bool:
 # Mouse movement — Bézier curves
 # ---------------------------------------------------------------------------
 
+
 def _bezier_point(t: float, pts: list[tuple[float, float]]) -> tuple[float, float]:
     """De Casteljau algorithm for an n-point Bézier curve."""
     pts = list(pts)
     while len(pts) > 1:
         pts = [
-            (pts[i][0] * (1 - t) + pts[i + 1][0] * t,
-             pts[i][1] * (1 - t) + pts[i + 1][1] * t)
+            (pts[i][0] * (1 - t) + pts[i + 1][0] * t, pts[i][1] * (1 - t) + pts[i + 1][1] * t)
             for i in range(len(pts) - 1)
         ]
     return pts[0]
 
 
-async def human_move_to(page: "Page", x: float, y: float) -> None:
+async def human_move_to(page: Page, x: float, y: float) -> None:
     """
     Move the mouse to (x, y) along a randomised Bézier curve
     with 2 random control points to mimic human hand jitter.
@@ -213,8 +226,8 @@ async def human_move_to(page: "Page", x: float, y: float) -> None:
     # Two random control points introduce natural curve
     cx1 = sx + random.uniform(-200, 200)
     cy1 = sy + random.uniform(-150, 150)
-    cx2 = x  + random.uniform(-200, 200)
-    cy2 = y  + random.uniform(-150, 150)
+    cx2 = x + random.uniform(-200, 200)
+    cy2 = y + random.uniform(-150, 150)
 
     steps = random.randint(20, 40)
     for i in range(steps + 1):
@@ -226,7 +239,7 @@ async def human_move_to(page: "Page", x: float, y: float) -> None:
         await asyncio.sleep(_gauss_clamp(0.01, 0.005, 0.003, 0.03))
 
 
-async def human_click(page: "Page", selector: str) -> None:
+async def human_click(page: Page, selector: str) -> None:
     """Locate element, Bézier-move to it, then click with a small pre-click pause."""
     element = await page.wait_for_selector(selector, timeout=15_000)
     if element is None:
@@ -236,7 +249,7 @@ async def human_click(page: "Page", selector: str) -> None:
         await element.click()
         return
     # Click slightly off-centre (humans don't aim perfectly)
-    tx = box["x"] + box["width"]  * random.uniform(0.3, 0.7)
+    tx = box["x"] + box["width"] * random.uniform(0.3, 0.7)
     ty = box["y"] + box["height"] * random.uniform(0.3, 0.7)
     await human_move_to(page, tx, ty)
     await short_pause()
@@ -247,7 +260,8 @@ async def human_click(page: "Page", selector: str) -> None:
 # Typing — character-by-character with per-key variance
 # ---------------------------------------------------------------------------
 
-async def human_type(page: "Page", selector: str, text: str) -> None:
+
+async def human_type(page: Page, selector: str, text: str) -> None:
     """
     Click into a field, then type text character-by-character with
     realistic per-keystroke delays, occasional typos with self-correction,
@@ -289,7 +303,8 @@ async def human_type(page: "Page", selector: str, text: str) -> None:
 # Scrolling
 # ---------------------------------------------------------------------------
 
-async def human_scroll(page: "Page", direction: str = "down", amount: int = 3) -> None:
+
+async def human_scroll(page: Page, direction: str = "down", amount: int = 3) -> None:
     """
     Scroll in increments with variable speed to mimic reading.
     direction: 'down' | 'up'
@@ -315,6 +330,7 @@ async def human_scroll(page: "Page", direction: str = "down", amount: int = 3) -
 # Suspicious-action detector
 # ---------------------------------------------------------------------------
 
+
 class ActionBudget:
     """
     Enforces safe daily action limits.
@@ -322,12 +338,12 @@ class ActionBudget:
     gracefully stop for the day.
     """
 
-    DAILY_LIMITS = {
-        "profile_view":   50,
-        "search":         20,
-        "connect":        10,
-        "message":        15,
-        "page_load":     200,
+    DAILY_LIMITS: ClassVar[dict[str, int]] = {
+        "profile_view": 50,
+        "search": 20,
+        "connect": 10,
+        "message": 15,
+        "page_load": 200,
     }
 
     def __init__(self) -> None:
@@ -349,7 +365,4 @@ class ActionBudget:
         return max(0, limit - self._counts.get(action, 0))
 
     def summary(self) -> dict[str, str]:
-        return {
-            k: f"{self._counts.get(k,0)}/{v}"
-            for k, v in self.DAILY_LIMITS.items()
-        }
+        return {k: f"{self._counts.get(k, 0)}/{v}" for k, v in self.DAILY_LIMITS.items()}

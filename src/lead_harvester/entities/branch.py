@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+
 @dataclass(slots=True)
 class Branch:
     id: str
@@ -16,9 +17,10 @@ class Branch:
     map_provider_ids: dict[str, str] = field(default_factory=dict)
     phones: list[str] = field(default_factory=list)
     opening_hours: str = ""
-    
+
     def to_db_tuple(self) -> tuple[Any, ...]:
         import json
+
         return (
             self.id,
             self.institution_id,
@@ -30,5 +32,5 @@ class Branch:
             self.longitude,
             json.dumps(self.map_provider_ids, ensure_ascii=False),
             json.dumps(self.phones, ensure_ascii=False),
-            self.opening_hours
+            self.opening_hours,
         )

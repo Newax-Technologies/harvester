@@ -12,29 +12,31 @@ and produce structured intelligence:
 
 Results are saved to the database as ResearchFinding + AccountBrief records.
 """
+
 from __future__ import annotations
 
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.database import get_session
 from lead_harvester.models import (
-    CanonicalInstitution,
-    ResearchJob,
-    ResearchFinding,
-    JobStatus,
-    FindingType,
     AccountBrief,
     BriefStatus,
+    CanonicalInstitution,
+    FindingType,
+    JobStatus,
     OperatingStatus,
+    ResearchFinding,
+    ResearchJob,
 )
+from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, SourceType
-
+from lead_harvester.services.lead_profile_service import refresh_lead_profile
 
 SYSTEM_PROMPT = """You are an elite B2B sales intelligence analyst.
 You receive raw LinkedIn profile data and return a structured JSON analysis.
@@ -65,6 +67,51 @@ Return a JSON object with exactly these keys:
   "linkedin_note": "<connection request note, under 300 characters>",
   "summary": "<2-3 sentence executive summary of why this lead matters>"
 }}"""
+
+_ANALYSIS_LIST_KEYS = ("pain_points", "buying_signals")
+_ANALYSIS_STR_KEYS = ("best_angle", "suggested_subject", "email_draft", "linkedin_note", "summary")
+
+
+def _validate_analysis_schema(analysis: dict[str, Any]) -> None:
+    """
+    response_format={"type": "json_object"} only guarantees syntactically
+    valid JSON, not that it actually matches ANALYSIS_PROMPT's requested
+    schema -- an empty {} or a response missing/mistyping a required key is
+    still valid JSON. Without this, that garbage analysis passed straight
+    through: _persist_findings fills silent defaults (0, False, "", []) for
+    anything missing and still creates a COMPLETED ResearchJob and a
+    READY_FOR_REVIEW AccountBrief, and _research_record writes the
+    "branch_membership" FieldProvenance link that permanently excludes the
+    profile from retry (see process_all_pending's exclusion query) -- even
+    though nothing useful was actually learned about this lead. Raising
+    here (TypeError/ValueError) is caught by _research_record the same way
+    a timed-out or rejected AI call already is, so a malformed response is
+    retried instead of silently accepted.
+    """
+    if not isinstance(analysis, dict):
+        raise TypeError(f"AI analysis is not a JSON object: {type(analysis).__name__}")
+
+    lead_score = analysis.get("lead_score")
+    if (
+        not isinstance(lead_score, int)
+        or isinstance(lead_score, bool)
+        or not (1 <= lead_score <= 10)
+    ):
+        raise ValueError(f"AI analysis lead_score must be an integer 1-10, got {lead_score!r}")
+
+    decision_maker = analysis.get("decision_maker")
+    if not isinstance(decision_maker, bool):
+        raise TypeError(f"AI analysis decision_maker must be a boolean, got {decision_maker!r}")
+
+    for key in _ANALYSIS_LIST_KEYS:
+        value = analysis.get(key)
+        if not isinstance(value, list):
+            raise TypeError(f"AI analysis {key!r} must be a list, got {value!r}")
+
+    for key in _ANALYSIS_STR_KEYS:
+        value = analysis.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"AI analysis {key!r} must be a non-empty string, got {value!r}")
 
 
 class ResearchBrain:
@@ -107,15 +154,77 @@ class ResearchBrain:
         from sqlalchemy import select
 
         async with get_session() as session:
+            # Excludes records _research_record has already processed, via
+            # the same "branch_membership" FieldProvenance link
+            # canonical/merger.py's merge_records() uses to mark a raw
+            # record as having produced a canonical entity. Without this,
+            # every invocation re-queried the same first 50 LinkedIn
+            # records forever (this was a known, documented gap -- "full
+            # implementation would use a processed flag" -- that stayed
+            # harmless only because cli.py's shadowing duplicate main()
+            # made this command unreachable until this same PR removed it),
+            # paying for the same AI calls repeatedly, creating a new
+            # duplicate CanonicalInstitution/ResearchJob/AccountBrief per
+            # profile each run, and starving any record past the first 50
+            # once that many exist.
+            #
+            # Excludes by source_id (the profile URL, stable across
+            # re-scrapes -- see cli.py's linkedin_run and
+            # account_farm.py's _persist_profiles, both of which set it
+            # from profile.profile_url), not by the individual raw record's
+            # own UUID: a later crawler/farm run re-harvesting the same
+            # profile creates a brand-new RawSourceRecord row (a new UUID)
+            # for the exact same LinkedIn source_id. Excluding only by UUID
+            # let that duplicate row sail through this filter and trigger
+            # another AI call, ResearchJob, findings set, and
+            # CanonicalInstitution for the same person.
+            already_researched_source_ids = (
+                select(RawSourceRecord.source_id)
+                .join(FieldProvenance, FieldProvenance.raw_record_id == RawSourceRecord.id)
+                .where(FieldProvenance.field_name == "branch_membership")
+                .where(RawSourceRecord.source_type == SourceType.LINKEDIN)
+            )
+            # FOR UPDATE SKIP LOCKED claims these rows atomically as part of
+            # the SELECT itself, immediately -- not just after this call's
+            # own commit. Without it, the exclusion query above only ever
+            # sees source_ids a PRIOR, already-COMMITTED call researched:
+            # two overlapping process_all_pending invocations (separate
+            # processes, each holding this method's session open across the
+            # whole batch of slow AI calls) would both run that query before
+            # either commits, both see the same "not yet researched"
+            # profiles, and both perform the AI call, mint a ResearchJob,
+            # and create a CanonicalInstitution for the same person. Once
+            # this invocation's SELECT locks a row, a concurrent invocation's
+            # own SKIP LOCKED query silently excludes it and moves on to a
+            # genuinely different row instead of blocking -- same claiming
+            # pattern OutreachAutomator.run() already uses for drafts.
             records = await session.scalars(
                 select(RawSourceRecord)
                 .where(RawSourceRecord.source_type == SourceType.LINKEDIN)
                 .where(RawSourceRecord.normalized_name.isnot(None))
-                # Only records not yet linked to a research job
-                # (simplified — full implementation would use a processed flag)
+                .where(RawSourceRecord.source_id.not_in(already_researched_source_ids))
+                .order_by(RawSourceRecord.extracted_at.asc())
                 .limit(50)
+                .with_for_update(skip_locked=True)
             )
+            # already_researched_source_ids only excludes source_ids a PRIOR,
+            # already-committed call already researched -- if the same
+            # profile was scraped twice (e.g. two farm runs) before either
+            # row was ever processed, both rows lack a FieldProvenance link
+            # and both pass that filter, landing in this same `records`
+            # batch. Without this, both would get processed here, minting
+            # two AI calls/ResearchJobs/CanonicalInstitutions for one
+            # person. Keep only the first row seen per source_id this
+            # batch; the skipped duplicate needs no provenance link of its
+            # own -- once the kept row's link is written, the exclusion
+            # query above matches by source_id (not by a specific raw
+            # record's own id), so it covers the duplicate too on every
+            # future call.
+            seen_source_ids: set[str] = set()
             for record in records:
+                if record.source_id in seen_source_ids:
+                    continue
+                seen_source_ids.add(record.source_id)
                 await self._research_record(session, record)
 
     async def research_profile(
@@ -132,6 +241,11 @@ class ResearchBrain:
 
         if institution_id:
             await self._persist_findings(session, institution_id, profile_data, analysis)
+            # New research findings (lead_score, pain_points, buying_signals,
+            # summary) change what this institution's LeadProfile should say
+            # -- refresh it now rather than leaving it reflecting only
+            # whatever branch/contact data existed before this research ran.
+            await refresh_lead_profile(session, institution_id)
 
         return analysis
 
@@ -140,53 +254,48 @@ class ResearchBrain:
     # ------------------------------------------------------------------
 
     async def _call_ai(self, profile: dict[str, Any]) -> dict[str, Any]:
-        try:
-            from openai import AsyncOpenAI
+        # Deliberately does NOT catch and swallow failures into a fake
+        # zero-score placeholder anymore -- that made a timed-out/rejected/
+        # malformed AI call indistinguishable from a real analysis to every
+        # caller, so _research_record ended up persisting a COMPLETED job
+        # and a READY_FOR_REVIEW brief containing the failure text, and
+        # marking the record processed (permanently excluding it from
+        # retry via process_all_pending). Raising lets _research_record
+        # record the failure honestly and leave the record retryable.
+        from openai import AsyncOpenAI
 
-            client = AsyncOpenAI(
-                api_key=self.api_key,
-                base_url=self.base_url,  # None → uses OpenAI default
-            )
+        client = AsyncOpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,  # None → uses OpenAI default
+        )
 
-            prompt = ANALYSIS_PROMPT.format(
-                url=profile.get("profile_url", ""),
-                name=profile.get("full_name", ""),
-                headline=profile.get("headline", ""),
-                company=profile.get("company", ""),
-                location=profile.get("location", ""),
-                about=profile.get("about", "")[:500],
-                experience=json.dumps(profile.get("experience", [])[:3]),
-                education=json.dumps(profile.get("education", [])[:2]),
-                activity="\n".join(profile.get("recent_activity", [])[:2]),
-            )
+        prompt = ANALYSIS_PROMPT.format(
+            url=profile.get("profile_url", ""),
+            name=profile.get("full_name", ""),
+            headline=profile.get("headline", ""),
+            company=profile.get("company", ""),
+            location=profile.get("location", ""),
+            about=profile.get("about", "")[:500],
+            experience=json.dumps(profile.get("experience", [])[:3]),
+            education=json.dumps(profile.get("education", [])[:2]),
+            activity="\n".join(profile.get("recent_activity", [])[:2]),
+        )
 
-            response = await client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
-                max_tokens=800,
-                response_format={"type": "json_object"},
-            )
+        response = await client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=800,
+            response_format={"type": "json_object"},
+        )
 
-            raw = response.choices[0].message.content or "{}"
-            return json.loads(raw)
-
-        except Exception as e:
-            print(f"[ResearchBrain] AI call failed: {e}")
-            return {
-                "lead_score": 0,
-                "summary": f"AI analysis failed: {e}",
-                "email_draft": "",
-                "linkedin_note": "",
-                "best_angle": "",
-                "pain_points": [],
-                "buying_signals": [],
-                "decision_maker": False,
-                "suggested_subject": "",
-            }
+        raw = response.choices[0].message.content or "{}"
+        analysis = json.loads(raw)
+        _validate_analysis_schema(analysis)
+        return analysis
 
     # ------------------------------------------------------------------
     # Persist to database
@@ -199,7 +308,6 @@ class ResearchBrain:
         profile: dict[str, Any],
         analysis: dict[str, Any],
     ) -> None:
-        from sqlalchemy import select
 
         # Create a ResearchJob record
         job = ResearchJob(
@@ -208,24 +316,24 @@ class ResearchBrain:
             objectives=["linkedin_profile_analysis"],
             execution_logs=[f"Analysed profile: {profile.get('profile_url', '')}"],
         )
-        job.completed_at = datetime.now(timezone.utc)
+        job.completed_at = datetime.now(UTC)
         session.add(job)
         await session.flush()
 
         # Key findings
         findings_to_save = {
-            "lead_score":       (analysis.get("lead_score", 0), FindingType.INFERENCE),
-            "decision_maker":   (analysis.get("decision_maker", False), FindingType.INFERENCE),
-            "pain_points":      (analysis.get("pain_points", []), FindingType.INFERENCE),
-            "buying_signals":   (analysis.get("buying_signals", []), FindingType.INFERENCE),
-            "best_angle":       (analysis.get("best_angle", ""), FindingType.INFERENCE),
-            "email_draft":      (analysis.get("email_draft", ""), FindingType.INFERENCE),
-            "linkedin_note":    (analysis.get("linkedin_note", ""), FindingType.INFERENCE),
-            "summary":          (analysis.get("summary", ""), FindingType.INFERENCE),
-            "full_name":        (profile.get("full_name", ""), FindingType.FACT),
-            "headline":         (profile.get("headline", ""), FindingType.FACT),
-            "company":          (profile.get("company", ""), FindingType.FACT),
-            "profile_url":      (profile.get("profile_url", ""), FindingType.FACT),
+            "lead_score": (analysis.get("lead_score", 0), FindingType.INFERENCE),
+            "decision_maker": (analysis.get("decision_maker", False), FindingType.INFERENCE),
+            "pain_points": (analysis.get("pain_points", []), FindingType.INFERENCE),
+            "buying_signals": (analysis.get("buying_signals", []), FindingType.INFERENCE),
+            "best_angle": (analysis.get("best_angle", ""), FindingType.INFERENCE),
+            "email_draft": (analysis.get("email_draft", ""), FindingType.INFERENCE),
+            "linkedin_note": (analysis.get("linkedin_note", ""), FindingType.INFERENCE),
+            "summary": (analysis.get("summary", ""), FindingType.INFERENCE),
+            "full_name": (profile.get("full_name", ""), FindingType.FACT),
+            "headline": (profile.get("headline", ""), FindingType.FACT),
+            "company": (profile.get("company", ""), FindingType.FACT),
+            "profile_url": (profile.get("profile_url", ""), FindingType.FACT),
         }
 
         for key, (value, ftype) in findings_to_save.items():
@@ -246,16 +354,20 @@ class ResearchBrain:
             status=BriefStatus.READY_FOR_REVIEW,
             executive_summary=analysis.get("summary", ""),
             value_hypotheses=analysis.get("pain_points", []),
-            stakeholder_ranking=[{
-                "name": profile.get("full_name", ""),
-                "role": profile.get("headline", ""),
-                "score": analysis.get("lead_score", 0),
-            }],
+            stakeholder_ranking=[
+                {
+                    "name": profile.get("full_name", ""),
+                    "role": profile.get("headline", ""),
+                    "score": analysis.get("lead_score", 0),
+                }
+            ],
         )
         session.add(brief)
 
-        print(f"[ResearchBrain] ✓ Saved findings for {profile.get('full_name', '?')} "
-              f"(score: {analysis.get('lead_score', 0)}/10)")
+        print(
+            f"[ResearchBrain] ✓ Saved findings for {profile.get('full_name', '?')} "
+            f"(score: {analysis.get('lead_score', 0)}/10)"
+        )
 
     async def _research_record(
         self,
@@ -263,11 +375,50 @@ class ResearchBrain:
         record: RawSourceRecord,
     ) -> None:
         payload = record.raw_payload
-        # Upsert a minimal CanonicalInstitution if one doesn't exist
-        institution = CanonicalInstitution(
-            canonical_name=payload.get("full_name", "Unknown"),
-            operating_status=OperatingStatus.ACTIVE,
-        )
-        session.add(institution)
-        await session.flush()
-        await self.research_profile(session, payload, institution.id)
+        # The whole attempt -- provisional institution, the AI call, and
+        # persisting findings -- runs inside a SAVEPOINT (begin_nested), not
+        # just the AI call. A failure partway through _persist_findings
+        # (e.g. a flush/constraint error) leaves the surrounding Postgres
+        # transaction aborted; every later statement on it (including the
+        # session.delete(institution)/flush() this method used to run as
+        # cleanup) then raises PendingRollbackError itself, which escaped
+        # this method and rolled back process_all_pending's entire shared
+        # session -- discarding every OTHER record already researched
+        # successfully earlier in the same batch, not just this one.
+        # Rolling back the savepoint on failure undoes the institution
+        # creation too, so no manual delete is needed at all.
+        try:
+            async with session.begin_nested():
+                # Upsert a minimal CanonicalInstitution if one doesn't exist
+                institution = CanonicalInstitution(
+                    canonical_name=payload.get("full_name", "Unknown"),
+                    status=OperatingStatus.OPERATIONAL,
+                )
+                session.add(institution)
+                await session.flush()
+
+                await self.research_profile(session, payload, institution.id)
+
+                # Marks this record as processed for process_all_pending's
+                # own exclusion query -- same "branch_membership"
+                # FieldProvenance shape merge_records()/manual_leads.py
+                # already use to link a raw record to the canonical entity
+                # it produced. Written only after a successful analysis,
+                # inside the same savepoint so it's rolled back together
+                # with everything else above if anything failed.
+                session.add(
+                    FieldProvenance(
+                        canonical_id=institution.id,
+                        raw_record_id=record.id,
+                        field_name="branch_membership",
+                        asserted_value=record.source_id,
+                        assertion_trust=1.0,
+                    )
+                )
+        except Exception as e:
+            # A timed-out/rejected/malformed AI call (or any other failure
+            # persisting findings) must not be recorded the same way a real
+            # analysis is -- no FieldProvenance "processed" marker, so
+            # process_all_pending retries this record next time. The
+            # failure itself is still visible via this log line.
+            print(f"[ResearchBrain] research failed for record {record.id}: {e}")
