@@ -113,16 +113,29 @@ authoritative CRM timeline.
 
 Roughly mapped against what exists in `src/lead_harvester/` today:
 
-- **Entity Registry**: partial. `models/canonical.py` has institution/branch/contact_point;
-  `models/source.py` has source_record. No `person_candidate` (today `contact_point.person_name`
-  is a bare string with no resolution state) or `signal` entity yet.
-- **Source Connectors**: partial. `sources/` has google_places, web, search, and
-  authorized_imports (CSV/bulk import of licensed or manually-sourced data, wired into
-  `LeadPipeline`/`cli.py`'s `import-authorized` command, going through the same
-  blocking/scoring resolution as every other connector). No apple_maps, yandex_maps, or
-  telegram connectors yet.
-- **Ingestion**: not modularized as its own layer; scheduling/rate-limiting logic is embedded
-  in `pipeline.py`/`sources/web.py` rather than a distinct `ingestion/` module.
+- **Entity Registry**: partial. `models/canonical.py` has institution/branch/contact_point/
+  `person_candidate` (added: `canonical/merger.py::_resolve_person_candidate` groups
+  `ContactPoint` rows naming the same person within an institution, matched via
+  `resolution/normalize.py::normalize_name` -- closes the tracked follow-up #5 cross-record
+  person dedup gap above); `models/source.py` has source_record. No `signal` entity yet.
+- **Source Connectors**: partial. `sources/` has google_places, search, and authorized_imports
+  (CSV/bulk import of licensed or manually-sourced data, wired into `LeadPipeline`/`cli.py`'s
+  `import-authorized` command, going through the same blocking/scoring resolution as every
+  other connector); the web crawler itself now lives in `ingestion/` (see below), not `sources/`.
+  No apple_maps, yandex_maps, or telegram connectors yet.
+- **Ingestion**: done for the web-crawl path. Moved out of `pipeline.py`/`sources/web.py` into
+  its own layer: `ingestion/rate_limiter.py` (`DomainRateLimiter`), `ingestion/page_fetcher.py`
+  (`RobotsCache` + the robots/rate-limit/size-capped `fetch_page`), `ingestion/web_crawler.py`
+  (the crawl loop + lead extraction/merging, now built on the two above instead of inlining
+  them), and `ingestion/source_scheduler.py` (tile/query generation, moved from
+  `sources/geographic_tiling.py`). `pipeline.py`'s own `SourceRun`/transaction/resolution-retry/
+  resync orchestration is deliberately left in place rather than forced into a generic
+  `ingestion_job` abstraction -- each source's run method (`_run_web_crawler`/
+  `_run_google_places`/`_run_authorized_import`) has different-enough shape (see e.g.
+  `_run_authorized_import`'s existing-vs-new-evidence diffing) that a shared abstraction would
+  either leak per-source special cases back out through it or force them into an awkward common
+  shape, and this layer already has real concurrency-sensitive behavior (savepoints, `SELECT
+  ... FOR UPDATE SKIP LOCKED` claiming) that's safer left alone than refactored blind.
 - **Normalization**: partial, lives in `resolution/normalize.py` rather than its own module;
   covers phone/domain, not yet a full city/country normalization layer.
 - **Resolution**: done for the live ingestion paths. `resolution/orchestrator.py` wires

@@ -20,8 +20,8 @@ from .models.provenance import FieldProvenance
 from .models.resolution import ResolutionCandidate
 from .resolution.normalize import normalize_domain, normalize_name, normalize_phone
 from .resolution.orchestrator import resolve_incoming_record
+from .ingestion.source_scheduler import build_queries_for_tile, generate_tiles
 from .sources.authorized_imports import AuthorizedImportInstitution, parse_authorized_import_csv
-from .sources.geographic_tiling import build_queries_for_tile, generate_tiles
 from .sources.google_places import GooglePlacesConnector
 
 
@@ -61,7 +61,7 @@ class LeadPipeline:
     async def _run_web_crawler(self) -> None:
         import dataclasses
 
-        from .sources.web import WebCrawler
+        from .ingestion.web_crawler import WebCrawler
 
         seeds = self.settings.job_config.get("seeds", [])
         if not seeds:

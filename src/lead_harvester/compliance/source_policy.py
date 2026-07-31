@@ -64,7 +64,7 @@ SOURCE_POLICIES: dict[SourceType, SourcePolicy] = {
         authorization_basis=AuthorizationBasis.PUBLIC_WEB_CRAWL,
         requires_disclosure=False,
         notes=(
-            "Crawls publicly published pages (sources/web.py). No account "
+            "Crawls publicly published pages (ingestion/web_crawler.py). No account "
             "automation or authentication bypass involved."
         ),
     ),

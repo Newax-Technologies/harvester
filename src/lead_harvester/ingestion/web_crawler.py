@@ -1,12 +1,18 @@
+"""
+Web crawl orchestration -- docs/ROADMAP.md module 3 (Collection and
+Crawling). Moved out of sources/web.py; see rate_limiter.py's docstring
+for why. This module owns the crawl loop (queue, per-domain page caps,
+depth limit, lead extraction/merging); robots/rate-limiting/fetching now
+live in page_fetcher.py and rate_limiter.py instead of being inlined here.
+"""
+
 from __future__ import annotations
 
 import asyncio
-import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
-from urllib.robotparser import RobotFileParser
 
 import httpx
 
@@ -21,6 +27,8 @@ from ..extractors import (
     extract_social_profiles,
     visible_text,
 )
+from .page_fetcher import RobotsCache, fetch_page
+from .rate_limiter import DomainRateLimiter
 
 
 @dataclass
@@ -43,50 +51,6 @@ class Lead:
 class CrawlItem:
     url: str
     depth: int
-
-
-class RobotsCache:
-    def __init__(self, client: httpx.AsyncClient, user_agent: str):
-        self.client = client
-        self.user_agent = user_agent
-        self.cache: dict[str, RobotFileParser] = {}
-        self.lock = asyncio.Lock()
-
-    async def allowed(self, url: str) -> bool:
-        parsed = urlparse(url)
-        root = f"{parsed.scheme}://{parsed.netloc}"
-        async with self.lock:
-            parser = self.cache.get(root)
-            if parser is None:
-                parser = RobotFileParser()
-                robots_url = f"{root}/robots.txt"
-                parser.set_url(robots_url)
-                try:
-                    response = await self.client.get(robots_url)
-                    if response.status_code < 400:
-                        parser.parse(response.text.splitlines())
-                    else:
-                        parser.parse([])
-                except httpx.HTTPError:
-                    parser.parse([])
-                self.cache[root] = parser
-        return parser.can_fetch(self.user_agent, url)
-
-
-class DomainRateLimiter:
-    def __init__(self, delay_seconds: float):
-        self.delay_seconds = max(0.0, delay_seconds)
-        self.last_request: dict[str, float] = defaultdict(float)
-        self.locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
-
-    async def wait(self, url: str) -> None:
-        domain = urlparse(url).netloc.lower()
-        async with self.locks[domain]:
-            elapsed = time.monotonic() - self.last_request[domain]
-            delay = self.delay_seconds - elapsed
-            if delay > 0:
-                await asyncio.sleep(delay)
-            self.last_request[domain] = time.monotonic()
 
 
 class WebCrawler:
@@ -131,7 +95,17 @@ class WebCrawler:
                     batch.append(item)
 
                 results = await asyncio.gather(
-                    *(self._fetch(client, robots, limiter, semaphore, item) for item in batch),
+                    *(
+                        fetch_page(
+                            client,
+                            robots,
+                            limiter,
+                            semaphore,
+                            item.url,
+                            max_response_bytes=self.settings.max_response_bytes,
+                        )
+                        for item in batch
+                    ),
                     return_exceptions=True,
                 )
                 for item, result in zip(batch, results, strict=True):
@@ -150,39 +124,6 @@ class WebCrawler:
                                 queue.append(CrawlItem(link, item.depth + 1))
 
             return list(leads_by_domain.values())
-
-    async def _fetch(
-        self,
-        client: httpx.AsyncClient,
-        robots: RobotsCache,
-        limiter: DomainRateLimiter,
-        semaphore: asyncio.Semaphore,
-        item: CrawlItem,
-    ) -> tuple[str, str] | None:
-        if not await robots.allowed(item.url):
-            return None
-        await limiter.wait(item.url)
-        async with semaphore:
-            try:
-                async with client.stream("GET", item.url) as response:
-                    response.raise_for_status()
-                    content_type = response.headers.get("content-type", "").lower()
-                    if (
-                        "text/html" not in content_type
-                        and "application/xhtml+xml" not in content_type
-                    ):
-                        return None
-                    chunks: list[bytes] = []
-                    size = 0
-                    async for chunk in response.aiter_bytes():
-                        size += len(chunk)
-                        if size > self.settings.max_response_bytes:
-                            return None
-                        chunks.append(chunk)
-                    encoding = response.encoding or "utf-8"
-                    return b"".join(chunks).decode(encoding, errors="replace"), str(response.url)
-            except (httpx.HTTPError, UnicodeError):
-                return None
 
     def _extract_lead(self, html: str, url: str) -> tuple[Lead | None, list[str]]:
         text = visible_text(html)

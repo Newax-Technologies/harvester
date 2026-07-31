@@ -10,8 +10,8 @@ from lead_harvester.models.canonical import CanonicalInstitution, OperatingStatu
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.resolution import ResolutionCandidate
 from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
+from lead_harvester.ingestion.web_crawler import Lead
 from lead_harvester.pipeline import LeadPipeline
-from lead_harvester.sources.web import Lead
 
 # _run_web_crawler/_run_google_places open their own session via
 # database.get_session() (bound to settings.database_url, a real database
@@ -92,7 +92,7 @@ async def test_run_web_crawler_emits_resync_events_even_when_run_fails(db_sessio
             new=lambda: _fake_get_session(db_session),
         ),
         patch(
-            "lead_harvester.sources.web.WebCrawler.crawl",
+            "lead_harvester.ingestion.web_crawler.WebCrawler.crawl",
             new=AsyncMock(
                 return_value=[_lead("https://a.example.edu"), _lead("https://b.example.edu")]
             ),
