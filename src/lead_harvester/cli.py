@@ -459,6 +459,58 @@ async def ops_source_health(args: argparse.Namespace) -> int:
     return 0
 
 
+async def list_person_candidates_cmd(args: argparse.Namespace) -> int:
+    """List discovered person candidates, most recently seen first (docs/ROADMAP.md module 1)."""
+    import uuid as uuid_module
+
+    from .database import get_session
+    from .services.person_candidate_service import list_person_candidates
+
+    async with get_session() as session:
+        candidates = await list_person_candidates(
+            session,
+            institution_id=uuid_module.UUID(args.institution_id) if args.institution_id else None,
+            limit=args.limit,
+        )
+        summary = [
+            (c.id, c.institution_id, c.display_name, c.evidence_count, c.status.value)
+            for c in candidates
+        ]
+
+    print(f"\n[PersonCandidates] {len(summary)} candidate(s):")
+    for cid, institution_id, display_name, evidence_count, status in summary:
+        print(
+            f"  {cid}  institution={institution_id}  {display_name!r}  "
+            f"evidence={evidence_count}  status={status}"
+        )
+    print()
+    return 0
+
+
+async def list_signals_cmd(args: argparse.Namespace) -> int:
+    """List detected pain-point/buying-signal rows, most recent first (docs/ROADMAP.md module 1)."""
+    import uuid as uuid_module
+
+    from .database import get_session
+    from .models.signal import SignalType
+    from .services.signal_service import list_signals
+
+    async with get_session() as session:
+        signals = await list_signals(
+            session,
+            institution_id=uuid_module.UUID(args.institution_id) if args.institution_id else None,
+            signal_type=SignalType(args.signal_type) if args.signal_type else None,
+            limit=args.limit,
+        )
+        summary = [(s.id, s.institution_id, s.signal_type.value, s.signal_text) for s in signals]
+
+    print(f"\n[Signals] {len(summary)} signal(s):")
+    for sid, institution_id, signal_type, signal_text in summary:
+        print(f"  {sid}  institution={institution_id}  [{signal_type}]  {signal_text}")
+    print()
+    return 0
+
+
 async def linkedin_send(args: argparse.Namespace) -> int:
     """
     Send all approved OutreachDraft records (LinkedIn messages or emails).
@@ -692,6 +744,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print per-source-type run health (last run, last success, recent failures)",
     )
 
+    # -- list-person-candidates -----------------------------------------------
+    list_person_candidates_parser = subparsers.add_parser(
+        "list-person-candidates",
+        help="List discovered person candidates",
+    )
+    list_person_candidates_parser.add_argument(
+        "--institution-id", default=None, help="Filter to one institution"
+    )
+    list_person_candidates_parser.add_argument("--limit", type=int, default=100)
+
+    # -- list-signals -----------------------------------------------------------
+    list_signals_parser = subparsers.add_parser(
+        "list-signals",
+        help="List detected pain-point/buying-signal rows",
+    )
+    list_signals_parser.add_argument(
+        "--institution-id", default=None, help="Filter to one institution"
+    )
+    list_signals_parser.add_argument(
+        "--signal-type", choices=["pain_point", "buying_signal"], default=None
+    )
+    list_signals_parser.add_argument("--limit", type=int, default=100)
+
     # -- linkedin-send ------------------------------------------------------
     li_send = subparsers.add_parser(
         "linkedin-send",
@@ -800,6 +875,8 @@ def main() -> None:
         "ops-health": lambda: sys.exit(asyncio.run(ops_health(args))),
         "ops-metrics": lambda: sys.exit(asyncio.run(ops_metrics(args))),
         "ops-source-health": lambda: sys.exit(asyncio.run(ops_source_health(args))),
+        "list-person-candidates": lambda: sys.exit(asyncio.run(list_person_candidates_cmd(args))),
+        "list-signals": lambda: sys.exit(asyncio.run(list_signals_cmd(args))),
         "linkedin-send": lambda: sys.exit(asyncio.run(linkedin_send(args))),
         "linkedin-status": lambda: _linkedin_status(args),
         "linkedin-farm-run": lambda: sys.exit(asyncio.run(_linkedin_farm_run(args))),

@@ -78,6 +78,33 @@ def test_default_country_code_applied_when_column_blank():
     assert result.institutions[0].country_code == "AE"
 
 
+def test_country_code_derived_from_country_name_when_column_missing():
+    # A row naming "United Arab Emirates" in its free-text country column,
+    # with no explicit country_code column, must derive "AE" -- not
+    # silently fall back to the pipeline's default_country_code (which
+    # would tag a real UAE institution as if it were in Pakistan).
+    csv_text = (
+        "institution_name,contact_value,country\nDubai School,+971501234567,United Arab Emirates\n"
+    )
+
+    result = parse_authorized_import_csv(
+        csv_text, source_reference="license-2026", default_country_code="PK"
+    )
+
+    assert result.institutions[0].country_code == "AE"
+
+
+def test_explicit_country_code_column_wins_over_derived_country_name():
+    csv_text = (
+        "institution_name,contact_value,country,country_code\n"
+        "Dubai School,+971501234567,United Arab Emirates,SA\n"
+    )
+
+    result = parse_authorized_import_csv(csv_text, source_reference="license-2026")
+
+    assert result.institutions[0].country_code == "SA"
+
+
 def test_groups_rows_sharing_institution_identity_into_one_institution():
     # Two rows describing the same school (matched by normalized name +
     # website) previously became two independent RawSourceRecords that the

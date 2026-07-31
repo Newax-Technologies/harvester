@@ -37,6 +37,7 @@ from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, 
 from lead_harvester.resolution.normalize import normalize_domain, normalize_name, normalize_phone
 from lead_harvester.services.lead_profile_service import refresh_lead_profile
 from lead_harvester.services.outbox_service import enqueue_and_attempt_delivery
+from lead_harvester.services.person_candidate_service import resolve_person_candidate
 
 router = APIRouter(prefix="/leads", tags=["Manual Lead Entry"])
 
@@ -301,6 +302,7 @@ async def create_manual_lead(
             # same phone (normalized to "+923001112222"), creating a
             # duplicate ContactPoint instead of reusing this one.
             contact_value = normalize_phone(contact_value, default_region=payload.country_code)
+        candidate = await resolve_person_candidate(session, institution.id, c.person_name)
         cp = ContactPoint(
             institution_id=institution.id,
             contact_type=c.contact_type,
@@ -308,6 +310,7 @@ async def create_manual_lead(
             person_name=c.person_name,
             role=c.role,
             is_publicly_listed=False,  # manually entered = not scraped from public web
+            person_candidate_id=candidate.id if candidate else None,
         )
         session.add(cp)
         contact_points.append(cp)

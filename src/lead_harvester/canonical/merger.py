@@ -13,6 +13,7 @@ from lead_harvester.models.canonical import (
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, SourceType
 from lead_harvester.resolution.normalize import normalize_phone
+from lead_harvester.services.person_candidate_service import resolve_person_candidate
 from lead_harvester.verification.confidence import bump_confidence, confidence_for_source_count
 
 # Google Places' response (the only live raw-record source today) does not
@@ -359,6 +360,7 @@ async def _add_contact_if_present(
     # it) instead.
     existing = await _find_contact_point(session, institution.id, contact_type, contact_value)
     if existing is None:
+        candidate = await resolve_person_candidate(session, institution.id, person_name)
         session.add(
             ContactPoint(
                 institution_id=institution.id,
@@ -366,6 +368,7 @@ async def _add_contact_if_present(
                 contact_value=contact_value,
                 person_name=person_name,
                 role=role,
+                person_candidate_id=candidate.id if candidate else None,
             )
         )
     else:
@@ -376,6 +379,8 @@ async def _add_contact_if_present(
         # written here on first creation, previously).
         if person_name and existing.person_name != person_name:
             existing.person_name = person_name
+            candidate = await resolve_person_candidate(session, institution.id, person_name)
+            existing.person_candidate_id = candidate.id if candidate else None
         if role and existing.role != role:
             existing.role = role
     session.add(

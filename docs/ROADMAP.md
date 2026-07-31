@@ -52,10 +52,17 @@ These are gaps identified while building the harvester → core-newax lead sync 
 4. **Deletion/reconciliation.** The sync is currently append-and-update only; if a phone number
    or branch disappears from harvester, the previously-synced core-newax record isn't removed
    or expired. Full reconciliation is unbuilt.
-5. **Cross-record person deduplication.** The same real person named on two different
-   `contact_point` rows for the same institution currently becomes two separate `CorePerson`
-   records in core-newax. No identity resolution across contact points yet — relates to the
-   `person_candidate` entity in module 1 above, which doesn't exist yet either.
+5. **Cross-record person deduplication. Harvester side DONE, core-newax side still open.**
+   `models/person.py`'s `PersonCandidate` (module 1, "Entity Registry") now gives harvester its
+   own identity-clustering layer: `services/person_candidate_service.py::resolve_person_candidate`
+   finds-or-creates one `PersonCandidate` per (institution, exact-after-`normalize_name` name),
+   wired into every live `ContactPoint`-writing path (`canonical/merger.py`'s
+   `_add_contact_if_present`, `api/routes/manual_leads.py`'s contact loop), so the same real
+   person named on two different `contact_point` rows for one institution now converges onto one
+   `ContactPoint.person_candidate_id` instead of staying two unrelated bare strings. What's still
+   open: the lead-sync outbox/export layer doesn't use `person_candidate_id` as its `CorePerson`
+   external-key namespace yet (it still keys by raw `contact_point.id`), so core-newax's own
+   `CorePerson` de-dup gap is unchanged until that wiring is done as separate follow-up work.
 
 ## Planned modules
 
@@ -113,9 +120,27 @@ authoritative CRM timeline.
 
 Roughly mapped against what exists in `src/lead_harvester/` today:
 
-- **Entity Registry**: partial. `models/canonical.py` has institution/branch/contact_point;
-  `models/source.py` has source_record. No `person_candidate` (today `contact_point.person_name`
-  is a bare string with no resolution state) or `signal` entity yet.
+- **Entity Registry**: done for v1 scope. `models/canonical.py` has institution/branch/
+  contact_point; `models/source.py` has source_record; `models/person.py`'s `PersonCandidate`
+  and `models/signal.py`'s `Signal` are the two entities this module added. `PersonCandidate`
+  is wired into every live `ContactPoint`-writing path via `services/person_candidate_service.py`
+  (see the "cross-record person deduplication" tracked follow-up above for what it fixes and
+  what's still open on the core-newax side). `Signal` is populated by
+  `intelligence/researcher.py::_persist_findings`: each `pain_points`/`buying_signals` list item
+  from the AI analysis becomes its own queryable/filterable `Signal` row (`PAIN_POINT`/
+  `BUYING_SIGNAL`), alongside — not instead of — the existing `ResearchFinding` row that already
+  holds the complete, unedited AI output as one JSON blob. Invokable via the
+  `list-person-candidates`/`list-signals` CLI commands or `GET /api/v1/entities/*`. As part of
+  this module, `intelligence/pain_detection.py` and `intelligence/scoring.py` were deleted:
+  confirmed zero live callers, both existed only to consume the dead Phase-1 `entities/`
+  dataclasses this doc's Lead Scoring note already flagged as superseded — leaving them in place
+  next to the new, real `Signal` model would have been exactly the kind of shadow-implementation
+  confusion `docs/CODE_REVIEW_LESSONS.md` pattern 2 warns about. The `entities/` dataclasses
+  themselves (and `storage/sqlite.py`) were deliberately kept: the `migrate-phase1` CLI command
+  is a real, still-needed one-time importer that depends on them. Known v1 limitation: no fuzzy/
+  trigram matching for `PersonCandidate` (exact-after-`normalize_name` only, consistent with this
+  codebase's other identity-matching v1 scopes); no automated merge/split UI for a
+  `PersonCandidate` a human later decides was wrong.
 - **Source Connectors**: partial. `sources/` has google_places, web, search, and
   authorized_imports (CSV/bulk import of licensed or manually-sourced data, wired into
   `LeadPipeline`/`cli.py`'s `import-authorized` command, going through the same

@@ -11,6 +11,7 @@ from lead_harvester.api.routes import (
     daily_selection,
     dashboard,
     drafts,
+    entities,
     exports,
     institutions,
     lead_profiles,
@@ -98,5 +99,6 @@ api_router.include_router(compliance.router)
 api_router.include_router(outbox.router)
 api_router.include_router(exports.router)
 api_router.include_router(operations.router)
+api_router.include_router(entities.router)
 
 app.include_router(api_router)

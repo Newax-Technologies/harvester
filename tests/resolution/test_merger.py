@@ -834,6 +834,67 @@ async def test_add_contact_if_present_enriches_existing_contact_person_name_and_
     ).scalar_one()
     assert contact.person_name == "Ali Khan"
     assert contact.role == "Principal"
+    assert contact.person_candidate_id is not None
+
+
+@pytest.mark.asyncio
+async def test_add_contact_if_present_links_new_contacts_to_the_same_person_candidate(
+    db_session, source_run
+):
+    # Two different contact points for the same institution, both naming
+    # "Ali Khan", must resolve to the SAME PersonCandidate row -- this is
+    # the whole point of the entity (see docs/ROADMAP.md module 1's
+    # "cross-record person deduplication" tracked follow-up).
+    from lead_harvester.models.person import PersonCandidate
+
+    a = _authorized_import_record(
+        source_run.id,
+        contacts=[
+            {
+                "contact_type": "phone",
+                "contact_value": "+923001234567",
+                "person_name": "Ali Khan",
+                "role": "Principal",
+            }
+        ],
+    )
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+
+    b = _authorized_import_record(
+        source_run.id,
+        contacts=[
+            {
+                "contact_type": "email",
+                "contact_value": "ali.khan@example.edu",
+                "person_name": "Ali Khan",
+                "role": "Principal",
+            }
+        ],
+    )
+    db_session.add(b)
+    await db_session.flush()
+    await attach_record_to_institution(db_session, b, institution, target_branch=None)
+    await db_session.flush()
+
+    contacts = (
+        (
+            await db_session.execute(
+                select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(contacts) == 2
+    candidate_ids = {c.person_candidate_id for c in contacts}
+    assert len(candidate_ids) == 1
+    assert None not in candidate_ids
+
+    candidate = await db_session.get(PersonCandidate, candidate_ids.pop())
+    assert candidate.evidence_count == 2
 
 
 @pytest.mark.asyncio

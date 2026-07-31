@@ -84,3 +84,97 @@ def normalize_address(address: str) -> str:
     address = re.sub(r"[,.\-]", " ", address)
     address = re.sub(r"\s+", " ", address).strip()
     return address
+
+
+def normalize_city(city: str) -> str:
+    """
+    Lowercases and normalizes whitespace/punctuation for city-name
+    comparison -- same shape as normalize_name, kept separate so a future
+    city-specific rule (e.g. alias resolution) doesn't have to piggyback
+    on person/institution name normalization.
+    """
+    if not city:
+        return ""
+
+    city = city.lower()
+    city = re.sub(r"[,.\-&_]", " ", city)
+    city = re.sub(r"\s+", " ", city).strip()
+    return city
+
+
+# Common country names/aliases -> ISO 3166-1 alpha-2, keyed by
+# normalize_name(name). Not an exhaustive ISO-3166 list -- known v1
+# limitation, covers the countries this system's actual usage has hit
+# (South Asia/Middle East/major English-speaking markets) rather than all
+# ~195. An unrecognized name returns None so a caller can fall back to a
+# configured default instead of silently guessing.
+_COUNTRY_ALIASES: dict[str, str] = {
+    "pakistan": "PK",
+    "india": "IN",
+    "bangladesh": "BD",
+    "sri lanka": "LK",
+    "nepal": "NP",
+    "afghanistan": "AF",
+    "united arab emirates": "AE",
+    "uae": "AE",
+    "saudi arabia": "SA",
+    "qatar": "QA",
+    "kuwait": "KW",
+    "bahrain": "BH",
+    "oman": "OM",
+    "united states": "US",
+    "united states of america": "US",
+    "usa": "US",
+    "united kingdom": "GB",
+    "uk": "GB",
+    "great britain": "GB",
+    "canada": "CA",
+    "australia": "AU",
+    "new zealand": "NZ",
+    "china": "CN",
+    "japan": "JP",
+    "south korea": "KR",
+    "singapore": "SG",
+    "malaysia": "MY",
+    "indonesia": "ID",
+    "thailand": "TH",
+    "vietnam": "VN",
+    "philippines": "PH",
+    "germany": "DE",
+    "france": "FR",
+    "italy": "IT",
+    "spain": "ES",
+    "netherlands": "NL",
+    "belgium": "BE",
+    "switzerland": "CH",
+    "sweden": "SE",
+    "norway": "NO",
+    "denmark": "DK",
+    "ireland": "IE",
+    "turkey": "TR",
+    "egypt": "EG",
+    "south africa": "ZA",
+    "nigeria": "NG",
+    "kenya": "KE",
+    "brazil": "BR",
+    "mexico": "MX",
+    "argentina": "AR",
+    "russia": "RU",
+}
+
+
+def country_to_iso2(country: str) -> str | None:
+    """
+    Maps a free-text country name (or an already-valid ISO-3166-1
+    alpha-2 code) to its ISO-2 code. Returns None for anything
+    unrecognized rather than guessing -- see _COUNTRY_ALIASES' own
+    docstring for this table's known coverage limitation.
+    """
+    if not country:
+        return None
+
+    stripped = country.strip()
+    if len(stripped) == 2 and stripped.isalpha():
+        return stripped.upper()
+
+    return _COUNTRY_ALIASES.get(normalize_name(stripped))

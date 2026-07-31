@@ -39,7 +39,12 @@ import hashlib
 import io
 from dataclasses import dataclass, field
 
-from ..resolution.normalize import normalize_address, normalize_domain, normalize_name
+from ..resolution.normalize import (
+    country_to_iso2,
+    normalize_address,
+    normalize_domain,
+    normalize_name,
+)
 
 
 @dataclass(slots=True)
@@ -233,7 +238,18 @@ def _parse_row(
     if not contact_value:
         raise ValueError("contact_value is required")
 
-    country_code = (row.get("country_code") or "").strip().upper() or default_country_code
+    # An explicit country_code column always wins. Otherwise, derive it
+    # from the free-text country column (e.g. "United Arab Emirates")
+    # rather than blindly falling back to default_country_code regardless
+    # of what country the row actually names -- previously a UAE row with
+    # no country_code column silently got tagged with whatever the
+    # pipeline's default happened to be (e.g. "PK").
+    raw_country_code = (row.get("country_code") or "").strip().upper()
+    country_code = (
+        raw_country_code
+        or country_to_iso2((row.get("country") or "").strip())
+        or default_country_code
+    )
     if len(country_code) != 2 or not country_code.isalpha():
         raise ValueError(f"country_code must be two letters, got {country_code!r}")
 

@@ -10,11 +10,13 @@ from .compliance import (
 )
 from .outbox import EventOutbox, OutboxStatus
 from .outreach import AccountBrief, BriefStatus, DraftStatus, OutreachDraft, OutreachOutcome
+from .person import PersonCandidate, PersonCandidateStatus
 from .profile import LeadProfile, LeadScoreSnapshot
 from .provenance import FieldProvenance
 from .qualification import QualificationAssessment, QualificationStatus
 from .research import FindingType, JobStatus, ResearchFinding, ResearchJob
 from .resolution import MatchAssessment, MatchDecision, ResolutionCandidate, ReviewOutcome
+from .signal import Signal, SignalType
 from .source import RawSourceRecord, RunStatus, SourceRun, SourceType
 from .verification import DataQualityFlag, FlagStatus, FlagType
 
@@ -45,6 +47,8 @@ __all__ = [
     "OutboxStatus",
     "OutreachDraft",
     "OutreachOutcome",
+    "PersonCandidate",
+    "PersonCandidateStatus",
     "QualificationAssessment",
     "QualificationStatus",
     "RawSourceRecord",
@@ -54,6 +58,8 @@ __all__ = [
     "ResolutionCandidate",
     "ReviewOutcome",
     "RunStatus",
+    "Signal",
+    "SignalType",
     "SourceRun",
     "SourceType",
     "SuppressionEntry",

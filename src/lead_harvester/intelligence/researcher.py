@@ -35,6 +35,7 @@ from lead_harvester.models import (
     ResearchJob,
 )
 from lead_harvester.models.provenance import FieldProvenance
+from lead_harvester.models.signal import Signal, SignalType
 from lead_harvester.models.source import RawSourceRecord, SourceType
 from lead_harvester.services.lead_profile_service import refresh_lead_profile
 
@@ -347,6 +348,35 @@ class ResearchBrain:
                 confidence_score=0.85,
             )
             session.add(finding)
+
+        # Each pain_points/buying_signals list item also becomes its own
+        # Signal row (see models/signal.py) -- the "pain_points"/
+        # "buying_signals" ResearchFinding rows above already hold the
+        # complete, unedited AI output, but as one opaque JSON list each,
+        # not individually queryable/filterable/countable the way ranking
+        # or a dashboard would want.
+        for pain_point in analysis.get("pain_points", []):
+            if pain_point:
+                session.add(
+                    Signal(
+                        institution_id=institution_id,
+                        signal_type=SignalType.PAIN_POINT,
+                        signal_text=str(pain_point),
+                        source_url=profile.get("profile_url", ""),
+                        confidence_score=0.85,
+                    )
+                )
+        for buying_signal in analysis.get("buying_signals", []):
+            if buying_signal:
+                session.add(
+                    Signal(
+                        institution_id=institution_id,
+                        signal_type=SignalType.BUYING_SIGNAL,
+                        signal_text=str(buying_signal),
+                        source_url=profile.get("profile_url", ""),
+                        confidence_score=0.85,
+                    )
+                )
 
         # Create / update AccountBrief
         brief = AccountBrief(

@@ -128,6 +128,15 @@ class ContactPoint(Base):
 
     is_publicly_listed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # Which PersonCandidate (models/person.py) this contact's person_name
+    # resolves to, if any -- set by services/person_candidate_service.py
+    # whenever a contact with a non-blank person_name is written. Null for
+    # contacts with no person_name (a bare office phone/email) or for rows
+    # written before this column existed.
+    person_candidate_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("person_candidates.id"), nullable=True, index=True
+    )
+
     institution: Mapped["CanonicalInstitution"] = relationship(
         "CanonicalInstitution", back_populates="contact_points"
     )

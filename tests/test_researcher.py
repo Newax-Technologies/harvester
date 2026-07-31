@@ -376,6 +376,47 @@ async def test_research_profile_refreshes_the_lead_profile(db_session):
 
 
 @pytest.mark.asyncio
+async def test_research_profile_creates_individual_signal_rows(db_session):
+    # pain_points/buying_signals were previously only ever stored as one
+    # opaque JSON list each inside a single ResearchFinding row --
+    # unqueryable/unfilterable as individual signals. Each list item must
+    # also become its own Signal row (see models/signal.py).
+    from lead_harvester.models.signal import Signal, SignalType
+
+    institution = CanonicalInstitution(
+        canonical_name="Signal School", status=OperatingStatus.OPERATIONAL
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    brain = ResearchBrain(api_key="fake-key-for-test")
+    brain._call_ai = AsyncMock(
+        return_value={
+            **_VALID_ANALYSIS,
+            "pain_points": ["scaling issues", "no CRM"],
+            "buying_signals": ["hiring"],
+        }
+    )
+
+    await brain.research_profile(
+        db_session,
+        {"full_name": "Jane Doe", "profile_url": "https://linkedin.com/in/jane"},
+        institution.id,
+    )
+
+    signals = (
+        (await db_session.execute(select(Signal).where(Signal.institution_id == institution.id)))
+        .scalars()
+        .all()
+    )
+    pain_signals = [s for s in signals if s.signal_type == SignalType.PAIN_POINT]
+    buying_signals = [s for s in signals if s.signal_type == SignalType.BUYING_SIGNAL]
+    assert {s.signal_text for s in pain_signals} == {"scaling issues", "no CRM"}
+    assert {s.signal_text for s in buying_signals} == {"hiring"}
+    assert all(s.source_url == "https://linkedin.com/in/jane" for s in signals)
+
+
+@pytest.mark.asyncio
 async def test_process_all_pending_claim_query_never_double_claims_across_connections(
     async_engine,
 ):
