@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Download,
+  Activity,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { dashboardQueries } from "./api/queries";
@@ -27,6 +28,7 @@ import { DailyQueue } from "./pages/DailyQueue";
 import { DataQuality } from "./pages/DataQuality";
 import { Compliance } from "./pages/Compliance";
 import { Exports } from "./pages/Exports";
+import { Operations } from "./pages/Operations";
 import { ManualLeadDrawer } from "./components/ManualLeadDrawer";
 
 function NavSection({
@@ -120,6 +122,11 @@ function Layout() {
             </NavLink>
             <NavLink to="/exports" icon={<Download size={18} />}>
               Exports
+            </NavLink>
+          </NavSection>
+          <NavSection label="Admin">
+            <NavLink to="/operations" icon={<Activity size={18} />}>
+              Operations
             </NavLink>
           </NavSection>
         </nav>
@@ -265,6 +272,7 @@ function App() {
           <Route path="data-quality" element={<DataQuality />} />
           <Route path="compliance" element={<Compliance />} />
           <Route path="exports" element={<Exports />} />
+          <Route path="operations" element={<Operations />} />
         </Route>
       </Routes>
     </BrowserRouter>
