@@ -204,11 +204,17 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
       rather than assumed-absent. A real signal here would come from manual entry or authorized-
       import data, not the crawler, and detecting it automatically is out of scope for this
       module.
-    - A new `service_gap_score` (`profiles/scoring.py`, or a new `intelligence/service_gap.py`)
-      computed from detected gaps (no website / no detected LMS — each counted only when actually
-      checked, per the point above), scaled by `intelligence/size_estimation.py::estimate_size_tier`
-      as an ability-to-pay proxy, so an identical gap counts for more at a multi-branch chain than
-      at a single tiny branch. Feeds into `LeadProfile`'s existing `qualification` score category
+    - A new `service_gap_score` (`profiles/scoring.py`, or a new `intelligence/service_gap.py`).
+      Decided formula: `opportunity_score = missing_product_count * size_multiplier` — directly
+      implements "most services they could buy AND can afford to pay," so a small single-branch
+      institution missing every product still scores lower than a multi-branch institution
+      missing the same things. `missing_product_count` only counts a product as missing when it
+      was actually checked (no website on file; a crawled site with no detected LMS signal — per
+      the point above, "never checked" must not silently count as "missing"). `size_multiplier`
+      comes from `intelligence/size_estimation.py::estimate_size_tier`'s existing `SizeTier`
+      (`SMALL`/`MEDIUM`/`LARGE`/`UNKNOWN`) via a small, tunable mapping — e.g. `UNKNOWN`/`SMALL`
+      → `1.0`, `MEDIUM` → `1.5`, `LARGE` → `2.0` (exact values configurable, not load-bearing on
+      the formula itself). Feeds into `LeadProfile`'s existing `qualification` score category
       rather than adding a second, competing scoring path.
 
 ## Explicitly not part of Harvester
