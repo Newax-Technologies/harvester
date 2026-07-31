@@ -11,7 +11,7 @@ from .compliance import (
 from .outbox import EventOutbox, OutboxStatus
 from .outreach import AccountBrief, BriefStatus, DraftStatus, OutreachDraft, OutreachOutcome
 from .person import PersonCandidate, PersonCandidateStatus
-from .profile import LeadProfile, LeadScoreSnapshot
+from .profile import LeadProfile, LeadScoreSnapshot, SizeTier
 from .provenance import FieldProvenance
 from .qualification import QualificationAssessment, QualificationStatus
 from .research import FindingType, JobStatus, ResearchFinding, ResearchJob
@@ -60,6 +60,7 @@ __all__ = [
     "RunStatus",
     "Signal",
     "SignalType",
+    "SizeTier",
     "SourceRun",
     "SourceType",
     "SuppressionEntry",

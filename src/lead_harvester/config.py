@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     daily_selection_reservation_ttl_hours: float = 24.0
     daily_selection_min_score: int = 0
 
+    # ICP matching (intelligence/icp_matching.py) -- an empty list means
+    # "no preference stated for this criterion", not "matches nothing";
+    # see icp_matching.py's own docstring for the full weighting.
+    icp_target_institution_types: list[str] = []
+    icp_min_branch_count: int = 0
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @model_validator(mode="after")

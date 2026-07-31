@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.qualification import QualificationAssessment, QualificationStatus
 from lead_harvester.models.research import FindingType, ResearchFinding
+from lead_harvester.models.signal import Signal, SignalType
 from lead_harvester.profiles.scoring import compute_lead_score
 
 
@@ -28,10 +29,19 @@ def _finding(key: str, value, *, created_at=None) -> ResearchFinding:
     )
 
 
+def _signal(signal_type: SignalType, text: str = "signal", *, detected_at=None) -> Signal:
+    return Signal(
+        institution_id=None,
+        signal_type=signal_type,
+        signal_text=text,
+        detected_at=detected_at or datetime.now(UTC),
+    )
+
+
 def test_bare_institution_with_no_evidence_scores_low():
     institution = _institution(website=None, institution_type="", confidence_score=0.0)
 
-    result = compute_lead_score(institution, [], [], None, [])
+    result = compute_lead_score(institution, [], [], None, [], [])
 
     assert result.overall_score == 0
     assert result.has_phone is False
@@ -55,14 +65,21 @@ def test_full_evidence_scores_at_or_near_the_ceiling():
         status=QualificationStatus.QUALIFIED, criteria_version=1
     )
     findings = [
-        _finding("pain_points", ["slow admissions", "no CRM", "manual invoicing", "no website"]),
-        _finding(
-            "buying_signals",
-            ["hiring an ops manager", "opened a new campus", "RFP", "demo request"],
-        ),
+        _finding("summary", "A growing school with strong signals."),
+        _finding("lead_score", 9),
+    ]
+    signals = [
+        _signal(SignalType.PAIN_POINT, "slow admissions"),
+        _signal(SignalType.PAIN_POINT, "no CRM"),
+        _signal(SignalType.PAIN_POINT, "manual invoicing"),
+        _signal(SignalType.PAIN_POINT, "no website"),
+        _signal(SignalType.BUYING_SIGNAL, "hiring an ops manager"),
+        _signal(SignalType.BUYING_SIGNAL, "opened a new campus"),
+        _signal(SignalType.BUYING_SIGNAL, "RFP"),
+        _signal(SignalType.BUYING_SIGNAL, "demo request"),
     ]
 
-    result = compute_lead_score(institution, branches, contacts, qualification, findings)
+    result = compute_lead_score(institution, branches, contacts, qualification, findings, signals)
 
     assert result.overall_score == 100
     assert result.breakdown["scale"] == 15
@@ -87,7 +104,7 @@ def test_single_source_confidence_score_does_not_score_max_confidence_points():
     # scores the lowest tier instead.
     institution = _institution(confidence_score=10.0)
 
-    result = compute_lead_score(institution, [], [], None, [])
+    result = compute_lead_score(institution, [], [], None, [], [])
 
     assert result.breakdown["confidence"] == 0
 
@@ -98,7 +115,7 @@ def test_disqualified_institution_gets_no_qualification_points():
         status=QualificationStatus.DISQUALIFIED, criteria_version=1
     )
 
-    result = compute_lead_score(institution, [], [], qualification, [])
+    result = compute_lead_score(institution, [], [], qualification, [], [])
 
     assert result.breakdown["qualification"] == 0
 
@@ -109,42 +126,59 @@ def test_needs_review_qualification_gets_half_points():
         status=QualificationStatus.NEEDS_REVIEW, criteria_version=1
     )
 
-    result = compute_lead_score(institution, [], [], qualification, [])
+    result = compute_lead_score(institution, [], [], qualification, [], [])
 
     assert result.breakdown["qualification"] == 10
 
 
-def test_stale_findings_do_not_count_toward_freshness():
+def test_stale_signals_do_not_count_toward_freshness():
     institution = _institution()
-    stale = _finding(
-        "pain_points", ["old pain point"], created_at=datetime.now(UTC) - timedelta(days=90)
+    stale = _signal(
+        SignalType.PAIN_POINT, "old pain point", detected_at=datetime.now(UTC) - timedelta(days=90)
     )
 
-    result = compute_lead_score(institution, [], [], None, [stale])
+    result = compute_lead_score(institution, [], [], None, [], [stale])
 
     assert result.breakdown["freshness"] == 0
-    # The finding itself still counts as evidence, and still contributes to
-    # research_signal -- freshness is a separate signal about recency, not a
-    # gate on whether older evidence counts at all.
-    assert result.evidence_count == 1
+    # The signal itself still counts toward research_signal -- freshness is
+    # a separate signal about recency, not a gate on whether older evidence
+    # counts at all.
     assert result.breakdown["research_signal"] > 0
 
 
-def test_only_the_latest_finding_per_key_counts_not_a_running_total():
+def test_research_signal_counts_every_detected_signal_not_just_the_latest():
+    # Unlike ResearchFinding (which supersedes by finding_key), each Signal
+    # row is its own independent piece of detected evidence -- two pain
+    # points from two different detection passes both count.
     institution = _institution()
-    older = _finding(
-        "pain_points",
-        ["a", "b", "c", "d"],
-        created_at=datetime.now(UTC) - timedelta(days=5),
-    )
-    newer = _finding("pain_points", ["single pain point"], created_at=datetime.now(UTC))
+    signals = [
+        _signal(SignalType.PAIN_POINT, "a", detected_at=datetime.now(UTC) - timedelta(days=5)),
+        _signal(SignalType.PAIN_POINT, "b", detected_at=datetime.now(UTC)),
+    ]
 
-    result = compute_lead_score(institution, [], [], None, [older, newer])
+    result = compute_lead_score(institution, [], [], None, [], signals)
 
-    # 1 pain point * 3 = 3 points, not 4 * 3 = 12 -- proves the older,
-    # superseded finding's list length isn't the one used.
-    assert result.breakdown["research_signal"] == 3
-    assert result.evidence_count == 2
+    # 2 pain points * 3 = 6 points.
+    assert result.breakdown["research_signal"] == 6
+
+
+def test_research_signal_counts_website_detected_signals_with_no_research_finding():
+    # A real gap this fixes: enrichment/technology_detector.py's rule-based
+    # signals for a website-sourced institution previously earned zero
+    # research_signal credit, since the score only ever read
+    # ResearchFinding rows (LinkedIn-only). No ResearchFinding exists here
+    # at all -- only Signal rows -- and research_signal must still reflect
+    # them.
+    institution = _institution()
+    signals = [
+        _signal(SignalType.PAIN_POINT, "uses whatsapp with no booking portal"),
+        _signal(SignalType.BUYING_SIGNAL, "now hiring"),
+    ]
+
+    result = compute_lead_score(institution, [], [], None, [], signals)
+
+    assert result.breakdown["research_signal"] == 6
+    assert result.breakdown["freshness"] == 10
 
 
 def test_score_never_exceeds_100_even_with_extra_contactability_stacking():
@@ -161,11 +195,10 @@ def test_score_never_exceeds_100_even_with_extra_contactability_stacking():
     qualification = QualificationAssessment(
         status=QualificationStatus.QUALIFIED, criteria_version=1
     )
-    findings = [
-        _finding("pain_points", ["a", "b", "c", "d", "e"]),
-        _finding("buying_signals", ["a", "b", "c", "d", "e"]),
+    signals = [_signal(SignalType.PAIN_POINT, str(i)) for i in range(5)] + [
+        _signal(SignalType.BUYING_SIGNAL, str(i)) for i in range(5)
     ]
 
-    result = compute_lead_score(institution, branches, contacts, qualification, findings)
+    result = compute_lead_score(institution, branches, contacts, qualification, [], signals)
 
     assert result.overall_score == 100

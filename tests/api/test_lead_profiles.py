@@ -34,6 +34,9 @@ async def test_get_profile_returns_the_current_profile(client_a, db_session):
     assert body["institution_id"] == str(institution.id)
     assert body["has_phone"] is True
     assert body["overall_score"] > 0
+    assert body["size_tier"] == "unknown"  # no branches seeded for this institution
+    assert isinstance(body["operational_maturity_score"], int)
+    assert isinstance(body["icp_match_score"], int)
 
 
 @pytest.mark.asyncio

@@ -1,3 +1,4 @@
+import enum
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -8,6 +9,20 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lead_harvester.database import Base
 from lead_harvester.models.qualification import QualificationStatus
+
+
+class SizeTier(str, enum.Enum):
+    """
+    See docs/ROADMAP.md module 7's size_estimation sub-concern --
+    intelligence/size_estimation.py computes this from branch/contact
+    counts (the only size proxy this schema has; no headcount data
+    exists), not a guessed student/staff count.
+    """
+
+    UNKNOWN = "unknown"
+    SMALL = "small"
+    MEDIUM = "medium"
+    LARGE = "large"
 
 
 class LeadProfile(Base):
@@ -54,6 +69,17 @@ class LeadProfile(Base):
     # lets a consumer distinguish "confidently scored from real research"
     # from "scored on branch/contact data alone, nothing researched yet".
     evidence_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    # docs/ROADMAP.md module 7 (Business Intelligence) additions --
+    # computed by intelligence/size_estimation.py,
+    # intelligence/operational_maturity.py, and intelligence/icp_matching.py
+    # respectively, refreshed alongside the score in the same
+    # refresh_lead_profile call.
+    size_tier: Mapped[SizeTier] = mapped_column(
+        Enum(SizeTier, name="sizetier"), default=SizeTier.UNKNOWN, nullable=False
+    )
+    operational_maturity_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    icp_match_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)

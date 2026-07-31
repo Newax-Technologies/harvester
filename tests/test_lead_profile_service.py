@@ -4,8 +4,9 @@ import pytest
 from sqlalchemy import select
 
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
-from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot
+from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot, SizeTier
 from lead_harvester.models.qualification import QualificationAssessment, QualificationStatus
+from lead_harvester.models.signal import Signal, SignalType
 from lead_harvester.services.lead_profile_service import (
     get_lead_profile,
     get_lead_score_history,
@@ -52,6 +53,70 @@ async def test_refresh_creates_a_new_profile_when_none_exists(db_session):
         )
     ).all()
     assert len(rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_refresh_computes_size_tier_from_branches(db_session):
+    institution = await _seed_institution(db_session)
+    for i in range(5):
+        db_session.add(
+            Branch(
+                institution_id=institution.id,
+                branch_name=f"Campus {i}",
+                city="Lahore",
+                country_code="PK",
+            )
+        )
+    await db_session.flush()
+
+    profile = await refresh_lead_profile(db_session, institution.id)
+
+    assert profile.size_tier == SizeTier.LARGE
+
+
+@pytest.mark.asyncio
+async def test_refresh_computes_operational_maturity_from_signals(db_session):
+    institution = await _seed_institution(db_session, website=None)
+    db_session.add(
+        Signal(institution_id=institution.id, signal_type=SignalType.PAIN_POINT, signal_text="x")
+    )
+    await db_session.flush()
+
+    profile = await refresh_lead_profile(db_session, institution.id)
+
+    # baseline 50, no website bonus, one pain point penalty (-15) = 35
+    assert profile.operational_maturity_score == 35
+
+
+@pytest.mark.asyncio
+async def test_refresh_computes_icp_match_score_from_settings(db_session, monkeypatch):
+    from lead_harvester.services import lead_profile_service as service_module
+
+    monkeypatch.setattr(service_module.app_settings, "icp_target_institution_types", ["school"])
+    monkeypatch.setattr(service_module.app_settings, "icp_min_branch_count", 0)
+    institution = await _seed_institution(db_session, institution_type="school")
+
+    profile = await refresh_lead_profile(db_session, institution.id)
+
+    assert profile.icp_match_score == 100
+
+
+@pytest.mark.asyncio
+async def test_refresh_summarizes_signals_when_no_ai_summary_exists(db_session):
+    institution = await _seed_institution(db_session)
+    db_session.add(
+        Signal(
+            institution_id=institution.id,
+            signal_type=SignalType.PAIN_POINT,
+            signal_text="uses whatsapp with no booking portal",
+        )
+    )
+    await db_session.flush()
+
+    profile = await refresh_lead_profile(db_session, institution.id)
+
+    assert "pain point" in profile.organization_summary
+    assert "uses whatsapp with no booking portal" in profile.organization_summary
 
 
 @pytest.mark.asyncio

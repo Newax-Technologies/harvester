@@ -17,10 +17,16 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from lead_harvester.config import settings as app_settings
+from lead_harvester.intelligence.icp_matching import score_icp_fit
+from lead_harvester.intelligence.operational_maturity import compute_operational_maturity
+from lead_harvester.intelligence.research_summary import summarize_signals
+from lead_harvester.intelligence.size_estimation import estimate_size_tier
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot
 from lead_harvester.models.qualification import QualificationAssessment
 from lead_harvester.models.research import ResearchFinding
+from lead_harvester.models.signal import Signal
 from lead_harvester.profiles.scoring import compute_lead_score
 from lead_harvester.qualification.agent import QualificationAgent
 from lead_harvester.schemas.profiles import (
@@ -34,9 +40,15 @@ async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID)
     """
     Idempotent -- safe to call repeatedly as new evidence arrives. Reads the
     institution's current branches/contact points, its latest
-    QualificationAssessment (if any has ever run), and every ResearchFinding
-    recorded for it, scores it via profiles/scoring.py, then upserts
-    LeadProfile and appends a LeadScoreSnapshot row.
+    QualificationAssessment (if any has ever run), every ResearchFinding,
+    and every Signal (models/signal.py -- populated by both
+    intelligence/researcher.py's AI analysis and
+    enrichment/technology_detector.py's rule-based detection) recorded for
+    it. Scores it via profiles/scoring.py, computes the docs/ROADMAP.md
+    module 7 business-intelligence fields (size_tier, operational_maturity,
+    icp_match) via intelligence/size_estimation.py,
+    intelligence/operational_maturity.py, and intelligence/icp_matching.py,
+    then upserts LeadProfile and appends a LeadScoreSnapshot row.
     """
     institution = await session.get(CanonicalInstitution, institution_id)
     if institution is None:
@@ -80,15 +92,28 @@ async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID)
         ).all()
     )
 
+    signals = list(
+        (await session.scalars(select(Signal).where(Signal.institution_id == institution_id))).all()
+    )
+
     result = compute_lead_score(
         institution,
         branches,
         contact_points,
         qualification,
         findings,
+        signals,
     )
 
-    organization_summary = _latest_summary(findings) or _default_summary(institution, len(branches))
+    organization_summary = (
+        _latest_summary(findings)
+        or summarize_signals(signals)
+        or _default_summary(institution, len(branches))
+    )
+
+    size_tier = estimate_size_tier(branches, contact_points)
+    operational_maturity_score = compute_operational_maturity(institution, signals)
+    icp_match_score = score_icp_fit(institution, len(branches), app_settings)
 
     profile = (
         await session.scalars(
@@ -105,6 +130,9 @@ async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID)
     profile.has_email = result.has_email
     profile.has_named_contact = result.has_named_contact
     profile.qualification_status = qualification.status if qualification else None
+    profile.size_tier = size_tier
+    profile.operational_maturity_score = operational_maturity_score
+    profile.icp_match_score = icp_match_score
     profile.organization_summary = organization_summary
     profile.evidence_count = result.evidence_count
     profile.computed_at = datetime.now(UTC)
@@ -130,9 +158,12 @@ def _latest_summary(findings: list[ResearchFinding]) -> str | None:
 
 
 def _default_summary(institution: CanonicalInstitution, branch_count: int) -> str:
+    # Only reached when there's neither an AI-generated summary (LinkedIn
+    # research) nor any detected Signal evidence (summarize_signals above)
+    # -- a genuinely bare institution, not merely "not yet researched".
     kind = institution.institution_type or "institution"
     location = f" across {branch_count} branches" if branch_count > 1 else ""
-    return f"{institution.canonical_name} is a {kind}{location}. No AI research summary yet."
+    return f"{institution.canonical_name} is a {kind}{location}. No research evidence yet."
 
 
 async def qualify_and_refresh(
@@ -221,6 +252,9 @@ async def list_lead_profiles(
             qualification_status=profile.qualification_status,
             organization_summary=profile.organization_summary,
             evidence_count=profile.evidence_count,
+            size_tier=profile.size_tier,
+            operational_maturity_score=profile.operational_maturity_score,
+            icp_match_score=profile.icp_match_score,
             computed_at=profile.computed_at,
             canonical_name=canonical_name,
         )

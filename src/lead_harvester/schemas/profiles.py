@@ -1,6 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
+from lead_harvester.models.profile import SizeTier
 from lead_harvester.models.qualification import QualificationStatus
 from lead_harvester.schemas.common import BaseSchema
 
@@ -16,6 +17,10 @@ class LeadProfileResponse(BaseSchema):
     qualification_status: QualificationStatus | None = None
     organization_summary: str
     evidence_count: int
+    # docs/ROADMAP.md module 7 (Business Intelligence) fields.
+    size_tier: SizeTier
+    operational_maturity_score: int
+    icp_match_score: int
     computed_at: datetime
 
 

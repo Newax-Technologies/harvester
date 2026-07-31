@@ -186,8 +186,35 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   text-pattern matching only, no HTML/DOM inspection -- can't fingerprint a specific CMS or
   booking widget by its markup. institution_classifier/location_enricher/
   decision_maker_discovery remain unbuilt.
-- **Business Intelligence**: partial (`intelligence/pain_detection.py`, `researcher.py`,
-  `taxonomy.py`); not fully separated into the 7 planned sub-concerns.
+- **Business Intelligence**: done for the pieces that map onto live data.
+  `opportunity_signals`/`pain_detection`/`buying_signals` are covered by `models/signal.py`'s
+  `Signal` table (module 1) fed from two sources: `intelligence/researcher.py`'s AI analysis
+  (LinkedIn) and `enrichment/technology_detector.py`'s rule-based detection (module 6, website
+  text). `research_summary` is `intelligence/research_summary.py::summarize_signals` -- composes
+  a real summary from Signal evidence for every institution that has no AI-generated one, not a
+  hardcoded "no summary yet" placeholder. `size_estimation` is
+  `intelligence/size_estimation.py::estimate_size_tier` -- a branch-count/contact-count proxy
+  (the only size signal this schema has; no headcount data exists). `operational_maturity` is
+  `intelligence/operational_maturity.py::compute_operational_maturity` -- a 0-100 score from
+  website presence and detected pain-point/buying-signal counts, distinct from the sales-facing
+  lead score. `icp_matching` is `intelligence/icp_matching.py::score_icp_fit` -- a real,
+  configurable weighted match (`Settings.icp_target_institution_types`/`icp_min_branch_count`)
+  against operator-stated criteria, unlike `profiles/scoring.py`'s `category_fit` category
+  (which only asks whether `institution_type` is known at all, not whether it matches anyone's
+  target). All three are computed in `services/lead_profile_service.py::refresh_lead_profile`
+  and stored on `LeadProfile` (`size_tier`/`operational_maturity_score`/`icp_match_score`),
+  surfaced through the existing `GET /api/v1/lead-profiles*` API. Also fixed a real bug found in
+  the same pass: `profiles/scoring.py`'s `research_signal` category and `organization_summary`
+  previously only ever read `ResearchFinding` rows (LinkedIn-only) -- a website-crawled
+  institution with real `technology_detector.py`-detected signals earned zero score credit and
+  got a static "no summary yet" placeholder despite the evidence sitting in the `Signal` table
+  the whole time. Both now read `Signal` directly (a strict superset of what `ResearchFinding`'s
+  `pain_points`/`buying_signals` list findings held, since `researcher.py` already writes a
+  `Signal` row for each of those items too -- reading both would have double-counted a
+  LinkedIn-researched institution's evidence). `icp_matching`'s v1 limitation: only two criteria
+  (institution type, minimum branch count) are configurable; geography/size-tier aren't yet.
+  `operational_maturity`'s v1 limitation: every pain-point signal is weighted equally (no
+  per-signal severity field exists on `Signal` to weight by).
 - **Lead Scoring**: done against live data (`profiles/scoring.py::compute_lead_score`) --
   evidence-backed 0-100 score with a per-category breakdown (scale, contactability,
   category_fit, qualification, research_signal, freshness, confidence), not an opaque single

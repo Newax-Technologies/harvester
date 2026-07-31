@@ -24,6 +24,7 @@ from datetime import UTC, datetime, timedelta
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.qualification import QualificationAssessment, QualificationStatus
 from lead_harvester.models.research import ResearchFinding
+from lead_harvester.models.signal import Signal, SignalType
 
 _FRESHNESS_WINDOW_DAYS = 30
 
@@ -54,6 +55,7 @@ def compute_lead_score(
     contact_points: list[ContactPoint],
     qualification: QualificationAssessment | None,
     findings: list[ResearchFinding],
+    signals: list[Signal],
 ) -> ScoreResult:
     breakdown: dict[str, int] = {}
 
@@ -104,32 +106,35 @@ def compute_lead_score(
             qualification_points = _MAX_QUALIFICATION // 2
     breakdown["qualification"] = qualification_points
 
-    # 5. Research signal -- pain points + buying signals an AI research pass
-    # actually surfaced (currently only produced for LinkedIn profiles via
-    # intelligence/researcher.py). Only the latest of each finding_key
-    # counts, not a running total across every past research job, mirroring
-    # how process_all_pending treats research as something that supersedes
-    # a prior pass rather than accumulating with it.
-    pain_points: list = []
-    buying_signals: list = []
-    latest_by_key: dict[str, ResearchFinding] = {}
-    for f in findings:
-        current = latest_by_key.get(f.finding_key)
-        if current is None or f.created_at > current.created_at:
-            latest_by_key[f.finding_key] = f
-    pain_finding = latest_by_key.get("pain_points")
-    if pain_finding is not None and isinstance(pain_finding.finding_value, list):
-        pain_points = pain_finding.finding_value
-    buying_finding = latest_by_key.get("buying_signals")
-    if buying_finding is not None and isinstance(buying_finding.finding_value, list):
-        buying_signals = buying_finding.finding_value
-    research_points = min(10, len(pain_points) * 3) + min(10, len(buying_signals) * 3)
+    # 5. Research signal -- pain points + buying signals detected for this
+    # institution, from EITHER source: intelligence/researcher.py's AI
+    # analysis (LinkedIn only) or enrichment/technology_detector.py's
+    # rule-based website-text detection (see docs/ROADMAP.md module 6).
+    # Reads models/signal.py's Signal rows directly rather than
+    # ResearchFinding's "pain_points"/"buying_signals" list findings --
+    # researcher.py's _persist_findings already writes a Signal row for
+    # every item in those same lists (see models/signal.py's own
+    # docstring), so Signal is a strict superset; reading both would
+    # double-count a LinkedIn-researched institution's signals while still
+    # giving a website-only institution's rule-based signals zero credit
+    # (a real gap: those signals existed in the database but nothing that
+    # computed a lead's score ever looked at them).
+    pain_point_count = sum(1 for s in signals if s.signal_type == SignalType.PAIN_POINT)
+    buying_signal_count = sum(1 for s in signals if s.signal_type == SignalType.BUYING_SIGNAL)
+    research_points = min(10, pain_point_count * 3) + min(10, buying_signal_count * 3)
     breakdown["research_signal"] = min(_MAX_RESEARCH_SIGNAL, research_points)
 
     # 6. Freshness -- is there any recent evidence at all, or is everything
-    # we know about this lead stale.
+    # we know about this lead stale. Checks both findings (AI research
+    # jobs) and signals (which can exist with zero ResearchFinding rows
+    # for a website/maps-sourced institution that was never LinkedIn-
+    # researched) -- checking findings alone previously scored a
+    # freshly-crawled, signal-rich website institution as having stale
+    # (zero) freshness just because no AI research job ever ran for it.
     cutoff = datetime.now(UTC) - timedelta(days=_FRESHNESS_WINDOW_DAYS)
-    has_recent_finding = any(f.created_at >= cutoff for f in findings)
+    has_recent_finding = any(f.created_at >= cutoff for f in findings) or any(
+        s.detected_at >= cutoff for s in signals
+    )
     breakdown["freshness"] = _MAX_FRESHNESS if has_recent_finding else 0
 
     # 7. Data confidence -- how corroborated is this institution's identity
