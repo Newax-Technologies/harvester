@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+
 @dataclass(slots=True)
 class Institution:
     id: str
@@ -22,6 +23,7 @@ class Institution:
 
     def to_db_tuple(self) -> tuple[Any, ...]:
         import json
+
         return (
             self.id,
             self.canonical_name,
@@ -36,5 +38,5 @@ class Institution:
             self.estimated_value_tier,
             self.confidence,
             self.discovered_at,
-            json.dumps(self.raw_data, ensure_ascii=False)
+            json.dumps(self.raw_data, ensure_ascii=False),
         )

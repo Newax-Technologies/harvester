@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 from ..extractors import best_evidence, extract_emails, extract_phones
 from ..models import Lead

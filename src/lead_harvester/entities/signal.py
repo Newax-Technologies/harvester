@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+
 @dataclass(slots=True)
 class OpportunitySignal:
     id: str
@@ -25,5 +26,5 @@ class OpportunitySignal:
             self.detected_at,
             self.confidence,
             self.freshness,
-            self.commercial_relevance
+            self.commercial_relevance,
         )

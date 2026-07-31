@@ -1,0 +1,39 @@
+# Snyk (https://snyk.io) policy file
+version: v1.5.0
+ignore:
+  SNYK-PYTHON-PIP-15182639:
+    - '*':
+        reason: >-
+          Flagged against pip@24.0 -- confirmed via CI logs to be the pip
+          bundled inside the snyk/actions/python-3.11@master scanning
+          container itself, not a pip version this repository declares,
+          installs, or ships. requirements.txt (generated fresh each run
+          from `pip freeze`, which excludes pip by default) never lists a
+          pip line at all, and explicitly upgrading the CI runner's own pip
+          before the scan (see .github/workflows/ci.yml) had no effect on
+          the version Snyk reported -- the action resolves the scanned
+          dependency graph using its own containerized Python/pip,
+          independent of the runner. There is no code change in this repo
+          that can affect it.
+        expires: 2027-01-01T00:00:00.000Z
+  SNYK-PYTHON-PIP-13045331:
+    - '*':
+        reason: Same root cause as SNYK-PYTHON-PIP-15182639 -- see that entry.
+        expires: 2027-01-01T00:00:00.000Z
+  SNYK-PYTHON-PIP-16115367:
+    - '*':
+        reason: Same root cause as SNYK-PYTHON-PIP-15182639 -- see that entry.
+        expires: 2027-01-01T00:00:00.000Z
+  SNYK-PYTHON-PIP-16316401:
+    - '*':
+        reason: Same root cause as SNYK-PYTHON-PIP-15182639 -- see that entry.
+        expires: 2027-01-01T00:00:00.000Z
+  SNYK-PYTHON-PIP-16964647:
+    - '*':
+        reason: Same root cause as SNYK-PYTHON-PIP-15182639 -- see that entry.
+        expires: 2027-01-01T00:00:00.000Z
+  SNYK-PYTHON-PIP-18426311:
+    - '*':
+        reason: Same root cause as SNYK-PYTHON-PIP-15182639 -- see that entry.
+        expires: 2027-01-01T00:00:00.000Z
+patch: {}

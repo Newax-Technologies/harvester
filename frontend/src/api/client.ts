@@ -1,13 +1,26 @@
 import createClient from "openapi-fetch";
 import type { paths } from "./schema";
 
-const DEV_AUTH_TOKEN = "secret-reviewer-token"; // Using reviewer role for testing UI
+// Read from a gitignored .env.local (see .env.local.example) -- never a
+// literal here. The mock-auth backend (api/dependencies.py::get_current_user)
+// accepts a fixed set of tokens for local development only; shipping one of
+// those values in the committed bundle would let anyone who reads the
+// repository or the built frontend invoke reviewer-only endpoints.
+const DEV_AUTH_TOKEN = import.meta.env.VITE_DEV_AUTH_TOKEN as
+  string | undefined;
+
+// Every backend route under /api/v1 requires get_current_user (see
+// api/app.py's api_router), including ones not yet covered by the
+// generated openapi schema/apiClient (e.g. /api/v1/leads/manual) that
+// still have to call fetch() directly -- exported so those call sites
+// send the same conditional bearer header instead of silently omitting it.
+export function authHeaders(): Record<string, string> {
+  return DEV_AUTH_TOKEN ? { Authorization: `Bearer ${DEV_AUTH_TOKEN}` } : {};
+}
 
 export const apiClient = createClient<paths>({
   baseUrl: "http://localhost:8000",
-  headers: {
-    Authorization: `Bearer ${DEV_AUTH_TOKEN}`,
-  },
+  headers: authHeaders(),
 });
 
 // Helper for extracting exactly the error schema structure from the backend
@@ -33,7 +46,7 @@ export async function handleApiResponse<T>(response: {
       throw new ApiError(
         response.error.error.message,
         response.error.error.code,
-        response.error.error.details
+        response.error.error.details,
       );
     }
     throw new Error("An unexpected error occurred");

@@ -17,12 +17,13 @@ The breadth tracker enforces:
 
 Storage: sessions/breadth_log.json (shared across all accounts)
 """
+
 from __future__ import annotations
 
 import json
 import random
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -52,8 +53,8 @@ class BreadthTracker:
         if self.log_path.exists():
             try:
                 return json.loads(self.log_path.read_text())
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"breadth log at {self.log_path} is unreadable, starting fresh: {e}")
         return {"visits": [], "partitions": {}}
 
     def _save(self) -> None:
@@ -67,7 +68,11 @@ class BreadthTracker:
         self,
         urls: list[str],
         accounts: list[str],
-        limits: dict[str, int],   # account_id -> profile_view limit today
+        limits: dict[str, int],  # account_id -> profile_view limit today
+        *,
+        vertical: str = "unknown",
+        target_city: str = "unknown",
+        noise_urls: list[str] | None = None,
     ) -> dict[str, list[str]]:
         """
         Permanently assign URL segments to accounts so the same URL
@@ -75,7 +80,37 @@ class BreadthTracker:
 
         Existing assignments are preserved across runs.
         New URLs are assigned to the account with the lowest total allocation.
+
+        vertical/target_city declare what this whole `urls` batch targets
+        (e.g. "school principals in Karachi") -- the actual city a scraped
+        profile reports isn't known until AFTER it's visited, so this is the
+        only signal available at assignment time to enforce the 30-day
+        breadth ceiling (is_breadth_exceeded) before any of these URLs are
+        ever visited. Once a (vertical, city) combination has hit that
+        ceiling across ALL accounts, no further URLs from ANY batch
+        targeting the same combination are handed out -- not just new ones,
+        but any still-unvisited backlog from a previous partition too,
+        since executing it would push the same detectable combination
+        further past the cap this tracker exists to hold.
+
+        noise_urls (optional): a pool of off-target-vertical profile URLs.
+        Any account whose needs_noise_visit() is due gets one (not yet
+        visited by anyone, and not already handed to another account this
+        call) spliced into its work list ahead of its real target URLs --
+        the whole point of a noise visit is that it happens BEFORE the next
+        target visit. The chosen URL is remembered (via _pending_noise) so
+        the caller can record it with industry="noise" instead of the
+        batch's real vertical once it's actually visited.
         """
+        if self.is_breadth_exceeded(vertical, target_city):
+            print(
+                f"[BreadthTracker] 30-day breadth ceiling reached for "
+                f"vertical={vertical!r} city={target_city!r} "
+                f"({MAX_BREADTH_PER_VERTICAL_CITY_30D} visits across all accounts) -- "
+                "assigning no further work for this combination."
+            )
+            return {a: [] for a in accounts}
+
         partitions: dict[str, list[str]] = self._data.setdefault("partitions", {})
 
         # Build reverse map: url -> assigned account
@@ -111,7 +146,51 @@ class BreadthTracker:
             random.shuffle(acc_urls)
             result[acc] = acc_urls[:limit]
 
+        if noise_urls:
+            self._inject_noise_visits(result, accounts, noise_urls, visited_urls)
+
         return result
+
+    def _inject_noise_visits(
+        self,
+        result: dict[str, list[str]],
+        accounts: list[str],
+        noise_urls: list[str],
+        visited_urls: set[str],
+    ) -> None:
+        pending_noise: dict[str, str] = self._data.setdefault("pending_noise", {})
+        # A noise URL already flagged for some account (this call or an
+        # earlier one whose visit hasn't landed yet) must not also be
+        # handed to a different account -- that would violate the same
+        # zero-overlap guarantee assign_partitions gives every other URL.
+        claimed = set(pending_noise.keys()) | visited_urls
+        changed = False
+        for acc in accounts:
+            if not self.needs_noise_visit(acc):
+                continue
+            candidate = next((u for u in noise_urls if u not in claimed), None)
+            if candidate is None:
+                continue
+            claimed.add(candidate)
+            pending_noise[candidate] = acc
+            changed = True
+            result[acc] = [candidate, *result.get(acc, [])]
+        if changed:
+            self._save()
+
+    def consume_noise_marker(self, account_id: str, url: str) -> bool:
+        """
+        Returns True and forgets this URL once if it was injected as this
+        account's noise visit (see _inject_noise_visits) -- lets the caller
+        record it with industry="noise" instead of the batch's real
+        vertical when logging the actual visit.
+        """
+        pending_noise: dict[str, str] = self._data.setdefault("pending_noise", {})
+        if pending_noise.get(url) == account_id:
+            del pending_noise[url]
+            self._save()
+            return True
+        return False
 
     # ------------------------------------------------------------------
     # Visit logging and breadth checking
@@ -125,13 +204,15 @@ class BreadthTracker:
         city: str = "unknown",
     ) -> None:
         """Log a profile visit with metadata for breadth analysis."""
-        self._data.setdefault("visits", []).append({
-            "account_id": account_id,
-            "url":        url,
-            "industry":   industry.lower().strip(),
-            "city":       city.lower().strip(),
-            "date":       date.today().isoformat(),
-        })
+        self._data.setdefault("visits", []).append(
+            {
+                "account_id": account_id,
+                "url": url,
+                "industry": industry.lower().strip(),
+                "city": city.lower().strip(),
+                "date": datetime.now(UTC).date().isoformat(),
+            }
+        )
         self._save()
 
     def is_breadth_exceeded(self, industry: str, city: str) -> bool:
@@ -140,9 +221,10 @@ class BreadthTracker:
         been visited MAX_BREADTH_PER_VERTICAL_CITY_30D times in the
         past 30 days across all accounts.
         """
-        cutoff = (date.today() - timedelta(days=30)).isoformat()
+        cutoff = (datetime.now(UTC).date() - timedelta(days=30)).isoformat()
         count = sum(
-            1 for v in self._data.get("visits", [])
+            1
+            for v in self._data.get("visits", [])
             if v.get("industry", "").lower() == industry.lower()
             and v.get("city", "").lower() == city.lower()
             and v.get("date", "") >= cutoff
@@ -164,13 +246,14 @@ class BreadthTracker:
 
         Rule: Every 4 target visits, inject 1 noise visit.
         """
-        today = date.today().isoformat()
+        today = datetime.now(UTC).date().isoformat()
         today_visits = [
-            v for v in self._data.get("visits", [])
+            v
+            for v in self._data.get("visits", [])
             if v.get("account_id") == account_id and v.get("date") == today
         ]
         target_visits = [v for v in today_visits if v.get("industry") != "noise"]
-        noise_visits  = [v for v in today_visits if v.get("industry") == "noise"]
+        noise_visits = [v for v in today_visits if v.get("industry") == "noise"]
 
         if not target_visits:
             return False
@@ -183,18 +266,18 @@ class BreadthTracker:
 
     def print_status(self) -> None:
         """Print a 30-day breadth summary per vertical/city."""
-        cutoff  = (date.today() - timedelta(days=30)).isoformat()
-        visits  = [v for v in self._data.get("visits", []) if v.get("date", "") >= cutoff]
+        cutoff = (datetime.now(UTC).date() - timedelta(days=30)).isoformat()
+        visits = [v for v in self._data.get("visits", []) if v.get("date", "") >= cutoff]
         counter: dict[tuple[str, str], int] = defaultdict(int)
         for v in visits:
             counter[(v.get("industry", "?"), v.get("city", "?"))] += 1
 
-        print(f"\n{'='*60}")
-        print(f"  Breadth Tracker — Last 30 Days")
-        print(f"{'='*60}")
+        print(f"\n{'=' * 60}")
+        print("  Breadth Tracker — Last 30 Days")
+        print(f"{'=' * 60}")
         print(f"  {'Industry':<20} {'City':<15} {'Visits':>8} {'Ceiling':>8}")
-        print(f"  {'-'*55}")
+        print(f"  {'-' * 55}")
         for (ind, city), count in sorted(counter.items(), key=lambda x: -x[1]):
             flag = " ⚠ NEAR LIMIT" if count >= MAX_BREADTH_PER_VERTICAL_CITY_30D * 0.7 else ""
             print(f"  {ind:<20} {city:<15} {count:>8} {MAX_BREADTH_PER_VERTICAL_CITY_30D:>8}{flag}")
-        print(f"{'='*60}\n")
+        print(f"{'=' * 60}\n")

@@ -1,8 +1,7 @@
 import contextlib
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import (
-    AsyncConnection,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
@@ -25,6 +24,7 @@ session_factory = async_sessionmaker(
 )
 
 Base = declarative_base()
+
 
 @contextlib.asynccontextmanager
 async def get_session() -> AsyncIterator[AsyncSession]:

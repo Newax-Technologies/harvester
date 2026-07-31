@@ -1,11 +1,27 @@
 import uuid
-from fastapi import FastAPI, APIRouter, Depends, Request
-from fastapi.responses import JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
 
-from lead_harvester.api.errors import BaseAPIException
+from fastapi import APIRouter, Depends, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
 from lead_harvester.api.dependencies import get_current_user
-from lead_harvester.api.routes import dashboard, institutions, drafts, resolution_reviews, manual_leads
+from lead_harvester.api.errors import BaseAPIException
+from lead_harvester.api.routes import (
+    compliance,
+    daily_selection,
+    dashboard,
+    drafts,
+    entities,
+    exports,
+    institutions,
+    lead_profiles,
+    manual_leads,
+    operations,
+    outbox,
+    resolution_reviews,
+    sectors,
+    verification,
+)
 
 app = FastAPI(
     title="Lead Harvester API",
@@ -15,9 +31,11 @@ app = FastAPI(
 
 from fastapi.responses import RedirectResponse
 
+
 @app.get("/", include_in_schema=False)
 async def root():
     return RedirectResponse(url="/docs")
+
 
 # CORS Configuration
 app.add_middleware(
@@ -27,6 +45,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 @app.exception_handler(BaseAPIException)
 async def custom_api_exception_handler(request: Request, exc: BaseAPIException):
@@ -42,6 +61,7 @@ async def custom_api_exception_handler(request: Request, exc: BaseAPIException):
         },
     )
 
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
@@ -51,14 +71,16 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
                 "code": "internal_error",
                 "message": "An unexpected error occurred.",
                 "details": {},
-                "request_id": f"req_{uuid.uuid4().hex[:12]}"
+                "request_id": f"req_{uuid.uuid4().hex[:12]}",
             }
-        }
+        },
     )
+
 
 @app.get("/api/v1/health")
 async def health_check():
     return {"status": "ok"}
+
 
 # Global router for all /api/v1 endpoints requiring authentication
 api_router = APIRouter(
@@ -71,5 +93,14 @@ api_router.include_router(institutions.router)
 api_router.include_router(drafts.router)
 api_router.include_router(resolution_reviews.router)
 api_router.include_router(manual_leads.router)
+api_router.include_router(lead_profiles.router)
+api_router.include_router(daily_selection.router)
+api_router.include_router(verification.router)
+api_router.include_router(compliance.router)
+api_router.include_router(outbox.router)
+api_router.include_router(exports.router)
+api_router.include_router(operations.router)
+api_router.include_router(entities.router)
+api_router.include_router(sectors.router)
 
 app.include_router(api_router)

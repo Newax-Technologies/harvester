@@ -1,78 +1,301 @@
 import uuid
-from typing import List
 
-from sqlalchemy import or_, select, func
+from geoalchemy2 import Geography
+from geoalchemy2.functions import ST_Distance, ST_DWithin
+from sqlalchemy import cast, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from geoalchemy2.functions import ST_DWithin
 
+from lead_harvester.models.provenance import FieldProvenance
+from lead_harvester.models.resolution import MatchDecision, ResolutionCandidate
 from lead_harvester.models.source import RawSourceRecord
-from lead_harvester.models.resolution import ResolutionCandidate
 
 # Trigram similarity threshold (0 to 1). pg_trgm default is 0.3
 NAME_SIMILARITY_THRESHOLD = 0.4
 # Distance threshold in meters (e.g. 500 meters)
 GEOGRAPHIC_DISTANCE_METERS = 500
 
-async def generate_candidates(session: AsyncSession, record: RawSourceRecord) -> List[ResolutionCandidate]:
+# Relative strength of each blocking strategy as evidence, lowest = strongest.
+# geo_name (matching name AND physical proximity) is far more discriminating
+# than a bare phone match (routinely shared across an entire franchise's
+# unrelated branches) or a bare domain match (a shared portal/CMS domain).
+# Used only to pick a representative's blocking_strategy label when a
+# record matches via more than one blocking query -- NOT for ranking which
+# sibling to keep (see _MatchInfo.sort_key, which ranks by the decision
+# score_candidate would actually produce instead: a strategy tier alone
+# doesn't mean much when the actual evidence is weak, e.g. a geo_name match
+# that barely clears the 0.4-similarity/500m thresholds is much weaker
+# evidence than an exact-name domain match, even though geo_name ranks
+# "first" here).
+_STRATEGY_PRIORITY = {"geo_name": 0, "domain": 1, "phone": 2}
+
+# Mirrors scoring.py::score_candidate's decision matrix, applied to a
+# blocking match's own (distance, name_similarity, strategy) evidence so
+# generate_candidates can rank siblings by the decision they'd actually
+# reach instead of by blocking-strategy label alone (see _STRATEGY_PRIORITY
+# above). phone_match/domain_match are inferred from the strategy itself --
+# _note_matches already picked the strongest single strategy a record
+# qualified under, so a phone/domain match on a record ALSO reachable via
+# geo_name is not distinguishable here, but that only means this ranking
+# treats it as an equally strong geo_name match, which is correct (geo_name
+# implies phone/domain-tier evidence at least as strong). Kept in sync with
+# scoring.py by hand -- if that matrix changes, this one needs to as well.
+_DECISION_PRIORITY = {
+    MatchDecision.MERGE: 0,
+    MatchDecision.PENDING: 1,
+    MatchDecision.LINK_ONLY: 2,
+    MatchDecision.REJECT: 3,
+}
+
+
+def _predicted_decision(
+    strategies: frozenset[str], distance_meters: float | None, name_similarity: float | None
+) -> MatchDecision:
+    similarity = name_similarity if name_similarity is not None else 0.0
+    phone_match = "phone" in strategies
+    domain_match = "domain" in strategies
+
+    if similarity > 0.8 and distance_meters is not None and distance_meters < 100:
+        return MatchDecision.MERGE
+    if (domain_match or phone_match) and similarity > 0.8:
+        return MatchDecision.PENDING
+    if phone_match or domain_match:
+        return MatchDecision.LINK_ONLY
+
+    total_score = 0.0
+    if similarity > 0.8:
+        total_score += 40
+    elif similarity > 0.5:
+        total_score += 20
+    if distance_meters is not None and distance_meters < 50:
+        total_score += 40
+    elif distance_meters is not None and distance_meters < 200:
+        total_score += 20
+    if total_score >= 60:
+        return MatchDecision.PENDING
+    return MatchDecision.REJECT
+
+
+class _MatchInfo:
+    """
+    What generate_candidates knows about one matched record: EVERY blocking
+    strategy it qualified under (not just the strongest -- a record found
+    via both geo_name and domain, say, genuinely carries both signals, and
+    _predicted_decision needs all of them to match what score_candidate
+    would actually compute), plus its actual distance/name similarity to
+    the incoming record -- used to break ties WITHIN a shared decision
+    tier. Two matches aren't equally good just because they share a
+    decision tier: among two PENDING-tier domain matches, one with an exact
+    name match is much stronger evidence than one with a completely
+    unrelated name, and among two MERGE-tier geo_name matches, a
+    490m/0.4-similarity match is much weaker than a 10m/1.0-similarity one.
+    Computed uniformly for every matched record regardless of which
+    strategy(ies) surfaced it.
+    """
+
+    __slots__ = ("distance_meters", "name_similarity", "strategies")
+
+    def __init__(
+        self,
+        strategies: frozenset[str],
+        distance_meters: float | None = None,
+        name_similarity: float | None = None,
+    ) -> None:
+        self.strategies = strategies
+        self.distance_meters = distance_meters
+        self.name_similarity = name_similarity
+
+    def sort_key(self) -> tuple[int, float, float]:
+        # Ranked by the decision score_candidate would actually reach
+        # (_predicted_decision), NOT by strategy label -- a strategy tier
+        # alone doesn't reflect evidence quality: a geo_name match that
+        # barely clears the blocking thresholds (e.g. 0.4 similarity, 400m)
+        # would score REJECT, and ranking it "first" purely for being
+        # geo_name could keep it over a domain-tier sibling with an exact
+        # name match that would score PENDING and actually reach human
+        # review -- silently creating a duplicate institution instead.
+        # name_similarity is the tiebreak WITHIN a decision tier (before
+        # distance) for the same reason as before: it's the dominant signal
+        # in every branch of scoring.py's matrix, distance only ever
+        # confirms MERGE secondarily.
+        predicted = _predicted_decision(self.strategies, self.distance_meters, self.name_similarity)
+        return (
+            _DECISION_PRIORITY[predicted],
+            -(self.name_similarity if self.name_similarity is not None else 0.0),
+            self.distance_meters if self.distance_meters is not None else float("inf"),
+        )
+
+    def is_better_than(self, other: "_MatchInfo") -> bool:
+        return self.sort_key() < other.sort_key()
+
+
+async def _canonical_ids_by_raw_record(
+    session: AsyncSession, raw_record_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, uuid.UUID]:
+    """
+    Batched version of canonical/merger.py's find_canonical_for_raw_record,
+    for every id in raw_record_ids at once (one query instead of one per
+    row). A raw record can have several FieldProvenance rows (one per
+    field it asserted) that all share the same canonical_id, so any one is
+    equally valid -- building the dict just overwrites with an identical
+    value for the extras.
+    """
+    if not raw_record_ids:
+        return {}
+    stmt = select(FieldProvenance.raw_record_id, FieldProvenance.canonical_id).where(
+        FieldProvenance.raw_record_id.in_(raw_record_ids)
+    )
+    result = await session.execute(stmt)
+    return dict(result.all())
+
+
+async def _quality_for_matches(
+    session: AsyncSession, record: RawSourceRecord, raw_record_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, tuple[float | None, float | None]]:
+    """
+    Actual (distance_meters, name_similarity) against `record` for every id
+    in raw_record_ids, computed in one query regardless of which blocking
+    strategy matched them -- so a tie between two phone-only (or two
+    domain-only) matches is still broken by real evidence instead of
+    arbitrary DB row order. Either component is None when `record` itself
+    lacks the corresponding field (no location, or no normalized_name).
+    """
+    if not raw_record_ids:
+        return {}
+
+    distance_expr = (
+        ST_Distance(RawSourceRecord.location, cast(record.location, Geography))
+        if record.location is not None
+        else literal(None)
+    )
+    similarity_expr = (
+        func.similarity(RawSourceRecord.normalized_name, record.normalized_name)
+        if record.normalized_name
+        else literal(None)
+    )
+    stmt = select(RawSourceRecord.id, distance_expr, similarity_expr).where(
+        RawSourceRecord.id.in_(raw_record_ids)
+    )
+    result = await session.execute(stmt)
+    return {rid: (distance, similarity) for rid, distance, similarity in result.all()}
+
+
+async def generate_candidates(
+    session: AsyncSession, record: RawSourceRecord
+) -> list[ResolutionCandidate]:
     """
     Finds potential matches in the database for a given raw record using blocking strategies.
     Generates ResolutionCandidate objects (but does not commit them).
+
+    When a matched record already belongs to a canonical institution (e.g.
+    rediscovering a popular Google Place, or many franchise branches sharing
+    one phone number), only ONE such match per distinct institution is kept
+    -- any single one is enough for resolve_incoming_record to identify and
+    attach to that institution via find_canonical_for_raw_record, so scoring
+    (and persisting a permanent ResolutionCandidate/MatchAssessment row for)
+    every other already-represented sibling is pure waste that grows
+    unboundedly with repeated ingestion. The kept representative is the one
+    with the strongest evidence -- ranked first by strategy (see
+    _STRATEGY_PRIORITY), then by actual distance/name-similarity computed
+    uniformly for every match (see _MatchInfo/_quality_for_matches) -- not
+    merely whichever the DB happened to return first. Still-unresolved
+    matches are never deduplicated this way -- each is a genuine,
+    independent candidate that may need its own review/merge decision.
     """
-    candidates = []
-    seen_ids = set()
-    
+    # record_id -> the strongest strategy that matched it (used only as the
+    # ResolutionCandidate.blocking_strategy display label), across all
+    # three blocking queries (a record can qualify via more than one).
+    matched_strategy: dict[uuid.UUID, str] = {}
+    # record_id -> EVERY strategy that matched it -- unlike matched_strategy
+    # above, this is never overwritten, so _MatchInfo/_predicted_decision
+    # can see e.g. both geo_name AND domain evidence for a record that
+    # qualified via both, instead of only the strongest.
+    matched_strategies: dict[uuid.UUID, set[str]] = {}
+
+    def _note_matches(ids, strategy: str) -> None:
+        for rid in ids:
+            current = matched_strategy.get(rid)
+            if current is None or _STRATEGY_PRIORITY[strategy] < _STRATEGY_PRIORITY[current]:
+                matched_strategy[rid] = strategy
+            matched_strategies.setdefault(rid, set()).add(strategy)
+
     # Strategy 1: Exact Phone Match
     if record.normalized_phone:
-        stmt = select(RawSourceRecord).where(
+        stmt = select(RawSourceRecord.id).where(
             RawSourceRecord.normalized_phone == record.normalized_phone,
-            RawSourceRecord.id != record.id
+            RawSourceRecord.id != record.id,
         )
         result = await session.execute(stmt)
-        for row in result.scalars():
-            if row.id not in seen_ids:
-                seen_ids.add(row.id)
-                candidates.append(ResolutionCandidate(
-                    raw_record_id=record.id,
-                    target_raw_record_id=row.id,
-                    blocking_strategy="phone"
-                ))
-                
+        _note_matches(list(result.scalars()), "phone")
+
     # Strategy 2: Exact Domain Match
     if record.normalized_domain:
-        stmt = select(RawSourceRecord).where(
+        stmt = select(RawSourceRecord.id).where(
             RawSourceRecord.normalized_domain == record.normalized_domain,
-            RawSourceRecord.id != record.id
+            RawSourceRecord.id != record.id,
         )
         result = await session.execute(stmt)
-        for row in result.scalars():
-            if row.id not in seen_ids:
-                seen_ids.add(row.id)
-                candidates.append(ResolutionCandidate(
-                    raw_record_id=record.id,
-                    target_raw_record_id=row.id,
-                    blocking_strategy="domain"
-                ))
+        _note_matches(list(result.scalars()), "domain")
 
     # Strategy 3: Geographic Proximity + Name Similarity
     if record.location is not None and record.normalized_name:
         # We need the pg_trgm '%' operator (similarity). In SQLAlchemy, we can use func.similarity
         # or the custom operator.
-        
+
+        # record.location may still be the raw WKT string set at
+        # construction time (not yet reloaded from the DB as a WKBElement)
+        # when this runs immediately after creating a new record -- cast it
+        # explicitly so it binds as a geography value, not a bare varchar
+        # ("function st_dwithin(geography, character varying, ...) does not
+        # exist" otherwise).
         # We only want records that are physically close AND have similar names.
-        stmt = select(RawSourceRecord).where(
+        record_geog = cast(record.location, Geography)
+        similarity_col = func.similarity(RawSourceRecord.normalized_name, record.normalized_name)
+        stmt = select(RawSourceRecord.id).where(
             RawSourceRecord.id != record.id,
             RawSourceRecord.location.is_not(None),
-            ST_DWithin(RawSourceRecord.location, record.location, GEOGRAPHIC_DISTANCE_METERS),
-            func.similarity(RawSourceRecord.normalized_name, record.normalized_name) >= NAME_SIMILARITY_THRESHOLD
+            ST_DWithin(RawSourceRecord.location, record_geog, GEOGRAPHIC_DISTANCE_METERS),
+            similarity_col >= NAME_SIMILARITY_THRESHOLD,
         )
         result = await session.execute(stmt)
-        for row in result.scalars():
-            if row.id not in seen_ids:
-                seen_ids.add(row.id)
-                candidates.append(ResolutionCandidate(
+        _note_matches(list(result.scalars()), "geo_name")
+
+    if not matched_strategy:
+        return []
+
+    quality = await _quality_for_matches(session, record, list(matched_strategy))
+    matched_info: dict[uuid.UUID, _MatchInfo] = {
+        rid: _MatchInfo(frozenset(matched_strategies[rid]), *quality.get(rid, (None, None)))
+        for rid in matched_strategy
+    }
+
+    canonical_by_record = await _canonical_ids_by_raw_record(session, list(matched_info))
+
+    candidates = []
+    best_per_canonical: dict[uuid.UUID, uuid.UUID] = {}
+    for rid, info in matched_info.items():
+        canonical_id = canonical_by_record.get(rid)
+        if canonical_id is None:
+            # Not yet resolved -- always its own independent candidate.
+            candidates.append(
+                ResolutionCandidate(
                     raw_record_id=record.id,
-                    target_raw_record_id=row.id,
-                    blocking_strategy="geo_name"
-                ))
+                    target_raw_record_id=rid,
+                    blocking_strategy=matched_strategy[rid],
+                )
+            )
+            continue
+
+        current_best_id = best_per_canonical.get(canonical_id)
+        if current_best_id is None or info.is_better_than(matched_info[current_best_id]):
+            best_per_canonical[canonical_id] = rid
+
+    for rid in best_per_canonical.values():
+        candidates.append(
+            ResolutionCandidate(
+                raw_record_id=record.id,
+                target_raw_record_id=rid,
+                blocking_strategy=matched_strategy[rid],
+            )
+        )
 
     return candidates

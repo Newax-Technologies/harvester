@@ -1,7 +1,10 @@
 import json
 import sys
+
 from fastapi.openapi.utils import get_openapi
+
 from lead_harvester.api.app import app
+
 
 def export_openapi(filepath: str):
     openapi_schema = get_openapi(
@@ -13,6 +16,7 @@ def export_openapi(filepath: str):
     )
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(openapi_schema, f, indent=2)
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

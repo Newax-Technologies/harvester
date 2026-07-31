@@ -1,22 +1,26 @@
+import uuid
+
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from lead_harvester.config import settings
 from lead_harvester.api.app import app
-from lead_harvester.api.dependencies import get_db_session, get_current_user, User
+from lead_harvester.api.dependencies import User, get_current_user, get_db_session
+from lead_harvester.config import settings
 from lead_harvester.models.canonical import Base, CanonicalInstitution
-from lead_harvester.models.outreach import OutreachDraft, DraftStatus, AccountBrief
-
-import uuid
+from lead_harvester.models.outreach import AccountBrief, DraftStatus, OutreachDraft
 
 # We must ensure we're using the test database
 assert "test" in settings.test_database_url.lower(), "Test database name must contain 'test'"
-assert settings.test_database_url != settings.database_url, "TEST_DATABASE_URL must not match DATABASE_URL"
+assert settings.test_database_url != settings.database_url, (
+    "TEST_DATABASE_URL must not match DATABASE_URL"
+)
 
 from sqlalchemy.pool import NullPool
+
 engine = create_async_engine(settings.test_database_url, echo=False, poolclass=NullPool)
+
 
 @pytest_asyncio.fixture(scope="session")
 async def async_engine():
@@ -25,6 +29,7 @@ async def async_engine():
     yield engine
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
 
 @pytest_asyncio.fixture
 async def db_session(async_engine):
@@ -41,6 +46,7 @@ async def db_session(async_engine):
             await session.close()
             await outer_transaction.rollback()
 
+
 @pytest.fixture
 def override_database_dependency(db_session):
     async def get_test_session():
@@ -50,34 +56,33 @@ def override_database_dependency(db_session):
     yield
     app.dependency_overrides.clear()
 
+
 @pytest_asyncio.fixture
 async def client_a(override_database_dependency):
     async def override_user_a():
         return User(id="reviewer_A", username="Alice", role="reviewer")
+
     app.dependency_overrides[get_current_user] = override_user_a
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
+
 
 @pytest_asyncio.fixture
 async def client_b(override_database_dependency):
     async def override_user_b():
         return User(id="reviewer_B", username="Bob", role="reviewer")
+
     app.dependency_overrides[get_current_user] = override_user_b
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
+
 @pytest_asyncio.fixture
 async def seeded_draft(db_session: AsyncSession):
     inst = CanonicalInstitution(
-        id=uuid.uuid4(),
-        canonical_name="Test Institution",
-        domain="test.edu",
-        confidence_score=99.0
+        id=uuid.uuid4(), canonical_name="Test Institution", domain="test.edu", confidence_score=99.0
     )
-    brief = AccountBrief(
-        id=uuid.uuid4(),
-        institution_id=inst.id
-    )
+    brief = AccountBrief(id=uuid.uuid4(), institution_id=inst.id)
     db_session.add(brief)
 
     draft = OutreachDraft(
@@ -89,9 +94,9 @@ async def seeded_draft(db_session: AsyncSession):
         subject_line="Hello",
         body="World",
         status=DraftStatus.GENERATED,
-        version=4
+        version=4,
     )
     db_session.add(inst)
     db_session.add(draft)
-    await db_session.commit() # This commits the savepoint due to join_transaction_mode
+    await db_session.commit()  # This commits the savepoint due to join_transaction_mode
     return draft

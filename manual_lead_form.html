@@ -363,8 +363,8 @@
           <input id="address" name="address" type="text" placeholder="e.g. Plot 12, Block B, Gulshan-e-Iqbal" />
         </div>
         <div class="field">
-          <label for="city">City</label>
-          <input id="city" name="city" type="text" placeholder="Karachi" />
+          <label for="city">City *</label>
+          <input id="city" name="city" type="text" placeholder="Karachi" required />
         </div>
       </div>
     </div>
@@ -544,6 +544,7 @@
         address:           document.getElementById('address').value.trim(),
         city:              document.getElementById('city').value.trim(),
         country:           'Pakistan',
+        country_code:      'PK',
         contacts,
         notes:             document.getElementById('notes').value.trim() || null,
         lead_source_note:  document.getElementById('sourceNote').value.trim() || null,
