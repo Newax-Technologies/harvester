@@ -5,17 +5,17 @@ import {
   Save,
   CheckCircle,
   XCircle,
-  AlertTriangle,
   AlertCircle,
 } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { draftQueries } from "../api/queries";
-import { apiClient, ApiError } from "../api/client";
+import { apiClient, handleApiResponse } from "../api/client";
+import { useVersionedMutation } from "../hooks/useVersionedMutation";
+import { ConflictModal } from "../components/ConflictModal";
 
 export function ReadinessGateDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   const {
     data: draft,
@@ -26,10 +26,6 @@ export function ReadinessGateDetail() {
 
   const [draftBody, setDraftBody] = useState("");
   const [feedback, setFeedback] = useState("");
-  const [conflictError, setConflictError] = useState<{
-    expected: number;
-    current: number;
-  } | null>(null);
 
   // Update local state when draft loads
   useEffect(() => {
@@ -38,69 +34,35 @@ export function ReadinessGateDetail() {
     }
   }, [draft]);
 
-  const editMutation = useMutation({
-    mutationFn: async (newBody: string) => {
-      const res = await apiClient.PATCH("/api/v1/drafts/{draft_id}", {
-        params: { path: { draft_id: id! } },
-        body: { message: newBody, expected_version: draft!.version },
-      });
-      if (res.error)
-        throw new ApiError(
-          (res.error as any).error?.message || "Error",
-          (res.error as any).error?.code,
-          (res.error as any).error?.details,
-        );
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: draftQueries.detail(id!).queryKey,
-      });
-      setConflictError(null);
-    },
-    onError: (err: any) => {
-      if (err instanceof ApiError && err.code === "stale_resource") {
-        setConflictError({
-          expected: draft!.version,
-          current: err.details?.current_version || draft!.version + 1,
-        });
-      } else {
-        alert("Failed to save draft: " + err.message);
-      }
-    },
+  const editMutation = useVersionedMutation({
+    mutationFn: (newBody: string) =>
+      apiClient
+        .PATCH("/api/v1/drafts/{draft_id}", {
+          params: { path: { draft_id: id! } },
+          body: { message: newBody, expected_version: draft!.version },
+        })
+        .then(handleApiResponse),
+    invalidateKey: draftQueries.detail(id!).queryKey,
+    currentVersion: draft?.version ?? 0,
   });
 
-  const decisionMutation = useMutation({
-    mutationFn: async (decision: "approved" | "rejected") => {
-      const res = await apiClient.POST("/api/v1/drafts/{draft_id}/decision", {
-        params: { path: { draft_id: id! } },
-        body: { decision, feedback, expected_version: draft!.version },
-      });
-      if (res.error)
-        throw new ApiError(
-          (res.error as any).error?.message || "Error",
-          (res.error as any).error?.code,
-          (res.error as any).error?.details,
-        );
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: draftQueries.detail(id!).queryKey,
-      });
-      navigate("/readiness");
-    },
-    onError: (err: any) => {
-      if (err instanceof ApiError && err.code === "stale_resource") {
-        setConflictError({
-          expected: draft!.version,
-          current: err.details?.current_version || draft!.version + 1,
-        });
-      } else {
-        alert("Failed to save decision: " + err.message);
-      }
-    },
+  const decisionMutation = useVersionedMutation({
+    mutationFn: (decision: "approved" | "rejected") =>
+      apiClient
+        .POST("/api/v1/drafts/{draft_id}/decision", {
+          params: { path: { draft_id: id! } },
+          body: { decision, feedback, expected_version: draft!.version },
+        })
+        .then(handleApiResponse),
+    invalidateKey: draftQueries.detail(id!).queryKey,
+    currentVersion: draft?.version ?? 0,
+    onSuccess: () => navigate("/readiness"),
   });
+
+  const conflict = editMutation.conflict ?? decisionMutation.conflict;
+  const resolveConflict = editMutation.conflict
+    ? editMutation.resolveConflict
+    : decisionMutation.resolveConflict;
 
   if (isLoading)
     return (
@@ -231,58 +193,13 @@ export function ReadinessGateDetail() {
         </div>
       </div>
 
-      {/* Conflict Modal */}
-      {conflictError && (
-        <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-xl shadow-lg max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 text-destructive mb-4">
-              <AlertTriangle size={24} />
-              <h3 className="text-lg font-semibold text-foreground">
-                Update Conflict Detected
-              </h3>
-            </div>
-
-            <div className="space-y-4 mb-6 text-sm text-muted-foreground">
-              <p>
-                Another reviewer has modified or approved this draft while you
-                were viewing it.
-              </p>
-              <div className="bg-muted p-3 rounded-md border border-border space-y-2">
-                <div className="flex justify-between">
-                  <span>Your version:</span>
-                  <span className="font-mono bg-background px-1.5 py-0.5 rounded text-foreground">
-                    v{conflictError.expected}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Current server version:</span>
-                  <span className="font-mono bg-background px-1.5 py-0.5 rounded text-foreground">
-                    v{conflictError.current}
-                  </span>
-                </div>
-              </div>
-              <p>
-                To prevent overwriting someone else's work, your changes have
-                been blocked. Please refresh to see the latest version before
-                taking action.
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setConflictError(null);
-                  queryClient.invalidateQueries({
-                    queryKey: draftQueries.detail(id!).queryKey,
-                  });
-                }}
-                className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-colors rounded-md bg-primary hover:bg-primary/90 text-primary-foreground"
-              >
-                Reload Latest Version
-              </button>
-            </div>
-          </div>
-        </div>
+      {conflict && (
+        <ConflictModal
+          expected={conflict.expected}
+          current={conflict.current}
+          description="Another reviewer has modified or approved this draft while you were viewing it."
+          onReload={resolveConflict}
+        />
       )}
     </div>
   );

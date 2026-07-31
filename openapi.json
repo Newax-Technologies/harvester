@@ -577,10 +577,1863 @@
           }
         ]
       }
+    },
+    "/api/v1/lead-profiles": {
+      "get": {
+        "tags": [
+          "Lead Profiles"
+        ],
+        "summary": "List Profiles",
+        "description": "List lead profiles, highest-scoring first.",
+        "operationId": "list_profiles_api_v1_lead_profiles_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "min_score",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Score"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedLeadProfiles"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lead-profiles/{institution_id}": {
+      "get": {
+        "tags": [
+          "Lead Profiles"
+        ],
+        "summary": "Get Profile",
+        "description": "Get the current lead profile for a specific institution.",
+        "operationId": "get_profile_api_v1_lead_profiles__institution_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Institution Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lead-profiles/{institution_id}/score-history": {
+      "get": {
+        "tags": [
+          "Lead Profiles"
+        ],
+        "summary": "Get Score History",
+        "description": "Historical score snapshots for a specific institution, most recent first.",
+        "operationId": "get_score_history_api_v1_lead_profiles__institution_id__score_history_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "institution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Institution Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeadScoreHistoryPoint"
+                  },
+                  "title": "Response Get Score History Api V1 Lead Profiles  Institution Id  Score History Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/daily-selection": {
+      "post": {
+        "tags": [
+          "Daily Selection"
+        ],
+        "summary": "Trigger Daily Selection",
+        "description": "Claim a batch of the highest-scoring eligible leads for outreach work.",
+        "operationId": "trigger_daily_selection_api_v1_daily_selection_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectDailyBatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeadReservationResponse"
+                  },
+                  "title": "Response Trigger Daily Selection Api V1 Daily Selection Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Daily Selection"
+        ],
+        "summary": "List Daily Selection",
+        "description": "List reservations, most recent first, optionally filtered by status.",
+        "operationId": "list_daily_selection_api_v1_daily_selection_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ReservationStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LeadReservationListItem"
+                  },
+                  "title": "Response List Daily Selection Api V1 Daily Selection Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/daily-selection/{reservation_id}/consume": {
+      "post": {
+        "tags": [
+          "Daily Selection"
+        ],
+        "summary": "Consume Reservation",
+        "operationId": "consume_reservation_api_v1_daily_selection__reservation_id__consume_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reservation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reservation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadReservationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/daily-selection/{reservation_id}/release": {
+      "post": {
+        "tags": [
+          "Daily Selection"
+        ],
+        "summary": "Release Reservation Early",
+        "operationId": "release_reservation_early_api_v1_daily_selection__reservation_id__release_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "reservation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reservation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadReservationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verification/flags": {
+      "get": {
+        "tags": [
+          "Verification"
+        ],
+        "summary": "List Data Quality Flags",
+        "description": "List data-quality flags, most recently detected first.",
+        "operationId": "list_data_quality_flags_api_v1_verification_flags_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/FlagStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "flag_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/FlagType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Flag Type"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DataQualityFlagResponse"
+                  },
+                  "title": "Response List Data Quality Flags Api V1 Verification Flags Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verification/sweep": {
+      "post": {
+        "tags": [
+          "Verification"
+        ],
+        "summary": "Trigger Verification Sweep",
+        "description": "Run verification checks across a batch of institutions.",
+        "operationId": "trigger_verification_sweep_api_v1_verification_sweep_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunSweepRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Trigger Verification Sweep Api V1 Verification Sweep Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/verification/flags/{flag_id}/resolve": {
+      "post": {
+        "tags": [
+          "Verification"
+        ],
+        "summary": "Resolve Data Quality Flag",
+        "operationId": "resolve_data_quality_flag_api_v1_verification_flags__flag_id__resolve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "flag_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Flag Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveFlagRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataQualityFlagResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verification/flags/{flag_id}/dismiss": {
+      "post": {
+        "tags": [
+          "Verification"
+        ],
+        "summary": "Dismiss Data Quality Flag",
+        "operationId": "dismiss_data_quality_flag_api_v1_verification_flags__flag_id__dismiss_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "flag_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Flag Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveFlagRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataQualityFlagResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verification/contacts/{contact_point_id}/unreachable": {
+      "post": {
+        "tags": [
+          "Verification"
+        ],
+        "summary": "Mark Contact Unreachable",
+        "description": "Manually record that a contact was found unreachable (a bounced\nemail, a disconnected number) -- no automated verification\nintegration exists yet, see docs/ROADMAP.md module 12.",
+        "operationId": "mark_contact_unreachable_api_v1_verification_contacts__contact_point_id__unreachable_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contact_point_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Contact Point Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveFlagRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataQualityFlagResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/compliance/suppressions": {
+      "get": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "List Suppression Entries",
+        "operationId": "list_suppression_entries_api_v1_compliance_suppressions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SuppressionEntryResponse"
+                  },
+                  "title": "Response List Suppression Entries Api V1 Compliance Suppressions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Create Suppression Entry",
+        "operationId": "create_suppression_entry_api_v1_compliance_suppressions_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddSuppressionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuppressionEntryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/compliance/suppressions/{suppression_id}": {
+      "delete": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Delete Suppression Entry",
+        "operationId": "delete_suppression_entry_api_v1_compliance_suppressions__suppression_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "suppression_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Suppression Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/compliance/deletion-requests": {
+      "get": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "List Deletion Requests Route",
+        "operationId": "list_deletion_requests_route_api_v1_compliance_deletion_requests_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DeletionRequestStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeletionRequestResponse"
+                  },
+                  "title": "Response List Deletion Requests Route Api V1 Compliance Deletion Requests Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Create Deletion Request",
+        "description": "Records an erasure request. Does NOT delete anything -- see /fulfill.",
+        "operationId": "create_deletion_request_api_v1_compliance_deletion_requests_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDeletionRequestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/compliance/deletion-requests/{request_id}/fulfill": {
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Fulfill Deletion Request",
+        "description": "Actually deletes the requested subject. Irreversible.",
+        "operationId": "fulfill_deletion_request_api_v1_compliance_deletion_requests__request_id__fulfill_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/compliance/deletion-requests/{request_id}/reject": {
+      "post": {
+        "tags": [
+          "Compliance"
+        ],
+        "summary": "Reject Deletion Request",
+        "operationId": "reject_deletion_request_api_v1_compliance_deletion_requests__request_id__reject_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectDeletionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletionRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/outbox": {
+      "get": {
+        "tags": [
+          "Event Outbox"
+        ],
+        "summary": "List Outbox Entries Route",
+        "operationId": "list_outbox_entries_route_api_v1_outbox_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/OutboxStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventOutboxResponse"
+                  },
+                  "title": "Response List Outbox Entries Route Api V1 Outbox Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/outbox/process": {
+      "post": {
+        "tags": [
+          "Event Outbox"
+        ],
+        "summary": "Process Pending Deliveries Route",
+        "description": "Retries every PENDING row whose next_attempt_at has passed.",
+        "operationId": "process_pending_deliveries_route_api_v1_outbox_process_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcessOutboxResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/outbox/{outbox_id}/requeue": {
+      "post": {
+        "tags": [
+          "Event Outbox"
+        ],
+        "summary": "Requeue Dead Letter Route",
+        "description": "Moves a DEAD_LETTER row back to PENDING for another attempt.",
+        "operationId": "requeue_dead_letter_route_api_v1_outbox__outbox_id__requeue_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "outbox_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Outbox Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventOutboxResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exports/leads": {
+      "get": {
+        "tags": [
+          "Exports"
+        ],
+        "summary": "Export Leads Route",
+        "description": "One row per contact point across matching institutions, as a CSV or\nJSON download -- see exports/lead_export.py for row shape and the\nreasoning behind that granularity.",
+        "operationId": "export_leads_route_api_v1_exports_leads_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(csv|json)$",
+              "default": "csv",
+              "title": "Format"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/OperatingStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "min_score",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Score"
+            }
+          },
+          {
+            "name": "qualification_status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/QualificationStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Qualification Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10000,
+              "minimum": 1,
+              "default": 1000,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operations/source-runs": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "List Source Runs Route",
+        "operationId": "list_source_runs_route_api_v1_operations_source_runs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "source_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SourceType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Type"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/RunStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceRunResponse"
+                  },
+                  "title": "Response List Source Runs Route Api V1 Operations Source Runs Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operations/source-runs/{run_id}": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Get Source Run Detail Route",
+        "operationId": "get_source_run_detail_route_api_v1_operations_source_runs__run_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceRunDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operations/source-health": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Get Source Health Route",
+        "operationId": "get_source_health_route_api_v1_operations_source_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SourceHealthResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Get Source Health Route Api V1 Operations Source Health Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/operations/stranded-records": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "List Stranded Records Route",
+        "operationId": "list_stranded_records_route_api_v1_operations_stranded_records_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StrandedRecordResponse"
+                  },
+                  "title": "Response List Stranded Records Route Api V1 Operations Stranded Records Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operations/audit-log": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "List Audit Log Route",
+        "operationId": "list_audit_log_route_api_v1_operations_audit_log_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity Type"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "actor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEventSchema"
+                  },
+                  "title": "Response List Audit Log Route Api V1 Operations Audit Log Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/operations/config": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Get Config Route",
+        "description": "Read-only, allowlisted subset of Settings -- see operations_service._SAFE_CONFIG_FIELDS.",
+        "operationId": "get_config_route_api_v1_operations_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Config Route Api V1 Operations Config Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/operations/metrics": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Get Metrics Route",
+        "operationId": "get_metrics_route_api_v1_operations_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationalMetricsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/operations/health": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Get Health Route",
+        "operationId": "get_health_route_api_v1_operations_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "AddSuppressionRequest": {
+        "properties": {
+          "contact_value": {
+            "type": "string",
+            "title": "Contact Value"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/SuppressionReason"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          },
+          "suppressed_by": {
+            "type": "string",
+            "title": "Suppressed By",
+            "default": "system"
+          },
+          "default_region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Region"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contact_value",
+          "reason"
+        ],
+        "title": "AddSuppressionRequest"
+      },
+      "AuditEventSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "actor": {
+            "type": "string",
+            "title": "Actor"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "actor",
+          "entity_type",
+          "entity_id",
+          "timestamp"
+        ],
+        "title": "AuditEventSchema"
+      },
       "BranchSchema": {
         "properties": {
           "id": {
@@ -709,6 +2562,170 @@
         ],
         "title": "ContactPointSchema"
       },
+      "CreateDeletionRequestRequest": {
+        "properties": {
+          "subject_type": {
+            "$ref": "#/components/schemas/DeletionSubjectType"
+          },
+          "subject_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Subject Id"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "subject_type",
+          "subject_id"
+        ],
+        "title": "CreateDeletionRequestRequest"
+      },
+      "DataQualityFlagResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "institution_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Institution Id"
+          },
+          "flag_type": {
+            "$ref": "#/components/schemas/FlagType"
+          },
+          "field_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Name"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FlagStatus"
+          },
+          "detected_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Detected At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolution_note": {
+            "type": "string",
+            "title": "Resolution Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "institution_id",
+          "flag_type",
+          "details",
+          "status",
+          "detected_at",
+          "resolution_note"
+        ],
+        "title": "DataQualityFlagResponse"
+      },
+      "DeletionRequestResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "subject_type": {
+            "$ref": "#/components/schemas/DeletionSubjectType"
+          },
+          "subject_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Subject Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DeletionRequestStatus"
+          },
+          "requestor_note": {
+            "type": "string",
+            "title": "Requestor Note"
+          },
+          "rejection_reason": {
+            "type": "string",
+            "title": "Rejection Reason"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Requested At"
+          },
+          "fulfilled_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fulfilled At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "subject_type",
+          "subject_id",
+          "status",
+          "requestor_note",
+          "rejection_reason",
+          "requested_at"
+        ],
+        "title": "DeletionRequestResponse"
+      },
+      "DeletionRequestStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "completed",
+          "rejected"
+        ],
+        "title": "DeletionRequestStatus"
+      },
+      "DeletionSubjectType": {
+        "type": "string",
+        "enum": [
+          "institution",
+          "contact_point"
+        ],
+        "title": "DeletionSubjectType"
+      },
       "DraftDecisionRequest": {
         "properties": {
           "decision": {
@@ -757,9 +2774,104 @@
           "generated",
           "needs_revision",
           "approved",
+          "sending",
           "sent"
         ],
         "title": "DraftStatus"
+      },
+      "EventOutboxResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "institution_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Institution Id"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OutboxStatus"
+          },
+          "attempt_count": {
+            "type": "integer",
+            "title": "Attempt Count"
+          },
+          "next_attempt_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Next Attempt At"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "delivered_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivered At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "institution_id",
+          "event_type",
+          "payload",
+          "status",
+          "attempt_count",
+          "next_attempt_at",
+          "created_at"
+        ],
+        "title": "EventOutboxResponse"
+      },
+      "FlagStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "resolved",
+          "dismissed"
+        ],
+        "title": "FlagStatus"
+      },
+      "FlagType": {
+        "type": "string",
+        "enum": [
+          "confidence_drift",
+          "conflicting_field",
+          "stale_evidence",
+          "unreachable_contact"
+        ],
+        "title": "FlagType"
       },
       "HTTPValidationError": {
         "properties": {
@@ -773,6 +2885,37 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "database_ok": {
+            "type": "boolean",
+            "title": "Database Ok"
+          },
+          "stuck_run_count": {
+            "type": "integer",
+            "title": "Stuck Run Count"
+          },
+          "stuck_run_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Stuck Run Ids"
+          },
+          "healthy": {
+            "type": "boolean",
+            "title": "Healthy"
+          }
+        },
+        "type": "object",
+        "required": [
+          "database_ok",
+          "stuck_run_count",
+          "stuck_run_ids",
+          "healthy"
+        ],
+        "title": "HealthResponse"
       },
       "InstitutionDetailResponse": {
         "properties": {
@@ -923,6 +3066,331 @@
           "updated_at"
         ],
         "title": "InstitutionListResponse"
+      },
+      "LeadProfileListItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "institution_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Institution Id"
+          },
+          "overall_score": {
+            "type": "integer",
+            "title": "Overall Score"
+          },
+          "score_breakdown": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Score Breakdown"
+          },
+          "has_phone": {
+            "type": "boolean",
+            "title": "Has Phone"
+          },
+          "has_email": {
+            "type": "boolean",
+            "title": "Has Email"
+          },
+          "has_named_contact": {
+            "type": "boolean",
+            "title": "Has Named Contact"
+          },
+          "qualification_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QualificationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "organization_summary": {
+            "type": "string",
+            "title": "Organization Summary"
+          },
+          "evidence_count": {
+            "type": "integer",
+            "title": "Evidence Count"
+          },
+          "computed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Computed At"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "institution_id",
+          "overall_score",
+          "score_breakdown",
+          "has_phone",
+          "has_email",
+          "has_named_contact",
+          "organization_summary",
+          "evidence_count",
+          "computed_at",
+          "canonical_name"
+        ],
+        "title": "LeadProfileListItem"
+      },
+      "LeadProfileResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "institution_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Institution Id"
+          },
+          "overall_score": {
+            "type": "integer",
+            "title": "Overall Score"
+          },
+          "score_breakdown": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Score Breakdown"
+          },
+          "has_phone": {
+            "type": "boolean",
+            "title": "Has Phone"
+          },
+          "has_email": {
+            "type": "boolean",
+            "title": "Has Email"
+          },
+          "has_named_contact": {
+            "type": "boolean",
+            "title": "Has Named Contact"
+          },
+          "qualification_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QualificationStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "organization_summary": {
+            "type": "string",
+            "title": "Organization Summary"
+          },
+          "evidence_count": {
+            "type": "integer",
+            "title": "Evidence Count"
+          },
+          "computed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Computed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "institution_id",
+          "overall_score",
+          "score_breakdown",
+          "has_phone",
+          "has_email",
+          "has_named_contact",
+          "organization_summary",
+          "evidence_count",
+          "computed_at"
+        ],
+        "title": "LeadProfileResponse"
+      },
+      "LeadReservationListItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "institution_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Institution Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReservationStatus"
+          },
+          "score_at_reservation": {
+            "type": "integer",
+            "title": "Score At Reservation"
+          },
+          "batch_label": {
+            "type": "string",
+            "title": "Batch Label"
+          },
+          "reserved_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Reserved At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "consumed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consumed At"
+          },
+          "released_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released At"
+          },
+          "canonical_name": {
+            "type": "string",
+            "title": "Canonical Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "institution_id",
+          "status",
+          "score_at_reservation",
+          "batch_label",
+          "reserved_at",
+          "expires_at",
+          "canonical_name"
+        ],
+        "title": "LeadReservationListItem"
+      },
+      "LeadReservationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "institution_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Institution Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReservationStatus"
+          },
+          "score_at_reservation": {
+            "type": "integer",
+            "title": "Score At Reservation"
+          },
+          "batch_label": {
+            "type": "string",
+            "title": "Batch Label"
+          },
+          "reserved_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Reserved At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "consumed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consumed At"
+          },
+          "released_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Released At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "institution_id",
+          "status",
+          "score_at_reservation",
+          "batch_label",
+          "reserved_at",
+          "expires_at"
+        ],
+        "title": "LeadReservationResponse"
+      },
+      "LeadScoreHistoryPoint": {
+        "properties": {
+          "overall_score": {
+            "type": "integer",
+            "title": "Overall Score"
+          },
+          "score_breakdown": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Score Breakdown"
+          },
+          "computed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Computed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "overall_score",
+          "score_breakdown",
+          "computed_at"
+        ],
+        "title": "LeadScoreHistoryPoint"
       },
       "ManualLeadIn": {
         "properties": {
@@ -1127,6 +3595,70 @@
         ],
         "title": "OperatingStatus"
       },
+      "OperationalMetricsResponse": {
+        "properties": {
+          "total_canonical_institutions": {
+            "type": "integer",
+            "title": "Total Canonical Institutions"
+          },
+          "pending_resolution_candidates": {
+            "type": "integer",
+            "title": "Pending Resolution Candidates"
+          },
+          "pending_outreach_drafts": {
+            "type": "integer",
+            "title": "Pending Outreach Drafts"
+          },
+          "total_target_accounts": {
+            "type": "integer",
+            "title": "Total Target Accounts"
+          },
+          "recent_pipeline_activity": {
+            "items": {},
+            "type": "array",
+            "title": "Recent Pipeline Activity"
+          },
+          "outbox_pending": {
+            "type": "integer",
+            "title": "Outbox Pending"
+          },
+          "outbox_dead_letter": {
+            "type": "integer",
+            "title": "Outbox Dead Letter"
+          },
+          "open_data_quality_flags": {
+            "type": "integer",
+            "title": "Open Data Quality Flags"
+          },
+          "suppressed_contacts": {
+            "type": "integer",
+            "title": "Suppressed Contacts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_canonical_institutions",
+          "pending_resolution_candidates",
+          "pending_outreach_drafts",
+          "total_target_accounts",
+          "recent_pipeline_activity",
+          "outbox_pending",
+          "outbox_dead_letter",
+          "open_data_quality_flags",
+          "suppressed_contacts"
+        ],
+        "title": "OperationalMetricsResponse"
+      },
+      "OutboxStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "delivered",
+          "failed",
+          "dead_letter"
+        ],
+        "title": "OutboxStatus"
+      },
       "OutreachDraftSchema": {
         "properties": {
           "id": {
@@ -1228,6 +3760,83 @@
           "size"
         ],
         "title": "PaginatedInstitutions"
+      },
+      "PaginatedLeadProfiles": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LeadProfileListItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "size"
+        ],
+        "title": "PaginatedLeadProfiles"
+      },
+      "ProcessOutboxResponse": {
+        "properties": {
+          "processed": {
+            "type": "integer",
+            "title": "Processed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "processed"
+        ],
+        "title": "ProcessOutboxResponse"
+      },
+      "QualificationStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "qualified",
+          "disqualified",
+          "needs_review"
+        ],
+        "title": "QualificationStatus"
+      },
+      "RejectDeletionRequest": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "RejectDeletionRequest"
+      },
+      "ReservationStatus": {
+        "type": "string",
+        "enum": [
+          "reserved",
+          "consumed",
+          "expired",
+          "released"
+        ],
+        "title": "ReservationStatus"
       },
       "ResolutionCandidateSchema": {
         "properties": {
@@ -1376,6 +3985,320 @@
         ],
         "title": "ResolutionSummarySchema",
         "description": "Shape expected by frontend/src/pages/ResolutionQueue.tsx."
+      },
+      "ResolveFlagRequest": {
+        "properties": {
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "ResolveFlagRequest"
+      },
+      "RunStatus": {
+        "type": "string",
+        "enum": [
+          "started",
+          "completed",
+          "failed"
+        ],
+        "title": "RunStatus"
+      },
+      "RunSweepRequest": {
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "freshness_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freshness Days"
+          }
+        },
+        "type": "object",
+        "title": "RunSweepRequest"
+      },
+      "SelectDailyBatchRequest": {
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "ttl_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ttl Hours"
+          },
+          "min_score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Score"
+          },
+          "batch_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Label"
+          }
+        },
+        "type": "object",
+        "title": "SelectDailyBatchRequest"
+      },
+      "SourceHealthResponse": {
+        "properties": {
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "last_run_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Run At"
+          },
+          "last_run_status": {
+            "type": "string",
+            "title": "Last Run Status"
+          },
+          "last_successful_run_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Successful Run At"
+          },
+          "failed_run_count_last_7d": {
+            "type": "integer",
+            "title": "Failed Run Count Last 7D"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_type",
+          "last_run_at",
+          "last_run_status",
+          "failed_run_count_last_7d"
+        ],
+        "title": "SourceHealthResponse"
+      },
+      "SourceRunDetailResponse": {
+        "properties": {
+          "run": {
+            "$ref": "#/components/schemas/SourceRunResponse"
+          },
+          "record_count": {
+            "type": "integer",
+            "title": "Record Count"
+          },
+          "unresolved_records": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Unresolved Records"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run",
+          "record_count",
+          "unresolved_records"
+        ],
+        "title": "SourceRunDetailResponse"
+      },
+      "SourceRunResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/SourceType"
+          },
+          "run_metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Run Metadata"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source_type",
+          "run_metadata",
+          "started_at",
+          "status"
+        ],
+        "title": "SourceRunResponse"
+      },
+      "SourceType": {
+        "type": "string",
+        "enum": [
+          "google_places",
+          "website",
+          "telegram",
+          "linkedin",
+          "yandex",
+          "apple_maps",
+          "manual",
+          "authorized_import"
+        ],
+        "title": "SourceType"
+      },
+      "StrandedRecordResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "source_type": {
+            "$ref": "#/components/schemas/SourceType"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "extracted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Extracted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source_type",
+          "source_id",
+          "extracted_at"
+        ],
+        "title": "StrandedRecordResponse"
+      },
+      "SuppressionEntryResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "normalized_contact_value": {
+            "type": "string",
+            "title": "Normalized Contact Value"
+          },
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/SuppressionReason"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "suppressed_by": {
+            "type": "string",
+            "title": "Suppressed By"
+          },
+          "suppressed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Suppressed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "normalized_contact_value",
+          "reason",
+          "note",
+          "suppressed_by",
+          "suppressed_at"
+        ],
+        "title": "SuppressionEntryResponse"
+      },
+      "SuppressionReason": {
+        "type": "string",
+        "enum": [
+          "opt_out",
+          "bounced",
+          "legal_request",
+          "manual"
+        ],
+        "title": "SuppressionReason"
       },
       "ValidationError": {
         "properties": {
