@@ -60,6 +60,26 @@ async def verify_contacts(args: argparse.Namespace) -> int:
     return 0
 
 
+async def sync_crm(args: argparse.Namespace) -> int:
+    from .database import get_session
+    from .crm import CRMSyncService, GenericCRMConnector
+
+    api_url = args.api_url or _env("CRM_API_URL")
+    api_key = args.api_key or _env("CRM_API_KEY")
+    if not api_url or not api_key:
+        print("Error: --api-url/--api-key (or CRM_API_URL/CRM_API_KEY) are required.", file=sys.stderr)
+        return 2
+
+    connector = GenericCRMConnector(api_url=api_url, api_key=api_key)
+    service = CRMSyncService(connector)
+
+    print(f"[CRM Sync] Using provider: {connector.name}")
+    async with get_session() as session:
+        count = await service.sync_pending(session, limit=args.limit)
+    print(f"[CRM Sync] Synced {count} institution(s).")
+    return 0
+
+
 async def check_db_health() -> int:
     from sqlalchemy import text
     try:
@@ -256,6 +276,15 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--api-key", default="", help="Licensed email verification API key (or set EMAIL_VERIFICATION_API_KEY)")
     verify.add_argument("--limit", type=int, default=100, help="Max contacts to verify in this run")
 
+    # -- sync-crm -------------------------------------------------------------
+    crm_sync = subparsers.add_parser(
+        "sync-crm",
+        help="Push institutions with an approved/sent outreach draft to an external CRM",
+    )
+    crm_sync.add_argument("--api-url", default="", help="CRM API base URL (or set CRM_API_URL)")
+    crm_sync.add_argument("--api-key", default="", help="CRM API key (or set CRM_API_KEY)")
+    crm_sync.add_argument("--limit", type=int, default=50, help="Max institutions to sync in this run")
+
     # -- migrate-phase1 -----------------------------------------------------
     migrate = subparsers.add_parser("migrate-phase1", help="Migrate Phase 1 SQLite data to PostgreSQL")
     migrate.add_argument("--database", default="leads_v2.sqlite3")
@@ -352,6 +381,7 @@ def main() -> None:
         "run":                lambda: sys.exit(run_command(args)),
         "db-health":          lambda: sys.exit(asyncio.run(check_db_health())),
         "verify-contacts":    lambda: sys.exit(asyncio.run(verify_contacts(args))),
+        "sync-crm":           lambda: sys.exit(asyncio.run(sync_crm(args))),
         "migrate-phase1":     lambda: sys.exit(asyncio.run(_migrate(args))),
         "seed-demo-data":     lambda: sys.exit(asyncio.run(_seed(args))),
         "linkedin-login":     lambda: sys.exit(asyncio.run(linkedin_login(args))),

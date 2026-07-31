@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     brave_search_api_key: str = ""
     email_verification_api_url: str = ""
     email_verification_api_key: str = ""
+    crm_api_url: str = ""
+    crm_api_key: str = ""
     job_config_path: str = ""
     job_config: dict = {}
     app_env: str = "development"

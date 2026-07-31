@@ -6,6 +6,7 @@ from .source import RawSourceRecord, RunStatus, SourceRun, SourceType
 from .qualification import QualificationAssessment, QualificationStatus
 from .research import ResearchJob, ResearchFinding, JobStatus, FindingType
 from .outreach import AccountBrief, OutreachDraft, OutreachOutcome, BriefStatus, DraftStatus
+from .crm import CRMSyncRecord, CRMSyncStatus
 from .audit import AuditLog
 
 __all__ = [
@@ -34,5 +35,7 @@ __all__ = [
     "OutreachOutcome",
     "BriefStatus",
     "DraftStatus",
+    "CRMSyncRecord",
+    "CRMSyncStatus",
     "AuditLog",
 ]
