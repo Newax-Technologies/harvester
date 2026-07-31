@@ -189,33 +189,55 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
     `OperatingStatus.CLOSED_PERMANENTLY`); `has_website` is now recorded as an informational,
     non-disqualifying fact in the assessment's checklist/rationale instead.
 
+    Decided detection policy (simpler than an earlier draft of this plan): **absence means
+    unavailable, full stop** — no website found means no website, no LMS signal detected means no
+    LMS, for both website and LMS. This is a deliberate accepted tradeoff, not an oversight: an
+    institution the crawler never actually reached looks identical to one confirmed to lack a
+    website/LMS. Module 3's `RawPageSnapshot`/`SourceRun` data makes "was this actually crawled"
+    answerable later if that tradeoff turns out to matter in practice, without changing the
+    decision now.
+
     Still to build:
     - New LMS-detection rules in `enrichment/technology_detector.py` (pattern-matching known
       LMS/portal names and phrases in crawled page text — Moodle, Google Classroom, Canvas,
       Blackboard, Schoology, PowerSchool, "parent portal", "student portal", etc.), emitting a
       new positive-detection `Signal` (needs a new `SignalType` — e.g. `TECHNOLOGY_PRESENT` —
       distinct from `PAIN_POINT`/`BUYING_SIGNAL`, since "has an LMS" is a detected fact, not a
-      pain point or buying signal by itself). Absence only counts as a real gap when we know the
-      site was actually crawled (a `RawPageSnapshot` exists for it) — "never checked" must not
-      look identical to "confirmed absent," or an un-crawled institution would wrongly score as
-      the hottest possible lead.
+      pain point or buying signal by itself).
     - IoT hardware/software integration: known v1 limitation stated up front, not discovered
       later — this is rarely announced on a public website, so v1 treats it as unknown/neutral
-      rather than assumed-absent. A real signal here would come from manual entry or authorized-
-      import data, not the crawler, and detecting it automatically is out of scope for this
-      module.
+      rather than assumed-absent (unlike website/LMS above, since there's no realistic way to
+      even attempt detecting it from a public site). A real signal here would come from manual
+      entry or authorized-import data, not the crawler, and detecting it automatically is out of
+      scope for this module.
+    - **Website quality engine** (decided with the user: rule-based, built on the existing static
+      crawler — no headless-browser/JS-rendering pass in v1, since `sources/web.py`'s httpx+
+      BeautifulSoup fetch already captures everything this checklist needs). A `WebsiteQualityTier`
+      enum (`NONE`/`POOR`/`ADEQUATE`/`GOOD`/`EXCEPTIONAL`) computed per institution from a weighted
+      checklist over its crawled `RawPageSnapshot` rows: `has_https` (scheme), `has_mobile_viewport`
+      (a `<meta name="viewport">` tag present), `has_contact_or_booking_form` (a real `<form>`, not
+      just a "contact us" mention), `page_count_crawled` (site depth — 1 page is shallow, 2-5
+      adequate, 6+ comprehensive), `broken_internal_link_rate` (fraction of this site's own
+      `RawPageSnapshot.fetch_error` rows that are HTTP errors, not robots/oversized/other
+      exclusions — a real, already-captured signal from module 3). `NONE` is forced whenever
+      `institution.website` is absent (no scoring needed); otherwise the checklist's weighted sum
+      maps to a tier. Known v1 limitation, explicit rather than silent: purely structural/technical
+      signals, no design/copywriting/visual-quality judgment (that would need the LLM-based path
+      not chosen for v1) — a site that is technically solid but ugly, or vice versa, isn't
+      distinguished.
     - A new `service_gap_score` (`profiles/scoring.py`, or a new `intelligence/service_gap.py`).
       Decided formula: `opportunity_score = missing_product_count * size_multiplier` — directly
       implements "most services they could buy AND can afford to pay," so a small single-branch
       institution missing every product still scores lower than a multi-branch institution
-      missing the same things. `missing_product_count` only counts a product as missing when it
-      was actually checked (no website on file; a crawled site with no detected LMS signal — per
-      the point above, "never checked" must not silently count as "missing"). `size_multiplier`
-      comes from `intelligence/size_estimation.py::estimate_size_tier`'s existing `SizeTier`
-      (`SMALL`/`MEDIUM`/`LARGE`/`UNKNOWN`) via a small, tunable mapping — e.g. `UNKNOWN`/`SMALL`
-      → `1.0`, `MEDIUM` → `1.5`, `LARGE` → `2.0` (exact values configurable, not load-bearing on
-      the formula itself). Feeds into `LeadProfile`'s existing `qualification` score category
-      rather than adding a second, competing scoring path.
+      missing the same things. `missing_product_count` counts website and LMS as missing whenever
+      not detected (per the assume-absent policy above); `WebsiteQualityTier` further modulates a
+      present-but-weak website's contribution (`NONE` counts as fully missing; `POOR`/`ADEQUATE`
+      count as a partial gap — still real upsell/redesign opportunity; `GOOD`/`EXCEPTIONAL` count
+      as no gap). `size_multiplier` comes from `intelligence/size_estimation.py::estimate_size_tier`'s
+      existing `SizeTier` (`SMALL`/`MEDIUM`/`LARGE`/`UNKNOWN`) via a small, tunable mapping — e.g.
+      `UNKNOWN`/`SMALL` → `1.0`, `MEDIUM` → `1.5`, `LARGE` → `2.0` (exact values configurable, not
+      load-bearing on the formula itself). Feeds into `LeadProfile`'s existing `qualification`
+      score category rather than adding a second, competing scoring path.
 
 ## Explicitly not part of Harvester
 
