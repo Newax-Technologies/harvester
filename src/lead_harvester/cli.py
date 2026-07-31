@@ -29,9 +29,25 @@ def run_command(args: argparse.Namespace) -> int:
     settings = Settings(job_config_path=args.config)
     settings.load_job_config()
 
-    if "seeds" not in settings.job_config and not settings.google_places_api_key:
+    job_config = settings.job_config
+    places_provider = job_config.get("places_provider")
+    has_tile_based_provider_config = (
+        (places_provider in (None, "google") and settings.google_places_api_key)
+        or (places_provider == "apple" and settings.apple_maps_team_id)
+        or (places_provider == "yandex" and settings.yandex_maps_api_key)
+    )
+    if (
+        "seeds" not in job_config
+        and "search_queries" not in job_config
+        and "telegram_channels" not in job_config
+        and not has_tile_based_provider_config
+    ):
         print(
-            "Error: job.yaml must contain 'seeds' OR GOOGLE_PLACES_API_KEY must be set.",
+            "Error: job.yaml must contain 'seeds', 'search_queries', or "
+            "'telegram_channels', or the credentials for job.yaml's places_provider "
+            "(default 'google': GOOGLE_PLACES_API_KEY; 'apple': "
+            "APPLE_MAPS_TEAM_ID/KEY_ID/PRIVATE_KEY; 'yandex': YANDEX_MAPS_API_KEY) must "
+            "be set.",
             file=sys.stderr,
         )
         return 2

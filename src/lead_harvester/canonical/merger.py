@@ -149,8 +149,63 @@ def display_fields(record: RawSourceRecord) -> dict[str, Any]:
             "declared_contacts": contacts,
         }
 
-    # No connector exists yet for any other SourceType (telegram/linkedin/
-    # yandex/apple_maps) -- fall back to the normalized index fields only
+    if record.source_type == SourceType.YANDEX:
+        # sources/yandex_maps.py's raw_payload is the connector's raw
+        # GeoJSON Feature, unpacked here the same way the GOOGLE_PLACES
+        # branch above unpacks its raw Places API response.
+        properties = payload.get("properties", {})
+        company = properties.get("CompanyMetaData", {})
+        name = company.get("name") or properties.get("name") or record.normalized_name or "Unknown"
+        categories = company.get("Categories") or []
+        return {
+            "name": name,
+            "address": company.get("address") or properties.get("description", ""),
+            "website": company.get("url") or None,
+            "email": None,
+            "institution_type": categories[0].get("name", "") if categories else "",
+            "city": "",
+            "country_code": "",
+        }
+
+    if record.source_type == SourceType.APPLE_MAPS:
+        # Apple's /v1/search response has no email/institution_type/city/
+        # country_code fields at all (see sources/apple_maps.py's own
+        # known-v1-limitation docstring note) -- left blank/None here
+        # rather than guessed, same as the GOOGLE_PLACES branch already
+        # does when a field genuinely isn't in the source payload.
+        name = payload.get("name") or record.normalized_name or "Unknown"
+        address_lines = payload.get("formattedAddressLines") or []
+        return {
+            "name": name,
+            "address": ", ".join(address_lines),
+            "website": None,
+            "email": None,
+            "institution_type": "",
+            "city": "",
+            "country_code": "",
+        }
+
+    if record.source_type == SourceType.TELEGRAM:
+        # sources/telegram_channels.py's raw_payload is its own fetch_channel
+        # dict (name/description/all_emails/all_phones), not a third-party
+        # API response shape.
+        name = payload.get("name") or record.normalized_name or "Unknown"
+        emails = payload.get("all_emails") or []
+        return {
+            "name": name,
+            "address": "",
+            "website": None,
+            "email": emails[0] if emails else None,
+            "institution_type": "",
+            "city": "",
+            "country_code": "",
+        }
+
+    # No connector exists yet for LINKEDIN -- its raw records never reach
+    # display_fields in practice (see the _RESOLUTION_ELIGIBLE_SOURCE_TYPES
+    # comment in pipeline.py: LINKEDIN goes through
+    # intelligence/researcher.py's AI-driven path instead of
+    # resolve_incoming_record), but this fallback stays as a safety net
     # rather than guessing at an unknown raw_payload shape.
     return {
         "name": record.normalized_name or "Unknown",

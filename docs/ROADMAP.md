@@ -141,21 +141,51 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   trigram matching for `PersonCandidate` (exact-after-`normalize_name` only, consistent with this
   codebase's other identity-matching v1 scopes); no automated merge/split UI for a
   `PersonCandidate` a human later decides was wrong.
-- **Source Connectors**: partial. `sources/` has google_places, web, search, and
-  authorized_imports (CSV/bulk import of licensed or manually-sourced data, wired into
-  `LeadPipeline`/`cli.py`'s `import-authorized` command, going through the same
-  blocking/scoring resolution as every other connector). No apple_maps, yandex_maps, or
-  telegram connectors yet.
+- **Source Connectors**: done. `sources/` now has all seven: google_places, web,
+  authorized_imports, plus `yandex_maps.py` (Yandex Maps Search API, mirrors
+  google_places.py's shape), `apple_maps.py` (Apple MapKit Server API -- signs its own ES256
+  developer JWT locally and exchanges it for a short-lived access token; known v1 limitation:
+  Apple's `/v1/search` response has no phone/website field the way Google Places/Yandex do, so
+  those stay blank for Apple-sourced records), and `telegram_channels.py` (fetches a channel's
+  public `https://t.me/s/<channel>` preview page -- the page Telegram itself serves without
+  authentication for anonymous/embed viewing; no login/MTProto/Bot-API involved, and no
+  discovery -- job.yaml's `telegram_channels` list is the only input, since Telegram exposes no
+  public search). `job.yaml`'s `places_provider` key (`google`/`apple`/`yandex`) selects which
+  tile-based connector `LeadPipeline.run()` drives through the same
+  `geographic_tiling.py` query machinery; `canonical/merger.py::display_fields` and
+  `compliance/source_policy.py` were extended with a branch/entry per new SourceType (Yandex and
+  Apple Maps are LICENSED_API; Telegram is PUBLIC_WEB_CRAWL, not ACCOUNT_AUTOMATION, since it's
+  an unauthenticated page fetch). Also found and fixed: `sources/search.py`'s
+  `BraveSearchSource` had zero callers anywhere in the codebase since it was written (a
+  genuinely dead connector, not merely "partial") -- wired into `_run_web_crawler` as an
+  optional seed-discovery step (`job.yaml`'s `search_queries` list; requires
+  `BRAVE_SEARCH_API_KEY`), since its only purpose is discovering more seed URLs for the same web
+  crawler that already exists, not a separate ingestion path.
 - **Ingestion**: not modularized as its own layer; scheduling/rate-limiting logic is embedded
   in `pipeline.py`/`sources/web.py` rather than a distinct `ingestion/` module.
 - **Normalization**: partial, lives in `resolution/normalize.py` rather than its own module;
-  covers phone/domain, not yet a full city/country normalization layer.
+  covers phone/domain/name, plus `normalize_city` and `country_to_iso2` (a ~55-entry country
+  name/alias -> ISO-2 table), the latter wired into `sources/authorized_imports.py` so a CSV row
+  with a free-text `country` column but no explicit `country_code` still gets a real ISO-2 code
+  instead of silently falling back to the import's default. No `website`/`social_handle`
+  normalization yet.
 - **Resolution**: done for the live ingestion paths. `resolution/orchestrator.py` wires
   blocking + scoring into `pipeline.py` (both Google Places and the web crawler), with a human
   review path for ambiguous (PENDING) matches via the `resolution-reviews` API. See tracked
   follow-up #2 above for the one documented v1 limitation (cross-run concurrency).
-- **Enrichment**: partial (`enrichment/website_analyzer.py`); no contact_extractor/
-  social_resolver/technology_detector/decision_maker_discovery as distinct pieces yet.
+- **Enrichment**: done for the pieces that map onto live data. `enrichment/technology_detector.py`
+  runs rule-based pain-point/buying-signal detection over each crawled page's visible text
+  (`sources/web.py::_extract_lead`); `pipeline.py::_persist_detected_signals` materializes its
+  output into real `models/signal.py` `Signal` rows once a page resolves to an institution,
+  gated on `SourceType.WEBSITE`. Revives the intent of the deleted `intelligence/pain_detection.py`
+  (dead Phase-1 code -- see `docs/CODE_REVIEW_LESSONS.md` pattern 2) with a real, wired
+  implementation instead. contact_extractor/social_resolver are already covered by
+  `extractors.py` (`extract_emails`/`extract_phones`/`extract_social_profiles`), reused by the
+  crawler rather than duplicated. The dead, synchronous `enrichment/website_analyzer.py` (a
+  superseded Phase-1 fetch helper with zero live callers) was removed. Known v1 limitation:
+  text-pattern matching only, no HTML/DOM inspection -- can't fingerprint a specific CMS or
+  booking widget by its markup. institution_classifier/location_enricher/
+  decision_maker_discovery remain unbuilt.
 - **Business Intelligence**: partial (`intelligence/pain_detection.py`, `researcher.py`,
   `taxonomy.py`); not fully separated into the 7 planned sub-concerns.
 - **Lead Scoring**: done against live data (`profiles/scoring.py::compute_lead_score`) --

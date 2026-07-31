@@ -83,6 +83,16 @@ async def test_run_attaches_partial_profiles_when_the_loop_aborts(tmp_path):
             "lead_harvester.sources.linkedin_stealth.between_profiles_pause",
             new=AsyncMock(),
         ),
+        # "burner_partial"'s deterministically-seeded DeviceProfile happens
+        # to produce a preferred-start delay of several real minutes --
+        # unmocked, run() actually awaits asyncio.sleep(delay_secs) for that
+        # long before ever reaching the crawl loop this test cares about,
+        # the same real-timing risk between_profiles_pause above is already
+        # mocked away for.
+        patch(
+            "lead_harvester.sources.linkedin_stealth.session_start_delay_seconds",
+            return_value=0,
+        ),
         patch(
             "camoufox.async_api.AsyncCamoufox",
             lambda **kwargs: _FakeAsyncCamoufox(browser, **kwargs),

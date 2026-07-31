@@ -1,4 +1,5 @@
 import datetime
+import hashlib
 import uuid
 from pathlib import Path
 from typing import Any
@@ -18,11 +19,15 @@ from .models import RawSourceRecord, RunStatus, SourceRun, SourceType
 from .models.canonical import CanonicalInstitution
 from .models.provenance import FieldProvenance
 from .models.resolution import ResolutionCandidate
+from .models.signal import Signal, SignalType
 from .resolution.normalize import normalize_domain, normalize_name, normalize_phone
 from .resolution.orchestrator import resolve_incoming_record
+from .sources.apple_maps import AppleMapsConnector
 from .sources.authorized_imports import AuthorizedImportInstitution, parse_authorized_import_csv
 from .sources.geographic_tiling import build_queries_for_tile, generate_tiles
 from .sources.google_places import GooglePlacesConnector
+from .sources.telegram_channels import TelegramChannelConnector
+from .sources.yandex_maps import YandexMapsConnector
 
 
 class LeadPipeline:
@@ -33,6 +38,8 @@ class LeadPipeline:
         # web-crawler mode never needs it -- constructing this eagerly here
         # broke that mode for any caller that only set up seeds.
         self._places_connector: GooglePlacesConnector | None = None
+        self._yandex_connector: YandexMapsConnector | None = None
+        self._apple_connector: AppleMapsConnector | None = None
         self.lead_sync_emitter = LeadSyncEmitter(settings)
 
     @property
@@ -43,17 +50,45 @@ class LeadPipeline:
             )
         return self._places_connector
 
+    @property
+    def yandex_connector(self) -> YandexMapsConnector:
+        if self._yandex_connector is None:
+            self._yandex_connector = YandexMapsConnector(api_key=self.settings.yandex_maps_api_key)
+        return self._yandex_connector
+
+    @property
+    def apple_connector(self) -> AppleMapsConnector:
+        if self._apple_connector is None:
+            self._apple_connector = AppleMapsConnector(
+                team_id=self.settings.apple_maps_team_id,
+                key_id=self.settings.apple_maps_key_id,
+                private_key=self.settings.apple_maps_private_key,
+            )
+        return self._apple_connector
+
     async def run(self) -> bool:
         """
         Returns True on success, False for a structural authorized-import
-        failure (see _run_authorized_import) -- the other two paths either
+        failure (see _run_authorized_import) -- the other paths either
         complete or raise, so they have no comparable "failed without
         raising" case and always return True.
+
+        places_provider selects which tile-based maps connector runs
+        (default "google" for backwards compatibility with every existing
+        job.yaml that doesn't set it) -- "apple"/"yandex" reuse the exact
+        same tile/query-generation machinery (geographic_tiling.py) as
+        Google Places, just against a different connector and SourceType.
         """
         if "authorized_import_file" in self.settings.job_config:
             return await self._run_authorized_import()
-        elif "seeds" in self.settings.job_config:
+        elif "seeds" in self.settings.job_config or "search_queries" in self.settings.job_config:
             await self._run_web_crawler()
+        elif "telegram_channels" in self.settings.job_config:
+            await self._run_telegram()
+        elif self.settings.job_config.get("places_provider") == "apple":
+            await self._run_apple_maps()
+        elif self.settings.job_config.get("places_provider") == "yandex":
+            await self._run_yandex_maps()
         else:
             await self._run_google_places()
         return True
@@ -63,7 +98,37 @@ class LeadPipeline:
 
         from .sources.web import WebCrawler
 
-        seeds = self.settings.job_config.get("seeds", [])
+        seeds = list(self.settings.job_config.get("seeds", []))
+
+        # search_queries is an optional additional seed source: sources/
+        # search.py's BraveSearchSource previously had zero callers anywhere
+        # in this codebase (dead since it was written -- see
+        # docs/CODE_REVIEW_LESSONS.md pattern 2 on not leaving an orphaned
+        # implementation lying around). Wired in here rather than as a
+        # separate pipeline mode, since its whole purpose is discovering
+        # more seed URLs for the SAME web crawler that already exists, not
+        # a distinct ingestion path with its own resolution logic.
+        search_queries = self.settings.job_config.get("search_queries", [])
+        if search_queries:
+            if not self.settings.brave_search_api_key:
+                print(
+                    "search_queries configured but BRAVE_SEARCH_API_KEY is not set -- "
+                    "skipping search-based seed discovery."
+                )
+            else:
+                from .sources.search import BraveSearchSource
+
+                search_source = BraveSearchSource(api_key=self.settings.brave_search_api_key)
+                discovered: set[str] = set()
+                for query in search_queries:
+                    print(f"Discovering seeds via search: {query}")
+                    results = await search_source.search(query)
+                    discovered.update(result.url for result in results if result.url)
+                new_seeds = sorted(discovered - set(seeds))
+                if new_seeds:
+                    print(f"Discovered {len(new_seeds)} new seed(s) via search.")
+                seeds.extend(new_seeds)
+
         if not seeds:
             print("No seeds provided.")
             return
@@ -498,6 +563,247 @@ class LeadPipeline:
         await session.flush()
         await self._resolve_or_log(session, run, record, resync_ids)
 
+    async def _run_yandex_maps(self) -> None:
+        tiles = generate_tiles(self.settings.job_config)
+        categories = self.settings.job_config.get("categories", ["FORMAL_EDUCATION"])
+        resync_ids: set[uuid.UUID] = set()
+
+        try:
+            async with get_session() as session:
+                run = SourceRun(
+                    source_type=SourceType.YANDEX,
+                    run_metadata={"categories": categories, "tiles": len(tiles)},
+                    status=RunStatus.STARTED,
+                )
+                session.add(run)
+                await session.flush()
+
+                try:
+                    await self._retry_stranded_records(session, run, resync_ids)
+
+                    for tile in tiles:
+                        queries = build_queries_for_tile(tile, categories)
+                        for query in queries:
+                            print(f"Executing Yandex Maps query: {query}")
+                            features = self.yandex_connector.search(query)
+                            for feature in features:
+                                await self.process_yandex_place(session, run, feature, resync_ids)
+
+                    run.status = RunStatus.COMPLETED
+                    run.completed_at = datetime.datetime.now(datetime.UTC)
+                except Exception as e:
+                    run.status = RunStatus.FAILED
+                    run.completed_at = datetime.datetime.now(datetime.UTC)
+                    run.run_metadata = {**run.run_metadata, "error": str(e)}
+                    raise
+                finally:
+                    await session.commit()
+        finally:
+            await self._emit_resync_events(resync_ids)
+
+    async def process_yandex_place(
+        self,
+        session,
+        run: SourceRun,
+        feature: dict[str, Any],
+        resync_ids: set[uuid.UUID] | None = None,
+    ) -> None:
+        properties = feature.get("properties", {})
+        company = properties.get("CompanyMetaData", {})
+        source_id = company.get("id")
+        if not source_id:
+            return
+
+        name = company.get("name") or properties.get("name", "")
+        phones = company.get("Phones", [])
+        phone = phones[0].get("formatted", "") if phones else ""
+        website = company.get("url", "")
+
+        # GeoJSON coordinates are [longitude, latitude], the opposite order
+        # from Google Places' {latitude, longitude} dict -- easy to
+        # transpose by accident, so kept explicit rather than unpacked
+        # positionally.
+        coordinates = feature.get("geometry", {}).get("coordinates", [])
+        location_wkt = None
+        if len(coordinates) == 2:
+            lng, lat = coordinates
+            location_wkt = f"SRID=4326;POINT({lng} {lat})"
+
+        record = RawSourceRecord(
+            source_run_id=run.id,
+            source_type=SourceType.YANDEX,
+            source_id=source_id,
+            raw_payload=feature,
+            normalized_name=normalize_name(name),
+            normalized_phone=normalize_phone(
+                phone, default_region=self.settings.lead_sync_default_country_code
+            )
+            if phone
+            else None,
+            normalized_domain=normalize_domain(website) if website else None,
+            location=location_wkt,
+        )
+        session.add(record)
+        await session.flush()
+        await self._resolve_or_log(session, run, record, resync_ids)
+
+    async def _run_apple_maps(self) -> None:
+        tiles = generate_tiles(self.settings.job_config)
+        categories = self.settings.job_config.get("categories", ["FORMAL_EDUCATION"])
+        resync_ids: set[uuid.UUID] = set()
+
+        try:
+            async with get_session() as session:
+                run = SourceRun(
+                    source_type=SourceType.APPLE_MAPS,
+                    run_metadata={"categories": categories, "tiles": len(tiles)},
+                    status=RunStatus.STARTED,
+                )
+                session.add(run)
+                await session.flush()
+
+                try:
+                    await self._retry_stranded_records(session, run, resync_ids)
+
+                    for tile in tiles:
+                        queries = build_queries_for_tile(tile, categories)
+                        for query in queries:
+                            print(f"Executing Apple Maps query: {query}")
+                            results = self.apple_connector.search(query)
+                            for result in results:
+                                await self.process_apple_place(session, run, result, resync_ids)
+
+                    run.status = RunStatus.COMPLETED
+                    run.completed_at = datetime.datetime.now(datetime.UTC)
+                except Exception as e:
+                    run.status = RunStatus.FAILED
+                    run.completed_at = datetime.datetime.now(datetime.UTC)
+                    run.run_metadata = {**run.run_metadata, "error": str(e)}
+                    raise
+                finally:
+                    await session.commit()
+        finally:
+            await self._emit_resync_events(resync_ids)
+
+    async def process_apple_place(
+        self,
+        session,
+        run: SourceRun,
+        result: dict[str, Any],
+        resync_ids: set[uuid.UUID] | None = None,
+    ) -> None:
+        name = result.get("name", "")
+        if not name:
+            return
+
+        address_lines = result.get("formattedAddressLines", [])
+        address = ", ".join(address_lines)
+
+        # Apple's /v1/search response carries no persistent POI id (unlike
+        # Google Places' `id`/Yandex's CompanyMetaData.id) -- derive a
+        # stable one from name+address the same way
+        # sources/authorized_imports.py::AuthorizedImportInstitution.source_id
+        # does for its own no-natural-id rows, so re-running the same query
+        # against the same result doesn't fabricate a new identity for an
+        # unchanged place every time.
+        digest = hashlib.sha256(f"{normalize_name(name)}|{address}".encode()).hexdigest()[:16]
+        source_id = f"apple:{digest}"
+
+        coordinate = result.get("coordinate", {})
+        lat = coordinate.get("latitude")
+        lng = coordinate.get("longitude")
+        location_wkt = None
+        if lat is not None and lng is not None:
+            location_wkt = f"SRID=4326;POINT({lng} {lat})"
+
+        record = RawSourceRecord(
+            source_run_id=run.id,
+            source_type=SourceType.APPLE_MAPS,
+            source_id=source_id,
+            raw_payload=result,
+            normalized_name=normalize_name(name),
+            normalized_phone=None,
+            normalized_domain=None,
+            location=location_wkt,
+        )
+        session.add(record)
+        await session.flush()
+        await self._resolve_or_log(session, run, record, resync_ids)
+
+    async def _run_telegram(self) -> None:
+        channels = self.settings.job_config.get("telegram_channels", [])
+        if not channels:
+            print("No telegram_channels provided.")
+            return
+
+        connector = TelegramChannelConnector(user_agent=self.settings.user_agent)
+        resync_ids: set[uuid.UUID] = set()
+
+        try:
+            async with get_session() as session:
+                run = SourceRun(
+                    source_type=SourceType.TELEGRAM,
+                    run_metadata={"channels_count": len(channels)},
+                    status=RunStatus.STARTED,
+                )
+                session.add(run)
+                await session.flush()
+
+                try:
+                    await self._retry_stranded_records(session, run, resync_ids)
+
+                    for channel in channels:
+                        print(f"Fetching Telegram channel: {channel}")
+                        payload = connector.fetch_channel(channel)
+                        if payload is None:
+                            continue
+                        await self.process_telegram_channel(session, run, payload, resync_ids)
+
+                    run.status = RunStatus.COMPLETED
+                    run.completed_at = datetime.datetime.now(datetime.UTC)
+                except Exception as e:
+                    run.status = RunStatus.FAILED
+                    run.completed_at = datetime.datetime.now(datetime.UTC)
+                    run.run_metadata = {**run.run_metadata, "error": str(e)}
+                    raise
+                finally:
+                    await session.commit()
+        finally:
+            await self._emit_resync_events(resync_ids)
+
+    async def process_telegram_channel(
+        self,
+        session,
+        run: SourceRun,
+        payload: dict[str, Any],
+        resync_ids: set[uuid.UUID] | None = None,
+    ) -> None:
+        name = payload.get("name", "")
+        if not name:
+            return
+
+        phones = payload.get("all_phones", [])
+
+        record = RawSourceRecord(
+            source_run_id=run.id,
+            source_type=SourceType.TELEGRAM,
+            source_id=f"telegram:{payload['channel']}",
+            raw_payload=payload,
+            normalized_name=normalize_name(name),
+            normalized_phone=(
+                normalize_phone(
+                    phones[0], default_region=self.settings.lead_sync_default_country_code
+                )
+                if phones
+                else None
+            ),
+            normalized_domain=None,
+            location=None,
+        )
+        session.add(record)
+        await session.flush()
+        await self._resolve_or_log(session, run, record, resync_ids)
+
     # Source types resolve_incoming_record actually handles. LINKEDIN records
     # are never passed to it -- they're picked up by an entirely separate
     # mechanism (ResearchBrain.process_all_pending()) that's waiting for AI
@@ -516,6 +822,9 @@ class LeadPipeline:
         SourceType.WEBSITE,
         SourceType.GOOGLE_PLACES,
         SourceType.AUTHORIZED_IMPORT,
+        SourceType.YANDEX,
+        SourceType.APPLE_MAPS,
+        SourceType.TELEGRAM,
     )
 
     async def _retry_stranded_records(
@@ -604,7 +913,9 @@ class LeadPipeline:
         # later record's flush, and the run's own final commit, broken.
         try:
             async with session.begin_nested():
-                await resolve_incoming_record(session, record, resync_ids=resync_ids)
+                institution = await resolve_incoming_record(session, record, resync_ids=resync_ids)
+                if institution is not None:
+                    LeadPipeline._persist_detected_signals(session, institution.id, record)
         except Exception as e:
             unresolved = list(run.run_metadata.get("unresolved_records", []))
             unresolved.append({"raw_record_id": str(record.id), "error": str(e)})
@@ -614,6 +925,36 @@ class LeadPipeline:
             # actually marks `run` dirty.
             run.run_metadata = {**run.run_metadata, "unresolved_records": unresolved}
             print(f"Entity resolution failed for raw record {record.id}: {e}")
+
+    @staticmethod
+    def _persist_detected_signals(
+        session, institution_id: uuid.UUID, record: RawSourceRecord
+    ) -> None:
+        """
+        Materializes sources/web.py::detect_technology_signals' output
+        (carried through record.raw_payload["raw"]["detected_signals"] --
+        see _extract_lead's own comment there) into real Signal rows, now
+        that resolution has produced a real institution_id. Explicitly
+        gated on SourceType.WEBSITE rather than relying on other source
+        types simply never populating a "raw" key -- that's true today but
+        would silently start persisting signals from an unrelated payload
+        shape if it ever stopped being true.
+        """
+        if record.source_type != SourceType.WEBSITE:
+            return
+        detected = record.raw_payload.get("raw", {}).get("detected_signals", [])
+        for item in detected:
+            session.add(
+                Signal(
+                    institution_id=institution_id,
+                    signal_type=SignalType(item["signal_type"]),
+                    signal_text=item["text"],
+                    source_url=record.source_id,
+                    # Rule-based, not AI-derived -- lower confidence than
+                    # researcher.py's 0.85 for its own Signal rows.
+                    confidence_score=0.6,
+                )
+            )
 
     async def _emit_resync_events(self, resync_ids: set[uuid.UUID]) -> None:
         # Fire-and-forget, same as LeadSyncEmitter itself -- a delivery

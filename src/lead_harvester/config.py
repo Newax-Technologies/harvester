@@ -12,6 +12,15 @@ class Settings(BaseSettings):
         "postgresql+asyncpg://opportunity_test:TEST_PASSWORD@127.0.0.1:5432/lead_harvester_test"
     )
     google_places_api_key: str = ""
+    yandex_maps_api_key: str = ""
+    brave_search_api_key: str = ""
+    # Apple MapKit Server API: a developer JWT is signed locally from these
+    # three (team_id/key_id identify the signing key registered in App
+    # Store Connect; private_key is the .p8 file's PEM contents) and
+    # exchanged for a short-lived access token -- see sources/apple_maps.py.
+    apple_maps_team_id: str = ""
+    apple_maps_key_id: str = ""
+    apple_maps_private_key: str = ""
     job_config_path: str = ""
     job_config: dict = {}
     app_env: str = "development"

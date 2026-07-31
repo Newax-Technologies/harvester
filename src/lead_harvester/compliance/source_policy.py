@@ -91,19 +91,25 @@ SOURCE_POLICIES: dict[SourceType, SourcePolicy] = {
         ),
     ),
     SourceType.TELEGRAM: SourcePolicy(
-        authorization_basis=AuthorizationBasis.NOT_IMPLEMENTED,
+        authorization_basis=AuthorizationBasis.PUBLIC_WEB_CRAWL,
         requires_disclosure=False,
-        notes="Planned (docs/ROADMAP.md module 2) -- no connector exists yet.",
+        notes=(
+            "sources/telegram_channels.py fetches a channel's public HTML preview page "
+            "(https://t.me/s/<channel>) -- the page Telegram itself serves without "
+            "authentication for anonymous/embed viewing. No login, MTProto client, or Bot "
+            "API token involved, and it only ever reads channels named explicitly in "
+            "job.yaml's telegram_channels list -- there is no search/discovery capability."
+        ),
     ),
     SourceType.YANDEX: SourcePolicy(
-        authorization_basis=AuthorizationBasis.NOT_IMPLEMENTED,
+        authorization_basis=AuthorizationBasis.LICENSED_API,
         requires_disclosure=False,
-        notes="Planned (docs/ROADMAP.md module 2) -- no connector exists yet.",
+        notes="Yandex Maps Search API (sources/yandex_maps.py), used under Yandex's commercial API terms.",
     ),
     SourceType.APPLE_MAPS: SourcePolicy(
-        authorization_basis=AuthorizationBasis.NOT_IMPLEMENTED,
+        authorization_basis=AuthorizationBasis.LICENSED_API,
         requires_disclosure=False,
-        notes="Planned (docs/ROADMAP.md module 2) -- no connector exists yet.",
+        notes="Apple MapKit Server API (sources/apple_maps.py), used under Apple's developer program terms.",
     ),
 }
 

@@ -1,3 +1,3 @@
-from .website_analyzer import analyze_website
+from .technology_detector import detect_technology_signals
 
-__all__ = ["analyze_website"]
+__all__ = ["detect_technology_signals"]

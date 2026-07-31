@@ -36,6 +36,28 @@ def test_contested_sources_does_not_flag_licensed_or_manual_sources():
     assert SourceType.AUTHORIZED_IMPORT not in contested
 
 
+def test_yandex_and_apple_maps_are_declared_licensed_api():
+    assert (
+        get_source_policy(SourceType.YANDEX).authorization_basis == AuthorizationBasis.LICENSED_API
+    )
+    assert (
+        get_source_policy(SourceType.APPLE_MAPS).authorization_basis
+        == AuthorizationBasis.LICENSED_API
+    )
+
+
+def test_telegram_is_declared_public_web_crawl_not_account_automation():
+    policy = get_source_policy(SourceType.TELEGRAM)
+    assert policy.authorization_basis == AuthorizationBasis.PUBLIC_WEB_CRAWL
+
+
+def test_none_of_the_new_connectors_are_still_not_implemented():
+    for source_type in (SourceType.TELEGRAM, SourceType.YANDEX, SourceType.APPLE_MAPS):
+        assert (
+            get_source_policy(source_type).authorization_basis != AuthorizationBasis.NOT_IMPLEMENTED
+        )
+
+
 def test_channel_eligible_when_no_suppression_exists():
     result = is_channel_eligible("email", None)
     assert result.eligible is True

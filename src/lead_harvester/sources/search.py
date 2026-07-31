@@ -19,7 +19,12 @@ class BraveSearchSource:
         if not api_key:
             raise ValueError("BRAVE_SEARCH_API_KEY is required for query discovery")
         self.api_key = api_key
-        self.timeout_seconds = timeout_seconds
+        # An instance attribute (mirrors sources/google_places.py's
+        # self.client) rather than a per-call `async with
+        # httpx.AsyncClient(...)` block -- tests can swap this for a
+        # MockTransport-backed client the same way they do for the other
+        # connectors, instead of needing to patch httpx itself.
+        self.client = httpx.AsyncClient(timeout=timeout_seconds)
 
     async def search(
         self,
@@ -40,10 +45,9 @@ class BraveSearchSource:
             "safesearch": "strict",
             "extra_snippets": "true",
         }
-        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-            response = await client.get(self.endpoint, headers=headers, params=params)
-            response.raise_for_status()
-            payload = response.json()
+        response = await self.client.get(self.endpoint, headers=headers, params=params)
+        response.raise_for_status()
+        payload = response.json()
         return [
             SearchResult(
                 title=str(item.get("title", "")),

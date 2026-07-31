@@ -16,6 +16,80 @@ async def _fake_get_session(session: AsyncSession):
     yield session
 
 
+@pytest.fixture(autouse=True)
+def _clear_provider_credential_env(monkeypatch):
+    # run_command's validation guard reads these from Settings(), which
+    # falls back to real OS/`.env` values -- clearing them here keeps the
+    # guard tests below deterministic regardless of what's set outside the
+    # test process.
+    for key in (
+        "GOOGLE_PLACES_API_KEY",
+        "APPLE_MAPS_TEAM_ID",
+        "APPLE_MAPS_KEY_ID",
+        "APPLE_MAPS_PRIVATE_KEY",
+        "YANDEX_MAPS_API_KEY",
+        "BRAVE_SEARCH_API_KEY",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+
+def test_run_command_rejects_a_job_config_with_no_seeds_channels_or_provider_credentials(
+    tmp_path,
+):
+    from lead_harvester import cli
+
+    config_file = tmp_path / "job.yaml"
+    config_file.write_text("categories: [FORMAL_EDUCATION]\n")
+
+    result = cli.run_command(argparse.Namespace(config=str(config_file)))
+
+    assert result == 2
+
+
+def test_run_command_accepts_search_queries_alone(tmp_path):
+    from lead_harvester import cli
+
+    config_file = tmp_path / "job.yaml"
+    config_file.write_text("search_queries: ['school in Karachi']\n")
+
+    result = cli.run_command(argparse.Namespace(config=str(config_file)))
+
+    # No BRAVE_SEARCH_API_KEY set -- _run_web_crawler logs and skips search
+    # discovery, then finds no seeds and returns cleanly rather than
+    # raising, so run_command still reports success.
+    assert result == 0
+
+
+def test_run_command_accepts_apple_maps_provider_with_credentials(tmp_path, monkeypatch):
+    from lead_harvester import cli
+
+    monkeypatch.setenv("APPLE_MAPS_TEAM_ID", "team1")
+    monkeypatch.setenv("APPLE_MAPS_KEY_ID", "key1")
+    monkeypatch.setenv("APPLE_MAPS_PRIVATE_KEY", "dummy-key")
+
+    config_file = tmp_path / "job.yaml"
+    config_file.write_text("places_provider: apple\ncities: {}\n")
+
+    with patch(
+        "lead_harvester.pipeline.LeadPipeline.run", new=AsyncMock(return_value=True)
+    ) as run_mock:
+        result = cli.run_command(argparse.Namespace(config=str(config_file)))
+
+    run_mock.assert_awaited_once()
+    assert result == 0
+
+
+def test_run_command_rejects_apple_maps_provider_without_credentials(tmp_path):
+    from lead_harvester import cli
+
+    config_file = tmp_path / "job.yaml"
+    config_file.write_text("places_provider: apple\ncities: {}\n")
+
+    result = cli.run_command(argparse.Namespace(config=str(config_file)))
+
+    assert result == 2
+
+
 @pytest.mark.asyncio
 async def test_linkedin_run_constructs_crawler_without_unsupported_kwargs(tmp_path, db_session):
     # linkedin_run previously passed addons=[] to LinkedInStealthCrawler,

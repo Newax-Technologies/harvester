@@ -11,6 +11,7 @@ from urllib.robotparser import RobotFileParser
 import httpx
 
 from ..config import Settings
+from ..enrichment.technology_detector import detect_technology_signals
 from ..extractors import (
     best_evidence,
     candidate_internal_links,
@@ -213,6 +214,12 @@ class WebCrawler:
                 "all_emails": emails,
                 "all_phones": phones,
                 "pages": [url],
+                # Rule-based pain-point/buying-signal detection (see
+                # enrichment/technology_detector.py) -- carried through
+                # raw_payload so pipeline.py can materialize it into real
+                # Signal rows once this page's record resolves to an
+                # institution (institution_id doesn't exist yet here).
+                "detected_signals": detect_technology_signals(text),
             },
         )
         return lead, links
@@ -238,6 +245,16 @@ class WebCrawler:
         existing.raw["pages"] = sorted(
             set(existing.raw.get("pages", []) + incoming.raw.get("pages", []))
         )
+        # Dicts aren't hashable, so dedupe by (signal_type, text) instead of
+        # the set()-based approach the other raw[] lists above use.
+        merged_signals = {
+            (s["signal_type"], s["text"]): s
+            for s in [
+                *existing.raw.get("detected_signals", []),
+                *incoming.raw.get("detected_signals", []),
+            ]
+        }
+        existing.raw["detected_signals"] = list(merged_signals.values())
         return existing
 
     @staticmethod

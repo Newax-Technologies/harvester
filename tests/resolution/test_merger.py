@@ -310,6 +310,91 @@ async def test_display_fields_prefers_full_website_url_over_bare_domain(source_r
 
 
 @pytest.mark.asyncio
+async def test_display_fields_handles_yandex_shape(source_run):
+    from lead_harvester.models.source import RawSourceRecord, SourceType
+    from lead_harvester.resolution.normalize import normalize_name
+
+    record = RawSourceRecord(
+        source_run_id=source_run.id,
+        source_type=SourceType.YANDEX,
+        source_id="1234567890",
+        raw_payload={
+            "properties": {
+                "name": "Beacon School",
+                "description": "Some Street, Karachi",
+                "CompanyMetaData": {
+                    "id": "1234567890",
+                    "name": "Beacon School",
+                    "address": "Some Street, Karachi",
+                    "url": "https://beacon.edu",
+                    "Categories": [{"name": "School"}],
+                },
+            }
+        },
+        normalized_name=normalize_name("Beacon School"),
+        normalized_phone=None,
+        normalized_domain=None,
+        location=None,
+    )
+    fields = display_fields(record)
+    assert fields["name"] == "Beacon School"
+    assert fields["address"] == "Some Street, Karachi"
+    assert fields["website"] == "https://beacon.edu"
+    assert fields["institution_type"] == "School"
+
+
+@pytest.mark.asyncio
+async def test_display_fields_handles_apple_maps_shape(source_run):
+    from lead_harvester.models.source import RawSourceRecord, SourceType
+    from lead_harvester.resolution.normalize import normalize_name
+
+    record = RawSourceRecord(
+        source_run_id=source_run.id,
+        source_type=SourceType.APPLE_MAPS,
+        source_id="apple:abc123",
+        raw_payload={
+            "name": "Beacon School",
+            "formattedAddressLines": ["1 Test Street", "Karachi, Pakistan"],
+        },
+        normalized_name=normalize_name("Beacon School"),
+        normalized_phone=None,
+        normalized_domain=None,
+        location=None,
+    )
+    fields = display_fields(record)
+    assert fields["name"] == "Beacon School"
+    assert fields["address"] == "1 Test Street, Karachi, Pakistan"
+    assert fields["website"] is None
+
+
+@pytest.mark.asyncio
+async def test_display_fields_handles_telegram_shape(source_run):
+    from lead_harvester.models.source import RawSourceRecord, SourceType
+    from lead_harvester.resolution.normalize import normalize_name
+
+    record = RawSourceRecord(
+        source_run_id=source_run.id,
+        source_type=SourceType.TELEGRAM,
+        source_id="telegram:beaconhouseofficial",
+        raw_payload={
+            "channel": "beaconhouseofficial",
+            "preview_url": "https://t.me/s/beaconhouseofficial",
+            "name": "Beacon School",
+            "description": "",
+            "all_emails": ["admissions@beacon.edu"],
+            "all_phones": [],
+        },
+        normalized_name=normalize_name("Beacon School"),
+        normalized_phone=None,
+        normalized_domain=None,
+        location=None,
+    )
+    fields = display_fields(record)
+    assert fields["name"] == "Beacon School"
+    assert fields["email"] == "admissions@beacon.edu"
+
+
+@pytest.mark.asyncio
 async def test_find_canonical_for_raw_record_returns_none_when_unresolved(db_session, source_run):
     record = google_places_record(source_run.id)
     db_session.add(record)
