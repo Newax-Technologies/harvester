@@ -29,6 +29,8 @@ dependencies = [
   "openai>=1.0",
   "twocaptcha>=0.0.1",
   "python-dotenv>=1.0",
+  # Apple MapKit Server API developer-token signing (sources/apple_maps.py)
+  "PyJWT[crypto]>=2.10,<3",
 ]
 
 [project.optional-dependencies]
