@@ -21,8 +21,4 @@ async def get_dashboard_activity(
     current_user: User = Depends(get_current_user)
 ):
     """Returns a timeline of recent pipeline activity."""
-    # MOCK implementation
-    return [
-        {"id": 1, "type": "qualified", "message": "Qualified 5 new institutions", "timestamp": "2026-07-23T08:00:00Z"},
-        {"id": 2, "type": "draft_approved", "message": "Approved draft for Principal at Example School", "timestamp": "2026-07-23T08:15:00Z"}
-    ]
+    return await DashboardService.get_recent_activity(session)

@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from geoalchemy2.functions import ST_DWithin
 
 from lead_harvester.models.source import RawSourceRecord
+from lead_harvester.models.canonical import CanonicalInstitution, Branch, ContactPoint
 from lead_harvester.models.resolution import ResolutionCandidate
 
 # Trigram similarity threshold (0 to 1). pg_trgm default is 0.3
@@ -73,6 +74,63 @@ async def generate_candidates(session: AsyncSession, record: RawSourceRecord) ->
                     raw_record_id=record.id,
                     target_raw_record_id=row.id,
                     blocking_strategy="geo_name"
+                ))
+
+    # Strategies 4-6: block against already-merged CanonicalInstitutions, so new
+    # incoming records can be linked/merged into entities that already exist
+    # instead of only ever matching other unresolved raw records.
+    seen_canonical_ids = set()
+
+    # Strategy 4: Exact Domain Match against a CanonicalInstitution
+    if record.normalized_domain:
+        stmt = select(CanonicalInstitution.id).where(
+            CanonicalInstitution.domain == record.normalized_domain
+        )
+        result = await session.execute(stmt)
+        for institution_id in result.scalars():
+            if institution_id not in seen_canonical_ids:
+                seen_canonical_ids.add(institution_id)
+                candidates.append(ResolutionCandidate(
+                    raw_record_id=record.id,
+                    target_canonical_id=institution_id,
+                    blocking_strategy="canonical_domain"
+                ))
+
+    # Strategy 5: Exact Phone Match against a CanonicalInstitution's ContactPoints
+    if record.normalized_phone:
+        stmt = select(ContactPoint.institution_id).where(
+            ContactPoint.contact_type == "phone",
+            ContactPoint.contact_value == record.normalized_phone
+        )
+        result = await session.execute(stmt)
+        for institution_id in result.scalars():
+            if institution_id not in seen_canonical_ids:
+                seen_canonical_ids.add(institution_id)
+                candidates.append(ResolutionCandidate(
+                    raw_record_id=record.id,
+                    target_canonical_id=institution_id,
+                    blocking_strategy="canonical_phone"
+                ))
+
+    # Strategy 6: Geographic Proximity + Name Similarity against a CanonicalInstitution's Branches
+    if record.location is not None and record.normalized_name:
+        stmt = (
+            select(Branch.institution_id)
+            .join(CanonicalInstitution, CanonicalInstitution.id == Branch.institution_id)
+            .where(
+                Branch.location.is_not(None),
+                ST_DWithin(Branch.location, record.location, GEOGRAPHIC_DISTANCE_METERS),
+                func.similarity(CanonicalInstitution.canonical_name, record.normalized_name) >= NAME_SIMILARITY_THRESHOLD
+            )
+        )
+        result = await session.execute(stmt)
+        for institution_id in result.scalars():
+            if institution_id not in seen_canonical_ids:
+                seen_canonical_ids.add(institution_id)
+                candidates.append(ResolutionCandidate(
+                    raw_record_id=record.id,
+                    target_canonical_id=institution_id,
+                    blocking_strategy="canonical_geo_name"
                 ))
 
     return candidates
