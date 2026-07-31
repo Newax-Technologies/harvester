@@ -58,6 +58,92 @@ def normalize_phone(phone: str, default_region: str | None = None) -> str:
     return re.sub(r"[^\d+]", "", phone)
 
 
+def normalize_website(url: str) -> str:
+    """
+    Canonicalizes a website URL for storage/display: adds a scheme only when
+    missing (preserving an explicit http:// rather than forcing https://,
+    since some institutions genuinely only serve http), lowercases the host,
+    strips a leading "www.", and drops a bare trailing "/" -- so
+    "WWW.Example.EDU/" and "https://example.edu" store identically instead
+    of comparing as different values downstream (dedup, display, sync).
+    Falls back to the original (unparseable) string rather than discarding
+    it -- unlike normalize_domain, which is only ever used as a blocking key
+    where an empty fallback is safe, this value is shown to users directly.
+    """
+    if not url:
+        return ""
+
+    original = url.strip()
+    if not original:
+        return ""
+
+    has_scheme = original.startswith(("http://", "https://"))
+    scheme_url = original if has_scheme else f"https://{original}"
+
+    try:
+        parsed = urlparse(scheme_url)
+        host = parsed.netloc.lower().removeprefix("www.")
+        if not host:
+            return original
+        path = parsed.path.rstrip("/")
+        return parsed._replace(netloc=host, path=path).geturl()
+    except Exception:
+        return original
+
+
+# Hosts extractors.SOCIAL_HOSTS also recognizes, mapped to the contact_type
+# value stored on a ContactPoint for that platform -- kept in sync with that
+# set by hand (same documented tradeoff resolution/blocking.py's
+# _predicted_decision comment already accepts for its own duplicated logic).
+_SOCIAL_PLATFORMS: dict[str, str] = {
+    "linkedin.com": "linkedin",
+    "instagram.com": "instagram",
+    "facebook.com": "facebook",
+    "x.com": "twitter",
+    "twitter.com": "twitter",
+    "youtube.com": "youtube",
+    "tiktok.com": "tiktok",
+    "reddit.com": "reddit",
+}
+
+
+def normalize_social_profile(url: str) -> tuple[str, str] | None:
+    """
+    Maps a social profile URL (as found by extractors.extract_social_profiles)
+    to (contact_type, canonical_url), e.g.
+    "https://www.facebook.com/SomePage/?ref=x" -> ("facebook",
+    "https://facebook.com/SomePage"). Returns None for an unrecognized host,
+    or for a bare platform homepage (no path beyond "/") -- that carries no
+    institution-identifying handle, so it isn't worth a ContactPoint.
+    """
+    if not url:
+        return None
+
+    try:
+        parsed = urlparse(url if "://" in url else f"https://{url}")
+    except Exception:
+        return None
+
+    host = parsed.netloc.lower().removeprefix("www.")
+    platform = next(
+        (
+            name
+            for domain, name in _SOCIAL_PLATFORMS.items()
+            if host == domain or host.endswith(f".{domain}")
+        ),
+        None,
+    )
+    if platform is None:
+        return None
+
+    path = parsed.path.rstrip("/")
+    if not path:
+        return None
+
+    canonical = parsed._replace(netloc=host, path=path, query="", fragment="").geturl()
+    return platform, canonical
+
+
 def normalize_name(name: str) -> str:
     """
     Lowercases and removes extra whitespace/punctuation for fuzzy matching.

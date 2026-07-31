@@ -224,7 +224,9 @@ async def test_display_fields_handles_website_shape(source_run):
     # "name" and over normalized_name for presentation.
     assert fields["name"] == "Beacon School"
     assert fields["address"] == "Karachi, Pakistan"
-    assert fields["website"] == "beacon.edu"
+    # normalize_website adds the missing scheme, same as normalize_domain
+    # already assumes when blocking on this value.
+    assert fields["website"] == "https://beacon.edu"
 
 
 @pytest.mark.asyncio
@@ -296,17 +298,118 @@ async def test_display_fields_handles_authorized_import_shape(source_run):
 
 
 @pytest.mark.asyncio
+async def test_display_fields_normalizes_website_across_sources(source_run):
+    # normalize_website is applied uniformly regardless of source shape --
+    # www./trailing-slash/casing differences must not leave the stored
+    # website value inconsistent depending on which connector supplied it.
+    record = google_places_record(
+        source_run.id, name="Beacon School", website="https://WWW.Beacon.EDU/"
+    )
+    fields = display_fields(record)
+    assert fields["website"] == "https://beacon.edu"
+
+
+@pytest.mark.asyncio
+async def test_merge_records_creates_social_contact_points_from_website_lead(
+    db_session, source_run
+):
+    # Social profile URLs discovered during a website crawl (Lead.social_profiles,
+    # via extractors.extract_social_profiles) previously reached raw_payload
+    # and were deduped across pages, but never became a queryable ContactPoint
+    # -- a real LinkedIn/Facebook/Instagram presence sat stranded in the raw
+    # ledger only.
+    record = website_record(
+        source_run.id,
+        name="Beacon School",
+        organization="Beacon School",
+        website="https://beacon.edu",
+        social_profiles=[
+            "https://www.facebook.com/BeaconSchoolOfficial/",
+            "https://www.linkedin.com/company/beacon-school",
+            "https://www.facebook.com/",  # bare homepage, no handle -- skipped
+            "https://example.edu/not-a-social-site",  # unrecognized host -- skipped
+        ],
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [record])
+    await db_session.flush()
+
+    contacts = (
+        (
+            await db_session.execute(
+                select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    social_contacts = {(c.contact_type, c.contact_value) for c in contacts}
+    assert ("facebook", "https://facebook.com/BeaconSchoolOfficial") in social_contacts
+    assert ("linkedin", "https://linkedin.com/company/beacon-school") in social_contacts
+    assert len(social_contacts) == 2
+
+
+@pytest.mark.asyncio
+async def test_attach_record_reuses_existing_social_contact_point(db_session, source_run):
+    # Same reasoning as the phone-dedup test above: a later crawl of the
+    # same site re-discovering the same social profile URL must not create
+    # a duplicate ContactPoint.
+    a = website_record(
+        source_run.id,
+        name="Beacon School",
+        organization="Beacon School",
+        website="https://beacon.edu",
+        social_profiles=["https://www.facebook.com/BeaconSchoolOfficial/"],
+    )
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+
+    b = website_record(
+        source_run.id,
+        name="Beacon School",
+        organization="Beacon School",
+        website="https://beacon.edu",
+        social_profiles=["https://facebook.com/BeaconSchoolOfficial"],
+        source_id="web:rediscovered",
+    )
+    db_session.add(b)
+    await db_session.flush()
+
+    await attach_record_to_institution(db_session, b, institution, target_branch=None)
+    await db_session.flush()
+
+    contacts = (
+        (
+            await db_session.execute(
+                select(ContactPoint).where(
+                    ContactPoint.institution_id == institution.id,
+                    ContactPoint.contact_type == "facebook",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(contacts) == 1
+
+
+@pytest.mark.asyncio
 async def test_display_fields_prefers_full_website_url_over_bare_domain(source_run):
     # normalized_domain is a bare host ("beacon.edu"), used for blocking, and
     # is truthy whenever a website exists at all -- it must not shadow the
-    # full origin ("https://www.beacon.edu") retained in raw_payload, or
-    # every website-sourced institution's `website` field becomes a
-    # non-usable bare domain instead of an absolute URL.
+    # full origin retained in raw_payload, or every website-sourced
+    # institution's `website` field becomes a non-usable bare domain instead
+    # of an absolute URL. normalize_website strips "www." the same way
+    # normalize_domain already does, so the two agree it's the same host.
     record = website_record(source_run.id, name="Beacon School", website="https://www.beacon.edu")
     assert record.normalized_domain == "beacon.edu"  # sanity check on the factory
 
     fields = display_fields(record)
-    assert fields["website"] == "https://www.beacon.edu"
+    assert fields["website"] == "https://beacon.edu"
 
 
 @pytest.mark.asyncio

@@ -12,7 +12,11 @@ from lead_harvester.models.canonical import (
 )
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, SourceType
-from lead_harvester.resolution.normalize import normalize_phone
+from lead_harvester.resolution.normalize import (
+    normalize_phone,
+    normalize_social_profile,
+    normalize_website,
+)
 from lead_harvester.services.person_candidate_service import resolve_person_candidate
 from lead_harvester.verification.confidence import bump_confidence, confidence_for_source_count
 
@@ -57,7 +61,18 @@ def display_fields(record: RawSourceRecord) -> dict[str, Any]:
     ManualLeadIn) -- reading a fixed (Google-Places-shaped) set of keys
     regardless of source silently produced blank addresses and null
     websites for every non-Google-Places record.
+
+    "website" is normalized once here (not per-branch below) so every
+    source's value is canonicalized the same way regardless of whether the
+    raw payload held a bare domain, a "www."-prefixed URL, or mixed case.
     """
+    fields = _raw_display_fields(record)
+    if fields.get("website"):
+        fields["website"] = normalize_website(fields["website"])
+    return fields
+
+
+def _raw_display_fields(record: RawSourceRecord) -> dict[str, Any]:
     payload = record.raw_payload or {}
 
     if record.source_type == SourceType.GOOGLE_PLACES:
@@ -104,6 +119,7 @@ def display_fields(record: RawSourceRecord) -> dict[str, Any]:
             "institution_type": "",
             "city": "",
             "country_code": "",
+            "social_profiles": payload.get("social_profiles") or [],
         }
 
     if record.source_type == SourceType.MANUAL:
@@ -386,6 +402,15 @@ async def _add_contacts_and_provenance(
                 role=contact.get("role") or None,
             )
         return
+
+    for social_url in fields.get("social_profiles") or []:
+        normalized_social = normalize_social_profile(social_url)
+        if normalized_social is None:
+            continue
+        platform, canonical_url = normalized_social
+        await _add_contact_if_present(
+            session, institution, record, contact_type=platform, contact_value=canonical_url
+        )
 
     await _add_contact_if_present(
         session, institution, record, contact_type="phone", contact_value=record.normalized_phone

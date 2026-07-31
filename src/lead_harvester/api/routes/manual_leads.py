@@ -34,7 +34,12 @@ from lead_harvester.models.canonical import (
 )
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
-from lead_harvester.resolution.normalize import normalize_domain, normalize_name, normalize_phone
+from lead_harvester.resolution.normalize import (
+    normalize_domain,
+    normalize_name,
+    normalize_phone,
+    normalize_website,
+)
 from lead_harvester.services.lead_profile_service import refresh_lead_profile
 from lead_harvester.services.outbox_service import enqueue_and_attempt_delivery
 from lead_harvester.services.person_candidate_service import resolve_person_candidate
@@ -241,7 +246,7 @@ async def create_manual_lead(
         canonical_name=payload.institution_name.strip(),
         institution_type=payload.institution_type,
         domain=domain,
-        website=payload.website,
+        website=normalize_website(payload.website) if payload.website else None,
         status=op_status,
         # confidence_score is a 0-100 scale (an API/UI-facing percentage --
         # see verification/confidence.py, canonical/merger.py's own

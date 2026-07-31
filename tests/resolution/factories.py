@@ -45,6 +45,7 @@ def website_record(
     email: str | None = None,
     website: str | None = "riverside.edu",
     location_text: str = "Lahore, Pakistan",
+    social_profiles: list[str] | None = None,
     source_id: str | None = None,
 ) -> RawSourceRecord:
     source_id = source_id or website or f"web:{uuid.uuid4().hex[:8]}"
@@ -58,7 +59,7 @@ def website_record(
         "phone": phone or "",
         "website": website or "",
         "location": location_text,
-        "social_profiles": [],
+        "social_profiles": social_profiles or [],
         "evidence": "",
         "raw": {},
     }

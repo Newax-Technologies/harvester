@@ -187,12 +187,30 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   query the database directly for that). Known v1 limitation: no separate retention/expiry
   policy for this table (`services/compliance_service.py::purge_expired_raw_records` only ever
   targeted `RawSourceRecord`).
-- **Normalization**: partial, lives in `resolution/normalize.py` rather than its own module;
-  covers phone/domain/name, plus `normalize_city` and `country_to_iso2` (a ~55-entry country
-  name/alias -> ISO-2 table), the latter wired into `sources/authorized_imports.py` so a CSV row
-  with a free-text `country` column but no explicit `country_code` still gets a real ISO-2 code
-  instead of silently falling back to the import's default. No `website`/`social_handle`
-  normalization yet.
+- **Normalization**: done for the pieces that map onto live data, still living in
+  `resolution/normalize.py` rather than its own module -- moving already-correct, already-tested
+  functions into a new `normalization/` package purely for naming purity would have been pure
+  churn, the same call this doc's Ingestion entry already made. Covers phone/domain/name/city/
+  country (`country_to_iso2`, a ~55-entry country name/alias -> ISO-2 table wired into
+  `sources/authorized_imports.py`), plus the two pieces that were genuinely missing:
+  `normalize_website` (adds a scheme only when missing -- preserving an explicit `http://` rather
+  than forcing `https://`, since some institutions genuinely only serve http -- lowercases the
+  host, strips `www.` and a bare trailing `/`) and `normalize_social_profile` (maps a social
+  profile URL to `(contact_type, canonical_url)` for one of eight recognized platforms, or `None`
+  for an unrecognized host or a bare platform homepage with no identifying handle). Both are
+  applied uniformly across every source in `canonical/merger.py::display_fields` (website) and
+  `_add_contacts_and_provenance` (social profiles), rather than per-source-type special-casing.
+  Fixed a real, previously-silent gap in the same pass: `sources/web.py`'s crawler already
+  extracted social profile links into `Lead.social_profiles` (via `extractors.extract_social_profiles`)
+  and deduped them across pages, but nothing downstream ever turned that into a `ContactPoint` --
+  a discovered LinkedIn/Facebook/Instagram/etc. presence sat stranded in `RawSourceRecord.raw_payload`
+  only, permanently invisible to dossiers, exports, and outreach. `manual_leads.py` also now
+  normalizes `payload.website` the same way before storing it on `CanonicalInstitution`, so a
+  manually entered site is consistent with a scraped one. Known v1 limitation: `LeadSyncEmitter`
+  only syncs `phone`/`email`/`whatsapp`/`telegram` contact types to core-newax (see module 13's
+  `SUPPORTED_CONTACT_TYPES`) -- the new social contact_types are stored and usable inside
+  harvester (dossiers, exports, outreach eligibility) but not yet mirrored to Core, a deliberate,
+  already-documented scope boundary of that integration, not a gap in this module.
 - **Resolution**: done for the live ingestion paths. `resolution/orchestrator.py` wires
   blocking + scoring into `pipeline.py` (both Google Places and the web crawler), with a human
   review path for ambiguous (PENDING) matches via the `resolution-reviews` API. See tracked
