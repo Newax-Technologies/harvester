@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,11 +24,12 @@ async def list_profiles(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     min_score: int | None = Query(None, ge=0, le=100),
+    sector_id: uuid.UUID | None = Query(None),
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
     """List lead profiles, highest-scoring first."""
-    return await list_lead_profiles(session, limit, offset, min_score)
+    return await list_lead_profiles(session, limit, offset, min_score, sector_id)
 
 
 @router.get("/{institution_id}", response_model=LeadProfileResponse)

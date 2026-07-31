@@ -22,10 +22,12 @@ from lead_harvester.api.errors import ResourceNotFoundError
 from lead_harvester.config import Settings
 from lead_harvester.config import settings as app_settings
 from lead_harvester.models.audit import AuditLog
+from lead_harvester.models.canonical import CanonicalInstitution
 from lead_harvester.models.compliance import SuppressionEntry
 from lead_harvester.models.outbox import EventOutbox, OutboxStatus
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.resolution import ResolutionCandidate
+from lead_harvester.models.sector import Sector
 from lead_harvester.models.source import (
     RawPageSnapshot,
     RawSourceRecord,
@@ -233,12 +235,24 @@ async def compute_operational_metrics(session: AsyncSession) -> dict[str, Any]:
     )
     suppressed_contacts = await session.scalar(select(func.count(SuppressionEntry.id)))
 
+    sector_breakdown_rows = await session.execute(
+        select(Sector.code, func.count(CanonicalInstitution.id))
+        .join(CanonicalInstitution, CanonicalInstitution.sector_id == Sector.id)
+        .group_by(Sector.code)
+    )
+    institutions_by_sector = dict(sector_breakdown_rows.all())
+    unclassified_count = await session.scalar(
+        select(func.count(CanonicalInstitution.id)).where(CanonicalInstitution.sector_id.is_(None))
+    )
+    institutions_by_sector["unclassified"] = unclassified_count or 0
+
     return {
         **summary,
         "outbox_pending": outbox_pending or 0,
         "outbox_dead_letter": outbox_dead_letter or 0,
         "open_data_quality_flags": open_flags or 0,
         "suppressed_contacts": suppressed_contacts or 0,
+        "institutions_by_sector": institutions_by_sector,
     }
 
 

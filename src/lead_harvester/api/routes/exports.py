@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +18,7 @@ async def export_leads_route(
     status: OperatingStatus | None = Query(None),
     min_score: int | None = Query(None, ge=0),
     qualification_status: QualificationStatus | None = Query(None),
+    sector_id: uuid.UUID | None = Query(None),
     limit: int = Query(1000, ge=1, le=10000),
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
@@ -30,6 +33,7 @@ async def export_leads_route(
         status=status,
         min_score=min_score,
         qualification_status=qualification_status,
+        sector_id=sector_id,
         limit=limit,
     )
     if format == "json":

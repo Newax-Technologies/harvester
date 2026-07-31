@@ -57,6 +57,7 @@ class OperationalMetricsResponse(BaseSchema):
     outbox_dead_letter: int
     open_data_quality_flags: int
     suppressed_contacts: int
+    institutions_by_sector: dict[str, int]
 
 
 class HealthResponse(BaseSchema):

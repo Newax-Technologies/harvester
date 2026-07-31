@@ -24,6 +24,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import uuid
 from dataclasses import asdict, dataclass
 
 from sqlalchemy import select
@@ -41,6 +42,7 @@ class LeadExportRow:
     institution_id: str
     institution_name: str
     institution_type: str
+    sector_id: str
     domain: str
     website: str
     operating_status: str
@@ -65,6 +67,7 @@ async def build_lead_export_rows(
     status: OperatingStatus | None = None,
     min_score: int | None = None,
     qualification_status: QualificationStatus | None = None,
+    sector_id: uuid.UUID | None = None,
     limit: int = 1000,
 ) -> list[LeadExportRow]:
     """
@@ -85,6 +88,8 @@ async def build_lead_export_rows(
     )
     if status is not None:
         stmt = stmt.where(CanonicalInstitution.status == status)
+    if sector_id is not None:
+        stmt = stmt.where(CanonicalInstitution.sector_id == sector_id)
     if min_score is not None or qualification_status is not None:
         eligible_institutions = select(LeadProfile.institution_id)
         if min_score is not None:
@@ -126,6 +131,7 @@ async def build_lead_export_rows(
                     institution_id=str(institution.id),
                     institution_name=institution.canonical_name,
                     institution_type=institution.institution_type,
+                    sector_id=str(institution.sector_id) if institution.sector_id else "",
                     domain=institution.domain or "",
                     website=institution.website or "",
                     operating_status=institution.status.value,

@@ -414,6 +414,7 @@ async def export_leads(args: argparse.Namespace) -> int:
                 if args.qualification_status
                 else None
             ),
+            sector_id=args.sector_id,
             limit=args.limit,
         )
 
@@ -804,6 +805,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     export_leads_parser.add_argument(
         "--limit", type=int, default=1000, help="Max institutions to include"
+    )
+    export_leads_parser.add_argument(
+        "--sector-id", type=uuid.UUID, default=None, help="Restrict export to one sector"
     )
 
     # -- list-sectors -----------------------------------------------------------

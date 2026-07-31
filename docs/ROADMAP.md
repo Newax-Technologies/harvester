@@ -179,11 +179,13 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
     was applied, so unfiltered batches keep full sector visibility too. `list_reservations` gains
     a matching `sector_id` filter. `GET/POST /api/v1/daily-selection*` and `select-daily-leads`
     (`--sector-id`) gain a matching `sector_id` param/filter.
-19. **Sector Visibility in Exports & Operations** (`exports/`, `operations/`) — depends on 16.
-    `GET /api/v1/exports/leads`, `GET /api/v1/lead-profiles*`, and
-    `services/operations_service.py::compute_operational_metrics` all gain a `sector_id`
-    filter/breakdown, so a downstream consumer or dashboard can scope to (or compare across)
-    sectors instead of only ever seeing one undifferentiated pool of leads.
+19. **Sector Visibility in Exports & Operations** (`exports/`, `operations/`) — done. Depends
+    on 16. `GET /api/v1/exports/leads` (+ `export-leads --sector-id`) gains a `sector_id`
+    filter and a `sector_id` column on every export row; `GET /api/v1/lead-profiles` gains a
+    `sector_id` filter; `services/operations_service.py::compute_operational_metrics` gains an
+    `institutions_by_sector` breakdown (sector code → institution count, plus an
+    `unclassified` bucket) so a downstream consumer or dashboard can scope to (or compare
+    across) sectors instead of only ever seeing one undifferentiated pool of leads.
 20. **Service-Gap / Infrastructure Opportunity Scoring** (`intelligence/`, `profiles/`) — depends
     on module 6's `technology_detector.py` and module 7's `size_estimation.py`; cross-cutting,
     not sector-dependent (NEWAX sells the same infrastructure — websites, LMS/operational

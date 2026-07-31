@@ -232,6 +232,7 @@ async def list_lead_profiles(
     limit: int = 50,
     offset: int = 0,
     min_score: int | None = None,
+    sector_id: uuid.UUID | None = None,
 ) -> PaginatedLeadProfiles:
     """Lead profiles ranked by score, richest (highest-scoring) first."""
     query = (
@@ -241,6 +242,8 @@ async def list_lead_profiles(
     )
     if min_score is not None:
         query = query.where(LeadProfile.overall_score >= min_score)
+    if sector_id is not None:
+        query = query.where(CanonicalInstitution.sector_id == sector_id)
 
     total = await session.scalar(select(func.count()).select_from(query.subquery()))
 
