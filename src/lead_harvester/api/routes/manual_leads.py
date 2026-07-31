@@ -19,7 +19,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.api.dependencies import get_db_session, get_lead_sync_emitter
@@ -34,9 +34,19 @@ from lead_harvester.models.canonical import (
 )
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
-from lead_harvester.resolution.normalize import normalize_domain, normalize_name, normalize_phone
+from lead_harvester.resolution.normalize import (
+    normalize_domain,
+    normalize_name,
+    normalize_phone,
+    normalize_social_handle,
+    normalize_website,
+)
 from lead_harvester.services.lead_profile_service import refresh_lead_profile
 from lead_harvester.services.outbox_service import enqueue_and_attempt_delivery
+
+# Contact types normalize_social_handle applies to -- same set
+# resolution/normalize.py derives from extractors.SOCIAL_HOSTS.
+_SOCIAL_CONTACT_TYPES = {"linkedin", "instagram", "facebook", "x", "twitter", "youtube", "tiktok", "reddit"}
 
 router = APIRouter(prefix="/leads", tags=["Manual Lead Entry"])
 
@@ -63,6 +73,23 @@ class ContactEntry(BaseModel):
         # comparisons, leaving the contact unnormalized and dropped from sync.
         return value.strip().lower()
 
+    @model_validator(mode="after")
+    def _normalize_social_contact_value(self) -> "ContactEntry":
+        # A manually typed social profile URL/handle needs the same
+        # normalize_social_handle a web-crawled one gets (see
+        # canonical/merger.py's _add_contacts_and_provenance) -- otherwise
+        # "linkedin.com/company/Example" and "https://www.linkedin.com/
+        # company/example/" would be treated as two different contacts for
+        # the same account just because one was typed by hand. Needs a
+        # model_validator (not a field_validator on contact_value alone)
+        # since it depends on contact_type, which is only normalized by
+        # the field_validator above once this model's fields are all set.
+        if self.contact_type in _SOCIAL_CONTACT_TYPES:
+            normalized = normalize_social_handle(self.contact_value)
+            if normalized:
+                self.contact_value = normalized
+        return self
+
 
 class ManualLeadIn(BaseModel):
     # Institution
@@ -74,6 +101,21 @@ class ManualLeadIn(BaseModel):
     )
     website: str | None = Field(default=None, max_length=500)
     operating_status: str = Field(default="operational")
+
+    @field_validator("website")
+    @classmethod
+    def _normalize_website_value(cls, value: str | None) -> str | None:
+        # A user typing a bare "beacon.edu" (no scheme) would otherwise be
+        # stored verbatim on CanonicalInstitution.website -- not a usable
+        # absolute URL for a UI link or the lead_sync webhook payload.
+        # normalize_website adds a scheme and lowercases the host but
+        # deliberately keeps "www."/path/query, matching how
+        # canonical/merger.py's display_fields() treats a connector's own
+        # already-structured website value.
+        if value is None:
+            return None
+        normalized = normalize_website(value)
+        return normalized or None
 
     # Location
     address: str = Field(default="", max_length=1000)

@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from sqlalchemy import select
 
@@ -1123,3 +1125,47 @@ async def test_backfilling_a_contacts_name_resolves_a_person_candidate(db_sessio
         )
     ).scalar_one()
     assert candidate.display_name == "Ali Khan"
+
+
+@pytest.mark.asyncio
+async def test_merge_records_surfaces_crawled_social_profiles_as_contact_points(
+    db_session, source_run
+):
+    # ingestion/web_crawler.py's Lead.social_profiles was extracted from the
+    # page and stored in raw_payload, but _add_contacts_and_provenance
+    # previously never read that key at all -- a crawled LinkedIn/Instagram
+    # link was captured into the raw ledger and then silently dropped,
+    # never becoming a ContactPoint.
+    record = website_record(
+        source_run.id,
+        name="Riverside Academy",
+        social_profiles=[
+            "https://www.LinkedIn.com/company/Riverside/",
+            "https://twitter.com/RiversideAcademy",
+        ],
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [record])
+    await db_session.flush()
+
+    contacts = (
+        (
+            await db_session.execute(
+                select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    by_type = {c.contact_type: c.contact_value for c in contacts}
+    assert by_type["linkedin"] == "https://linkedin.com/company/riverside"
+    # Folded to the current "x" platform/host, not left as "twitter".
+    assert by_type["x"] == "https://x.com/riversideacademy"
+
+
+def test_display_fields_defaults_social_profiles_to_empty_list():
+    record = website_record(uuid.uuid4(), name="No Socials School")
+    fields = display_fields(record)
+    assert fields["social_profiles"] == []

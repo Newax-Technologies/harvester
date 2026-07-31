@@ -136,8 +136,25 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   either leak per-source special cases back out through it or force them into an awkward common
   shape, and this layer already has real concurrency-sensitive behavior (savepoints, `SELECT
   ... FOR UPDATE SKIP LOCKED` claiming) that's safer left alone than refactored blind.
-- **Normalization**: partial, lives in `resolution/normalize.py` rather than its own module;
-  covers phone/domain, not yet a full city/country normalization layer.
+- **Normalization**: lives in `resolution/normalize.py` rather than its own module (unlike
+  ingestion above, folding this into a dedicated module wasn't attempted -- the existing
+  functions are small, independent, and already imported directly wherever needed; splitting
+  them out wouldn't change behavior, just relocate five functions). Covers phone
+  (`normalize_phone`), domain (`normalize_domain`), name (`normalize_name`), website
+  (`normalize_website` -- added: keeps a website a usable absolute URL, unlike normalize_domain's
+  bare matching-key host; wired into `ManualLeadIn.website`'s validator, deliberately NOT into
+  `canonical/merger.py::display_fields()`, whose own tests assert a connector's raw website value
+  is preserved as-is), and social_handle (`normalize_social_handle` + `social_platform_for_host`
+  -- added: folds twitter.com/x.com to one host, strips www./query/trailing-slash; wired into
+  both `ManualLeadIn.contacts[].contact_value` for social contact_types and
+  `canonical/merger.py::_add_contacts_and_provenance`, which previously read
+  `ingestion/web_crawler.py`'s extracted `Lead.social_profiles` from raw_payload but never
+  surfaced them as ContactPoints at all -- a crawled LinkedIn/Instagram link was captured then
+  silently dropped past the raw ledger). city/country_code have no dedicated normalize_* function
+  -- handled ad hoc at each input boundary instead (`ManualLeadIn`'s `_uppercase_country_code`/
+  `_require_non_blank_city` Pydantic validators, `sources/authorized_imports.py`'s
+  `.strip().upper()`); consolidating those into resolution/normalize.py alongside the rest is
+  unbuilt.
 - **Resolution**: done for the live ingestion paths. `resolution/orchestrator.py` wires
   blocking + scoring into `pipeline.py` (both Google Places and the web crawler), with a human
   review path for ambiguous (PENDING) matches via the `resolution-reviews` API. See tracked

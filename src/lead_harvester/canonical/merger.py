@@ -13,7 +13,12 @@ from lead_harvester.models.canonical import (
 )
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, SourceType
-from lead_harvester.resolution.normalize import normalize_name, normalize_phone
+from lead_harvester.resolution.normalize import (
+    normalize_name,
+    normalize_phone,
+    normalize_social_handle,
+    social_platform_for_host,
+)
 from lead_harvester.verification.confidence import bump_confidence, confidence_for_source_count
 
 # Google Places' response (the only live raw-record source today) does not
@@ -104,6 +109,13 @@ def display_fields(record: RawSourceRecord) -> dict[str, Any]:
             "institution_type": "",
             "city": "",
             "country_code": "",
+            # ingestion/web_crawler.py's Lead.social_profiles (LinkedIn/
+            # Instagram/etc. links found on the page) -- see
+            # _add_contacts_and_provenance, which previously never read this
+            # key at all, so a crawled social profile was captured into
+            # raw_payload and then silently dropped: never a ContactPoint,
+            # never visible past the raw ledger.
+            "social_profiles": payload.get("social_profiles") or [],
         }
 
     if record.source_type == SourceType.MANUAL:
@@ -338,6 +350,14 @@ async def _add_contacts_and_provenance(
     await _add_contact_if_present(
         session, institution, record, contact_type="email", contact_value=fields.get("email")
     )
+    for social_url in fields.get("social_profiles", []):
+        await _add_contact_if_present(
+            session,
+            institution,
+            record,
+            contact_type=social_platform_for_host(social_url) or "social",
+            contact_value=normalize_social_handle(social_url),
+        )
 
 
 async def _resolve_person_candidate(
