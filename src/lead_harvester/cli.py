@@ -497,6 +497,37 @@ async def ops_page_snapshots(args: argparse.Namespace) -> int:
     return 0
 
 
+async def list_sectors_cmd(args: argparse.Namespace) -> int:
+    """List configured Sectors (docs/ROADMAP.md module 16)."""
+    from .database import get_session
+    from .services.sector_service import list_sectors
+
+    async with get_session() as session:
+        sectors = await list_sectors(session)
+
+    print(f"\n[Sectors] {len(sectors)} configured")
+    for sector in sectors:
+        print(f"  {sector.code} ({sector.display_name}): {', '.join(sector.institution_types)}")
+    print()
+    return 0
+
+
+async def classify_sectors_cmd(args: argparse.Namespace) -> int:
+    """
+    One-time backfill: assign a Sector to every institution that predates
+    this module (or was created before its matching Sector existed).
+    """
+    from .database import get_session
+    from .services.sector_service import classify_all_unclassified
+
+    async with get_session() as session:
+        count = await classify_all_unclassified(session, limit=args.limit)
+        await session.commit()
+
+    print(f"\n✓ Classified {count} institution(s) into a sector.\n")
+    return 0
+
+
 async def list_person_candidates_cmd(args: argparse.Namespace) -> int:
     """List discovered person candidates, most recently seen first (docs/ROADMAP.md module 1)."""
     import uuid as uuid_module
@@ -764,6 +795,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit", type=int, default=1000, help="Max institutions to include"
     )
 
+    # -- list-sectors -----------------------------------------------------------
+    subparsers.add_parser(
+        "list-sectors",
+        help="List configured Sectors (business verticals) and their institution_types",
+    )
+
+    # -- classify-sectors ---------------------------------------------------------
+    classify_sectors_parser = subparsers.add_parser(
+        "classify-sectors",
+        help="One-time backfill: assign a Sector to every unclassified institution",
+    )
+    classify_sectors_parser.add_argument(
+        "--limit", type=int, default=500, help="Max unclassified institutions to process this run"
+    )
+
     # -- ops-health -----------------------------------------------------------
     subparsers.add_parser(
         "ops-health",
@@ -927,6 +973,8 @@ def main() -> None:
         "ops-metrics": lambda: sys.exit(asyncio.run(ops_metrics(args))),
         "ops-source-health": lambda: sys.exit(asyncio.run(ops_source_health(args))),
         "ops-page-snapshots": lambda: sys.exit(asyncio.run(ops_page_snapshots(args))),
+        "list-sectors": lambda: sys.exit(asyncio.run(list_sectors_cmd(args))),
+        "classify-sectors": lambda: sys.exit(asyncio.run(classify_sectors_cmd(args))),
         "list-person-candidates": lambda: sys.exit(asyncio.run(list_person_candidates_cmd(args))),
         "list-signals": lambda: sys.exit(asyncio.run(list_signals_cmd(args))),
         "linkedin-send": lambda: sys.exit(asyncio.run(linkedin_send(args))),

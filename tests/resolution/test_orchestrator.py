@@ -8,6 +8,7 @@ from lead_harvester.canonical.merger import find_canonical_for_raw_record, merge
 from lead_harvester.models.canonical import Branch
 from lead_harvester.models.profile import LeadProfile
 from lead_harvester.models.resolution import MatchAssessment, MatchDecision
+from lead_harvester.models.sector import Sector
 from lead_harvester.resolution.orchestrator import resolve_incoming_record
 
 from .factories import google_places_record
@@ -334,3 +335,45 @@ async def test_link_only_creates_own_institution(db_session, source_run):
 
     assert inst_b is not None
     assert inst_b.id != inst_a.id
+
+
+@pytest.mark.asyncio
+async def test_job_sector_hint_applies_only_when_institution_type_leaves_it_unclassified(
+    db_session, source_run
+):
+    # docs/ROADMAP.md module 16: job.yaml's `sector` hint is a fallback,
+    # never overriding institution_type-based classification.
+    hospitality = Sector(code="hospitality", display_name="Hospitality", institution_types=[])
+    db_session.add(hospitality)
+    await db_session.flush()
+
+    # No sector configured with institution_type "school" -- classification
+    # inside merge_records leaves this institution unclassified, so the
+    # hint should apply.
+    record = google_places_record(source_run.id, name="Unclassified School", lat=5.0, lng=5.0)
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await resolve_incoming_record(db_session, record, job_sector_hint="hospitality")
+
+    assert institution is not None
+    assert institution.sector_id == hospitality.id
+
+
+@pytest.mark.asyncio
+async def test_job_sector_hint_never_overrides_institution_type_classification(
+    db_session, source_run
+):
+    education = Sector(code="education", display_name="Education", institution_types=["school"])
+    hospitality = Sector(code="hospitality", display_name="Hospitality", institution_types=[])
+    db_session.add_all([education, hospitality])
+    await db_session.flush()
+
+    record = google_places_record(source_run.id, name="Classified School", lat=6.0, lng=6.0)
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await resolve_incoming_record(db_session, record, job_sector_hint="hospitality")
+
+    assert institution is not None
+    assert institution.sector_id == education.id

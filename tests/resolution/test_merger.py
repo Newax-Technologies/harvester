@@ -10,8 +10,22 @@ from lead_harvester.canonical.merger import (
 )
 from lead_harvester.models.canonical import Branch, ContactPoint, OperatingStatus
 from lead_harvester.models.provenance import FieldProvenance
+from lead_harvester.models.sector import Sector
 
 from .factories import google_places_record, website_record
+
+
+async def _seed_education_sector(db_session) -> Sector:
+    sector = Sector(
+        code="education",
+        display_name="Education",
+        institution_types=["school", "college", "university"],
+        icp_criteria={},
+        qualification_rules={},
+    )
+    db_session.add(sector)
+    await db_session.flush()
+    return sector
 
 
 @pytest.mark.asyncio
@@ -1118,6 +1132,47 @@ async def test_merge_records_normalizes_declared_phone_contact_to_e164(db_sessio
     ).scalar_one()
     assert contact.contact_type == "phone"
     assert contact.contact_value == "+923001234567"
+
+
+@pytest.mark.asyncio
+async def test_merge_records_classifies_sector_from_institution_type(db_session, source_run):
+    # docs/ROADMAP.md module 16 -- google_places_record's institution_type
+    # is "school", which should auto-classify into the seeded education
+    # sector at creation time, same as institution_type itself is decided.
+    education = await _seed_education_sector(db_session)
+    record = google_places_record(source_run.id, name="Beacon School")
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [record])
+
+    assert institution.sector_id == education.id
+
+
+@pytest.mark.asyncio
+async def test_attach_record_to_institution_backfills_sector_when_institution_type_becomes_known(
+    db_session, source_run
+):
+    # A website-first institution has institution_type="" (WEBSITE's
+    # display_fields never supplies one), so it starts unclassified. A
+    # later Google Places record backfills institution_type -- sector
+    # classification must be re-attempted at that point too, not only at
+    # creation time.
+    education = await _seed_education_sector(db_session)
+    a = website_record(source_run.id, name="Riverside Academy", organization="Riverside Academy")
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+    assert institution.sector_id is None
+
+    b = google_places_record(source_run.id, name="Riverside Academy")
+    db_session.add(b)
+    await db_session.flush()
+
+    await attach_record_to_institution(db_session, b, institution, target_branch=None)
+
+    assert institution.sector_id == education.id
 
 
 @pytest.mark.asyncio

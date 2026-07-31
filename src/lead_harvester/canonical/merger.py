@@ -18,6 +18,7 @@ from lead_harvester.resolution.normalize import (
     normalize_website,
 )
 from lead_harvester.services.person_candidate_service import resolve_person_candidate
+from lead_harvester.services.sector_service import classify_institution_sector
 from lead_harvester.verification.confidence import bump_confidence, confidence_for_source_count
 
 # Google Places' response (the only live raw-record source today) does not
@@ -580,6 +581,11 @@ async def merge_records(
     # We must flush to get the UUID for the institution so we can link Branches and Provenance
     await session.flush()
 
+    # docs/ROADMAP.md module 16: auto-classify into a Sector from
+    # institution_type at creation time, same as institution_type itself
+    # is decided here -- keeps the two from ever drifting apart.
+    await classify_institution_sector(session, institution)
+
     # Record Provenance for the core fields
     session.add(
         FieldProvenance(
@@ -683,6 +689,11 @@ async def attach_record_to_institution(
         institution.domain = record.normalized_domain
     if not institution.institution_type and fields["institution_type"]:
         institution.institution_type = fields["institution_type"]
+    # A backfilled institution_type (immediately above) may now resolve to
+    # a sector that didn't match before -- classify_institution_sector
+    # itself no-ops if sector_id is already set, so this is safe to call
+    # unconditionally here too.
+    await classify_institution_sector(session, institution)
 
     if target_branch is not None:
         # Operating status is per-location evidence -- only trust it as the

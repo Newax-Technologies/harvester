@@ -114,7 +114,7 @@ DB-configurable dimension rather than an assumption baked into `Settings` and a 
 decomposed into four modules so each lands (and is reviewed) as its own unit, in this order since
 16 is the foundation the other three build on.
 
-16. **Sector / Vertical Registry** (`sectors/`) — `Sector` model (`code`, `display_name`,
+16. **Sector / Vertical Registry** (`sectors/`) — done. `Sector` model (`code`, `display_name`,
     `institution_types` membership list, `icp_criteria`, `qualification_rules`, all
     DB-configurable, not hardcoded) + migration; `canonical_institutions.sector_id` (nullable FK);
     `services/sector_service.py::resolve_sector_for_institution_type` wired into every path that
@@ -146,6 +146,9 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
     and `icp_criteria`/`qualification_rules` per row start empty (falling back to today's global
     `Settings`-based behavior per module 17) rather than guessed — an operator fills those in
     per sector as real targeting criteria become known, not invented here.
+
+    Invokable via the `list-sectors`/`classify-sectors` CLI commands or
+    `GET/POST/PATCH /api/v1/sectors*`.
 17. **Sector-Aware ICP & Qualification** (`intelligence/`, `qualification/`) — depends on 16.
     `intelligence/icp_matching.py::score_icp_fit` reads `institution.sector.icp_criteria` when a
     sector is assigned, falling back to today's global `Settings.icp_target_institution_types`/

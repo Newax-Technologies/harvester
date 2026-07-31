@@ -38,6 +38,15 @@ class CanonicalInstitution(Base):
         Enum(OperatingStatus), default=OperatingStatus.OPERATIONAL, nullable=False
     )
 
+    # Business vertical (education, healthcare, ...) -- see models/sector.py
+    # and docs/ROADMAP.md module 16. Nullable: an institution whose
+    # institution_type doesn't match any configured Sector's
+    # institution_types stays unclassified rather than being forced into a
+    # wrong bucket.
+    sector_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("sectors.id"), nullable=True, index=True
+    )
+
     # Trust score based on the number and quality of sources that confirm this entity
     confidence_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 

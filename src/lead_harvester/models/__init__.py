@@ -16,6 +16,7 @@ from .provenance import FieldProvenance
 from .qualification import QualificationAssessment, QualificationStatus
 from .research import FindingType, JobStatus, ResearchFinding, ResearchJob
 from .resolution import MatchAssessment, MatchDecision, ResolutionCandidate, ReviewOutcome
+from .sector import Sector
 from .signal import Signal, SignalType
 from .source import RawPageSnapshot, RawSourceRecord, RunStatus, SourceRun, SourceType
 from .verification import DataQualityFlag, FlagStatus, FlagType
@@ -59,6 +60,7 @@ __all__ = [
     "ResolutionCandidate",
     "ReviewOutcome",
     "RunStatus",
+    "Sector",
     "Signal",
     "SignalType",
     "SizeTier",

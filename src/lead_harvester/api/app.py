@@ -19,6 +19,7 @@ from lead_harvester.api.routes import (
     operations,
     outbox,
     resolution_reviews,
+    sectors,
     verification,
 )
 
@@ -100,5 +101,6 @@ api_router.include_router(outbox.router)
 api_router.include_router(exports.router)
 api_router.include_router(operations.router)
 api_router.include_router(entities.router)
+api_router.include_router(sectors.router)
 
 app.include_router(api_router)

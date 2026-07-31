@@ -25,6 +25,7 @@ from lead_harvester.database import engine as manual_leads_engine
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.profile import LeadProfile
+from lead_harvester.models.sector import Sector
 from lead_harvester.models.source import RawSourceRecord
 from lead_harvester.resolution.normalize import normalize_domain, normalize_phone
 
@@ -238,6 +239,30 @@ async def test_create_manual_lead_preserves_country_code_in_raw_payload(
         )
     ).scalar_one()
     assert record.raw_payload["country_code"] == "PK"
+
+
+@pytest.mark.asyncio
+async def test_create_manual_lead_classifies_sector_from_institution_type(
+    manual_leads_client, db_session, fake_emitter, mock_webhook_post
+):
+    # docs/ROADMAP.md module 16 -- VALID_PAYLOAD's institution_type is
+    # "school", which should auto-classify into the seeded education
+    # sector, same as canonical/merger.py does for scraped institutions.
+    education = Sector(code="education", display_name="Education", institution_types=["school"])
+    db_session.add(education)
+    await db_session.commit()
+
+    response = await manual_leads_client.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
+    assert response.status_code == 201
+
+    institution = (
+        await db_session.execute(
+            select(CanonicalInstitution).where(
+                CanonicalInstitution.canonical_name == VALID_PAYLOAD["institution_name"]
+            )
+        )
+    ).scalar_one()
+    assert institution.sector_id == education.id
 
 
 @pytest.mark.asyncio

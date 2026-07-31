@@ -43,6 +43,7 @@ from lead_harvester.resolution.normalize import (
 from lead_harvester.services.lead_profile_service import refresh_lead_profile
 from lead_harvester.services.outbox_service import enqueue_and_attempt_delivery
 from lead_harvester.services.person_candidate_service import resolve_person_candidate
+from lead_harvester.services.sector_service import classify_institution_sector
 
 router = APIRouter(prefix="/leads", tags=["Manual Lead Entry"])
 
@@ -259,6 +260,11 @@ async def create_manual_lead(
     )
     session.add(institution)
     await session.flush()
+
+    # docs/ROADMAP.md module 16: auto-classify into a Sector from
+    # institution_type, same as canonical/merger.py does for scraped/
+    # imported institutions.
+    await classify_institution_sector(session, institution)
 
     # Same "branch_membership" FieldProvenance link canonical/merger.py's
     # merge_records() always writes. Without it, find_canonical_for_raw_record

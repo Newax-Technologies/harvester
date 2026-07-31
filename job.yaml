@@ -2,7 +2,12 @@ seeds:
   - https://www.lums.edu.pk/
   - https://nust.edu.pk/
   - https://www.fast.edu.pk/
-  
+
+# Optional: a Sector code (see GET /api/v1/sectors for the configured
+# list) applied only as a fallback, when an institution's institution_type
+# doesn't resolve to any configured sector on its own.
+# sector: education
+
 # Google Places Configuration (requires valid API key)
 # cities:
 #   Islamabad:

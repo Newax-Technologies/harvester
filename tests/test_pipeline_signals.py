@@ -2,6 +2,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import select
 
+from lead_harvester.config import Settings
 from lead_harvester.models.canonical import CanonicalInstitution
 from lead_harvester.models.signal import Signal, SignalType
 from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
@@ -15,6 +16,11 @@ async def source_run(db_session):
     db_session.add(run)
     await db_session.flush()
     return run
+
+
+@pytest.fixture
+def pipeline():
+    return LeadPipeline(Settings())
 
 
 def _website_record(
@@ -36,7 +42,9 @@ def _website_record(
 
 
 @pytest.mark.asyncio
-async def test_resolving_a_website_record_materializes_detected_signal_rows(db_session, source_run):
+async def test_resolving_a_website_record_materializes_detected_signal_rows(
+    db_session, source_run, pipeline
+):
     record = _website_record(
         source_run,
         organization="Beacon House School",
@@ -55,7 +63,7 @@ async def test_resolving_a_website_record_materializes_detected_signal_rows(db_s
     db_session.add(record)
     await db_session.flush()
 
-    await LeadPipeline._resolve_or_log(db_session, source_run, record)
+    await pipeline._resolve_or_log(db_session, source_run, record)
 
     institution = (
         await db_session.execute(
@@ -77,7 +85,7 @@ async def test_resolving_a_website_record_materializes_detected_signal_rows(db_s
 
 
 @pytest.mark.asyncio
-async def test_no_detected_signals_creates_no_signal_rows(db_session, source_run):
+async def test_no_detected_signals_creates_no_signal_rows(db_session, source_run, pipeline):
     record = _website_record(
         source_run,
         organization="Riverside Academy",
@@ -87,7 +95,7 @@ async def test_no_detected_signals_creates_no_signal_rows(db_session, source_run
     db_session.add(record)
     await db_session.flush()
 
-    await LeadPipeline._resolve_or_log(db_session, source_run, record)
+    await pipeline._resolve_or_log(db_session, source_run, record)
 
     institution = (
         await db_session.execute(
@@ -107,7 +115,7 @@ async def test_no_detected_signals_creates_no_signal_rows(db_session, source_run
 
 @pytest.mark.asyncio
 async def test_non_website_source_never_materializes_signals_even_if_raw_key_present(
-    db_session, source_run
+    db_session, source_run, pipeline
 ):
     # Only the web crawler's Lead dataclass ever populates raw_payload["raw"],
     # but this proves _persist_detected_signals is genuinely gated on
@@ -130,7 +138,7 @@ async def test_non_website_source_never_materializes_signals_even_if_raw_key_pre
     db_session.add(record)
     await db_session.flush()
 
-    await LeadPipeline._resolve_or_log(db_session, source_run, record)
+    await pipeline._resolve_or_log(db_session, source_run, record)
 
     institution = (
         await db_session.execute(

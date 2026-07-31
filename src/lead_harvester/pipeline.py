@@ -910,8 +910,8 @@ class LeadPipeline:
         for record in stranded:
             await self._resolve_or_log(session, run, record, resync_ids)
 
-    @staticmethod
     async def _resolve_or_log(
+        self,
         session,
         run: SourceRun,
         record: RawSourceRecord,
@@ -931,7 +931,16 @@ class LeadPipeline:
         # later record's flush, and the run's own final commit, broken.
         try:
             async with session.begin_nested():
-                institution = await resolve_incoming_record(session, record, resync_ids=resync_ids)
+                # docs/ROADMAP.md module 16: job.yaml's optional `sector`
+                # key, applied inside resolve_incoming_record only as a
+                # fallback when institution_type-based classification left
+                # the institution unclassified.
+                institution = await resolve_incoming_record(
+                    session,
+                    record,
+                    resync_ids=resync_ids,
+                    job_sector_hint=self.settings.job_config.get("sector"),
+                )
                 if institution is not None:
                     LeadPipeline._persist_detected_signals(session, institution.id, record)
         except Exception as e:
