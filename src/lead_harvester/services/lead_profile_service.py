@@ -26,6 +26,7 @@ from lead_harvester.models.canonical import Branch, CanonicalInstitution, Contac
 from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot
 from lead_harvester.models.qualification import QualificationAssessment
 from lead_harvester.models.research import ResearchFinding
+from lead_harvester.models.sector import Sector
 from lead_harvester.models.signal import Signal
 from lead_harvester.profiles.scoring import compute_lead_score
 from lead_harvester.qualification.agent import QualificationAgent
@@ -96,6 +97,12 @@ async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID)
         (await session.scalars(select(Signal).where(Signal.institution_id == institution_id))).all()
     )
 
+    # docs/ROADMAP.md module 17: score_icp_fit reads this institution's
+    # Sector-specific icp_criteria when it has one, falling back to global
+    # Settings otherwise. sector_id is a plain scalar column, not a lazy
+    # relationship, so reading it directly here is safe.
+    sector = await session.get(Sector, institution.sector_id) if institution.sector_id else None
+
     result = compute_lead_score(
         institution,
         branches,
@@ -113,7 +120,7 @@ async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID)
 
     size_tier = estimate_size_tier(branches, contact_points)
     operational_maturity_score = compute_operational_maturity(institution, signals)
-    icp_match_score = score_icp_fit(institution, len(branches), app_settings)
+    icp_match_score = score_icp_fit(institution, len(branches), app_settings, sector=sector)
 
     profile = (
         await session.scalars(

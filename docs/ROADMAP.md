@@ -149,19 +149,25 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
 
     Invokable via the `list-sectors`/`classify-sectors` CLI commands or
     `GET/POST/PATCH /api/v1/sectors*`.
-17. **Sector-Aware ICP & Qualification** (`intelligence/`, `qualification/`) — depends on 16.
-    `intelligence/icp_matching.py::score_icp_fit` reads `institution.sector.icp_criteria` when a
-    sector is assigned, falling back to today's global `Settings.icp_target_institution_types`/
-    `icp_min_branch_count` for anything still unclassified (no regression for existing data).
-    `qualification/agent.py`'s `QualificationAgent` now runs a sector-agnostic reachability/
-    viability gate (has a contact point on file, not permanently closed — see the standalone bug
-    fix in module 20 below) instead of the earlier hardcoded, education-specific mock that
-    required a website and rejected anything with "elementary"/"middle school" in its name. This
-    module layers a genuinely per-sector check on top of that baseline:
-    `institution.sector.qualification_rules` (`disqualifying_name_keywords`, `min_branch_count` —
-    a small structured schema, not a full rules DSL) for sector-specific disqualifiers that
-    actually make sense (e.g. a franchise-only real-estate sector excluding solo agents),
-    evaluated in addition to the base reachability/viability gate, never in place of it.
+17. **Sector-Aware ICP & Qualification** (`intelligence/`, `qualification/`) — done. Depends on 16.
+    `intelligence/icp_matching.py::score_icp_fit` reads each of `target_institution_types`/
+    `min_branch_count` from `institution.sector.icp_criteria` **independently, per key** — a key
+    absent from `icp_criteria` falls back to the matching global `Settings.icp_target_institution_types`/
+    `icp_min_branch_count`, so a sector with only one criterion configured still inherits the
+    other from global settings, and every seeded sector's initially-empty `icp_criteria` (`{}`) is
+    a true no-op (identical to today's global-only behavior) until an operator fills one in — no
+    regression for existing data or newly-classified institutions alike.
+    `qualification/agent.py`'s `QualificationAgent` (`criteria_version` bumped to 3) layers a
+    genuinely per-sector check on top of the reachability/viability gate module 20 already fixed:
+    `institution.sector.qualification_rules` — `disqualifying_name_keywords` (a list; the
+    institution is disqualified if any keyword substring-matches its `canonical_name`,
+    case-insensitively) and `min_branch_count` (disqualified if its actual branch count, queried
+    fresh via `Branch`, is below it) — a small structured schema, not a full rules DSL, evaluated
+    in addition to the base gate, never in place of it. An institution with no sector, or a sector
+    whose `qualification_rules` is still empty (every seeded sector, until configured), skips this
+    extra layer entirely — same non-regression guarantee as the ICP side. `refresh_lead_profile`
+    fetches the institution's `Sector` (a plain scalar FK lookup, not a lazy relationship touch)
+    and threads it into `score_icp_fit` on every call.
 18. **Sector-Segmented Daily Selection** (`allocation/`) — depends on 16.
     `lead_reservations.sector_id` (nullable FK, a denormalized snapshot at claim time — same
     "don't let a later change drift a past batch" principle `LeadScoreSnapshot` already uses —
