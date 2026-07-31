@@ -150,13 +150,15 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
     `intelligence/icp_matching.py::score_icp_fit` reads `institution.sector.icp_criteria` when a
     sector is assigned, falling back to today's global `Settings.icp_target_institution_types`/
     `icp_min_branch_count` for anything still unclassified (no regression for existing data).
-    `qualification/agent.py`'s `QualificationAgent` — currently a hardcoded mock that qualifies
-    or disqualifies literally every institution in every sector against education-specific rules
-    ("not middle/elementary school") — is replaced with real evaluation against
-    `institution.sector.qualification_rules` (a small structured schema: `requires_website`,
-    `disqualifying_name_keywords`, `min_branch_count`, not a full rules DSL). This is a genuine
-    bug fix as much as a feature: today a clinic or a real-estate office is silently qualified
-    against school-specific criteria.
+    `qualification/agent.py`'s `QualificationAgent` now runs a sector-agnostic reachability/
+    viability gate (has a contact point on file, not permanently closed — see the standalone bug
+    fix in module 20 below) instead of the earlier hardcoded, education-specific mock that
+    required a website and rejected anything with "elementary"/"middle school" in its name. This
+    module layers a genuinely per-sector check on top of that baseline:
+    `institution.sector.qualification_rules` (`disqualifying_name_keywords`, `min_branch_count` —
+    a small structured schema, not a full rules DSL) for sector-specific disqualifiers that
+    actually make sense (e.g. a franchise-only real-estate sector excluding solo agents),
+    evaluated in addition to the base reachability/viability gate, never in place of it.
 18. **Sector-Segmented Daily Selection** (`allocation/`) — depends on 16.
     `lead_reservations.sector_id` (nullable FK, a denormalized snapshot at claim time — same
     "don't let a later change drift a past batch" principle `LeadScoreSnapshot` already uses —
@@ -170,6 +172,44 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
     `services/operations_service.py::compute_operational_metrics` all gain a `sector_id`
     filter/breakdown, so a downstream consumer or dashboard can scope to (or compare across)
     sectors instead of only ever seeing one undifferentiated pool of leads.
+20. **Service-Gap / Infrastructure Opportunity Scoring** (`intelligence/`, `profiles/`) — depends
+    on module 6's `technology_detector.py` and module 7's `size_estimation.py`; cross-cutting,
+    not sector-dependent (NEWAX sells the same infrastructure — websites, LMS/operational
+    software, IoT hardware+software integration — regardless of what sector the buyer is in).
+    Scoped with the user: the best lead is the one with the *most* service gaps we can sell
+    into, not the fewest — the opposite of what a generic "looks legitimate" qualification check
+    would optimize for.
+
+    Standalone bug fix already shipped ahead of this module: `qualification/agent.py`'s pass/fail
+    gate previously required a website to qualify at all, exactly backwards for a business that
+    sells websites (a lead having one makes them a *weaker* website-sale opportunity, not a
+    disqualifying trait), and separately rejected anything with "elementary"/"middle school" in
+    its name — an arbitrary rule with no basis in this business's real targeting criteria. Fixed
+    to gate purely on reachability (≥1 `ContactPoint` on file) and viability (not
+    `OperatingStatus.CLOSED_PERMANENTLY`); `has_website` is now recorded as an informational,
+    non-disqualifying fact in the assessment's checklist/rationale instead.
+
+    Still to build:
+    - New LMS-detection rules in `enrichment/technology_detector.py` (pattern-matching known
+      LMS/portal names and phrases in crawled page text — Moodle, Google Classroom, Canvas,
+      Blackboard, Schoology, PowerSchool, "parent portal", "student portal", etc.), emitting a
+      new positive-detection `Signal` (needs a new `SignalType` — e.g. `TECHNOLOGY_PRESENT` —
+      distinct from `PAIN_POINT`/`BUYING_SIGNAL`, since "has an LMS" is a detected fact, not a
+      pain point or buying signal by itself). Absence only counts as a real gap when we know the
+      site was actually crawled (a `RawPageSnapshot` exists for it) — "never checked" must not
+      look identical to "confirmed absent," or an un-crawled institution would wrongly score as
+      the hottest possible lead.
+    - IoT hardware/software integration: known v1 limitation stated up front, not discovered
+      later — this is rarely announced on a public website, so v1 treats it as unknown/neutral
+      rather than assumed-absent. A real signal here would come from manual entry or authorized-
+      import data, not the crawler, and detecting it automatically is out of scope for this
+      module.
+    - A new `service_gap_score` (`profiles/scoring.py`, or a new `intelligence/service_gap.py`)
+      computed from detected gaps (no website / no detected LMS — each counted only when actually
+      checked, per the point above), scaled by `intelligence/size_estimation.py::estimate_size_tier`
+      as an ability-to-pay proxy, so an identical gap counts for more at a multi-branch chain than
+      at a single tiny branch. Feeds into `LeadProfile`'s existing `qualification` score category
+      rather than adding a second, competing scoring path.
 
 ## Explicitly not part of Harvester
 
