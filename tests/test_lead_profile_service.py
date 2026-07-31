@@ -4,7 +4,12 @@ import pytest
 from sqlalchemy import select
 
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
-from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot, SizeTier, WebsiteQualityTier
+from lead_harvester.models.profile import (
+    LeadProfile,
+    LeadScoreSnapshot,
+    SizeTier,
+    WebsiteQualityTier,
+)
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.qualification import QualificationAssessment, QualificationStatus
 from lead_harvester.models.signal import Signal, SignalType
