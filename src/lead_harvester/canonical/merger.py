@@ -2,10 +2,24 @@ from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from lead_harvester.models.source import RawSourceRecord
+from lead_harvester.models.source import RawSourceRecord, SourceType
 from lead_harvester.models.canonical import CanonicalInstitution, Branch, ContactPoint, OperatingStatus
+from lead_harvester.models.compliance import ConsentBasis, IdentifierType
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.resolution import MatchAssessment, MatchDecision
+from lead_harvester.compliance.suppression import SuppressionService
+
+# Public business directories/websites give a straightforward public-listing
+# basis; manual entry is first-party. Scraped social sources (Telegram,
+# LinkedIn) are intentionally left unmapped -> ConsentBasis.UNKNOWN, since
+# they need explicit human review before being treated as cleared for outreach.
+_CONSENT_BASIS_BY_SOURCE_TYPE = {
+    SourceType.GOOGLE_PLACES: ConsentBasis.PUBLIC_DIRECTORY,
+    SourceType.YANDEX: ConsentBasis.PUBLIC_DIRECTORY,
+    SourceType.APPLE_MAPS: ConsentBasis.PUBLIC_DIRECTORY,
+    SourceType.WEBSITE: ConsentBasis.PUBLIC_DIRECTORY,
+    SourceType.MANUAL: ConsentBasis.OWNED_DATA,
+}
 
 async def merge_records(session: AsyncSession, raw_records: List[RawSourceRecord]) -> CanonicalInstitution:
     """
@@ -60,13 +74,15 @@ async def merge_records(session: AsyncSession, raw_records: List[RawSourceRecord
         )
         session.add(branch)
         
-        # 2. Extract and link ContactPoints
+        # 2. Extract and link ContactPoints (skip anything on the suppression list,
+        # so a deleted/opted-out identifier doesn't get silently re-materialized)
         phone = record.normalized_phone
-        if phone:
+        if phone and not await SuppressionService.is_suppressed(session, IdentifierType.PHONE, phone):
             contact = ContactPoint(
                 institution_id=institution.id,
                 contact_type="phone",
-                contact_value=phone
+                contact_value=phone,
+                consent_basis=_CONSENT_BASIS_BY_SOURCE_TYPE.get(record.source_type, ConsentBasis.UNKNOWN),
             )
             session.add(contact)
             

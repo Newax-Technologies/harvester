@@ -10,6 +10,7 @@ from geoalchemy2 import Geography
 
 from lead_harvester.database import Base
 from lead_harvester.models.verification import ContactVerification, VerificationStatus
+from lead_harvester.models.compliance import ConsentBasis
 
 
 class OperatingStatus(str, enum.Enum):
@@ -87,6 +88,10 @@ class ContactPoint(Base):
     # Latest verification result (see models/verification.py for full history)
     verification_status: Mapped[VerificationStatus] = mapped_column(Enum(VerificationStatus), default=VerificationStatus.PENDING, nullable=False)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Lawful basis for holding/using this contact (see models/compliance.py)
+    consent_basis: Mapped[ConsentBasis] = mapped_column(Enum(ConsentBasis), default=ConsentBasis.UNKNOWN, nullable=False)
+    consent_note: Mapped[str] = mapped_column(Text, default="", nullable=False)
 
     institution: Mapped["CanonicalInstitution"] = relationship("CanonicalInstitution", back_populates="contact_points")
     verifications: Mapped[list["ContactVerification"]] = relationship("ContactVerification", back_populates="contact_point", cascade="all, delete-orphan")

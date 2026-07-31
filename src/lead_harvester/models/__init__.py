@@ -1,3 +1,11 @@
+from .compliance import (
+    ConsentBasis,
+    DeletionRequest,
+    DeletionRequestStatus,
+    IdentifierType,
+    SuppressionEntry,
+    SuppressionReason,
+)
 from .canonical import Branch, CanonicalInstitution, ContactPoint, OperatingStatus
 from .verification import ContactVerification, VerificationStatus
 from .provenance import FieldProvenance
@@ -38,4 +46,10 @@ __all__ = [
     "CRMSyncRecord",
     "CRMSyncStatus",
     "AuditLog",
+    "ConsentBasis",
+    "DeletionRequest",
+    "DeletionRequestStatus",
+    "IdentifierType",
+    "SuppressionEntry",
+    "SuppressionReason",
 ]

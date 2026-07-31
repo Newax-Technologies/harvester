@@ -2,8 +2,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from lead_harvester.models.canonical import CanonicalInstitution, ContactPoint
+from lead_harvester.models.compliance import IdentifierType
 from lead_harvester.models.outreach import AccountBrief, OutreachDraft, BriefStatus, DraftStatus
 from lead_harvester.models.verification import VerificationStatus
+from lead_harvester.compliance.suppression import SuppressionService
+
+_IDENTIFIER_TYPE_BY_CONTACT_TYPE = {"email": IdentifierType.EMAIL, "phone": IdentifierType.PHONE}
 
 class OutreachGenerator:
     """
@@ -64,7 +68,16 @@ class OutreachGenerator:
         )
 
         contacts_stmt = select(ContactPoint).where(ContactPoint.institution_id == brief.institution_id)
-        contact_points = (await session.execute(contacts_stmt)).scalars().all()
+        all_contact_points = (await session.execute(contacts_stmt)).scalars().all()
+
+        # A suppressed identifier (opt-out, bounce, deletion request, ...) must never
+        # be selected as an outreach target, no matter how it re-enters the pipeline.
+        contact_points = []
+        for c in all_contact_points:
+            identifier_type = _IDENTIFIER_TYPE_BY_CONTACT_TYPE.get(c.contact_type)
+            if identifier_type and await SuppressionService.is_suppressed(session, identifier_type, c.contact_value):
+                continue
+            contact_points.append(c)
 
         # Prefer a verified email matching the target role, then any verified email,
         # then an unverified email matching the role, then any email, then any contact.

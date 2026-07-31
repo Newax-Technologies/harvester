@@ -80,6 +80,56 @@ async def sync_crm(args: argparse.Namespace) -> int:
     return 0
 
 
+async def suppress(args: argparse.Namespace) -> int:
+    from .database import get_session
+    from .compliance import SuppressionService
+    from .models.compliance import IdentifierType, SuppressionReason
+
+    async with get_session() as session:
+        entry = await SuppressionService.suppress(
+            session,
+            IdentifierType(args.type),
+            args.value,
+            SuppressionReason(args.reason),
+            note=args.note,
+        )
+        await session.flush()
+        print(f"[Suppression] {entry.identifier_type.value}:{entry.identifier_value} suppressed ({entry.reason.value}).")
+    return 0
+
+
+async def request_deletion(args: argparse.Namespace) -> int:
+    from .database import get_session
+    from .compliance import DeletionService
+    from .models.compliance import IdentifierType
+
+    async with get_session() as session:
+        request = await DeletionService.request_deletion(session, IdentifierType(args.type), args.value, notes=args.note)
+        await session.flush()
+        print(f"[Deletion] Request {request.id} queued for {request.identifier_type.value}:{request.identifier_value}.")
+    return 0
+
+
+async def process_deletions(args: argparse.Namespace) -> int:
+    from .database import get_session
+    from .compliance import DeletionService
+
+    async with get_session() as session:
+        count = await DeletionService.process_pending(session, limit=args.limit)
+    print(f"[Deletion] Processed {count} pending request(s).")
+    return 0
+
+
+async def purge_expired(args: argparse.Namespace) -> int:
+    from .database import get_session
+    from .compliance import RetentionService
+
+    async with get_session() as session:
+        count = await RetentionService.purge_expired(session, retention_days=args.retention_days)
+    print(f"[Retention] Purged {count} unmerged raw record(s) older than {args.retention_days} days.")
+    return 0
+
+
 async def check_db_health() -> int:
     from sqlalchemy import text
     try:
@@ -285,6 +335,32 @@ def build_parser() -> argparse.ArgumentParser:
     crm_sync.add_argument("--api-key", default="", help="CRM API key (or set CRM_API_KEY)")
     crm_sync.add_argument("--limit", type=int, default=50, help="Max institutions to sync in this run")
 
+    # -- suppress ---------------------------------------------------------------
+    suppress_p = subparsers.add_parser("suppress", help="Add an identifier to the suppression (do-not-contact) list")
+    suppress_p.add_argument("--type", required=True, choices=["email", "phone", "domain"])
+    suppress_p.add_argument("--value", required=True)
+    suppress_p.add_argument(
+        "--reason", default="manual",
+        choices=["unsubscribed", "bounced", "complaint", "legal_request", "manual"],
+    )
+    suppress_p.add_argument("--note", default="")
+
+    # -- request-deletion ---------------------------------------------------------
+    request_deletion_p = subparsers.add_parser(
+        "request-deletion", help="Queue a right-to-be-forgotten / opt-out request for an identifier"
+    )
+    request_deletion_p.add_argument("--type", required=True, choices=["email", "phone", "domain"])
+    request_deletion_p.add_argument("--value", required=True)
+    request_deletion_p.add_argument("--note", default="")
+
+    # -- process-deletions ----------------------------------------------------------
+    process_deletions_p = subparsers.add_parser("process-deletions", help="Process pending deletion requests")
+    process_deletions_p.add_argument("--limit", type=int, default=50)
+
+    # -- purge-expired --------------------------------------------------------------
+    purge_p = subparsers.add_parser("purge-expired", help="Delete unmerged raw records past the retention window")
+    purge_p.add_argument("--retention-days", type=int, default=180)
+
     # -- migrate-phase1 -----------------------------------------------------
     migrate = subparsers.add_parser("migrate-phase1", help="Migrate Phase 1 SQLite data to PostgreSQL")
     migrate.add_argument("--database", default="leads_v2.sqlite3")
@@ -382,6 +458,10 @@ def main() -> None:
         "db-health":          lambda: sys.exit(asyncio.run(check_db_health())),
         "verify-contacts":    lambda: sys.exit(asyncio.run(verify_contacts(args))),
         "sync-crm":           lambda: sys.exit(asyncio.run(sync_crm(args))),
+        "suppress":           lambda: sys.exit(asyncio.run(suppress(args))),
+        "request-deletion":   lambda: sys.exit(asyncio.run(request_deletion(args))),
+        "process-deletions":  lambda: sys.exit(asyncio.run(process_deletions(args))),
+        "purge-expired":      lambda: sys.exit(asyncio.run(purge_expired(args))),
         "migrate-phase1":     lambda: sys.exit(asyncio.run(_migrate(args))),
         "seed-demo-data":     lambda: sys.exit(asyncio.run(_seed(args))),
         "linkedin-login":     lambda: sys.exit(asyncio.run(linkedin_login(args))),
