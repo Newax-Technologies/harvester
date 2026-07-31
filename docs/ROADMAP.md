@@ -126,6 +126,26 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
     can't silently disagree). Known v1 limitation (by design, not an oversight): one sector per
     institution, classified by `institution_type` membership only — no fuzzy/ML classification
     from name or description, and no multi-sector institutions.
+
+    Seed data (a starting point, not a closed list — `sectors` is a table specifically so a new
+    one is a row insert, not a migration):
+
+    | `code`           | `display_name`   | `institution_types`                                          |
+    |------------------|-------------------|--------------------------------------------------------------|
+    | `education`      | Education         | school, college, university, academy                         |
+    | `healthcare`      | Healthcare        | clinic, hospital, pharmacy, diagnostic_lab, dental_clinic     |
+    | `retail`          | Retail            | retail_store, supermarket, boutique, showroom                |
+    | `legal`           | Legal             | law_firm, legal_services                                     |
+    | `finance`         | Finance           | bank, insurance_agency, accounting_firm, financial_advisory   |
+    | `transportation`  | Transportation    | logistics_company, courier_service, freight_forwarder, transport_company |
+    | `real_estate`     | Real Estate       | real_estate_agency, property_developer                       |
+    | `hospitality`     | Hospitality       | hotel, restaurant, event_venue                                |
+
+    Each row's `institution_types` list is itself editable post-seed (an operator sourcing a new
+    `institution_type` value just adds it to the matching sector's list, or creates a new sector),
+    and `icp_criteria`/`qualification_rules` per row start empty (falling back to today's global
+    `Settings`-based behavior per module 17) rather than guessed — an operator fills those in
+    per sector as real targeting criteria become known, not invented here.
 17. **Sector-Aware ICP & Qualification** (`intelligence/`, `qualification/`) — depends on 16.
     `intelligence/icp_matching.py::score_icp_fit` reads `institution.sector.icp_criteria` when a
     sector is assigned, falling back to today's global `Settings.icp_target_institution_types`/
