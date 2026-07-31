@@ -36,6 +36,17 @@ class StrandedRecordResponse(BaseSchema):
     extracted_at: datetime
 
 
+class PageSnapshotResponse(BaseSchema):
+    id: UUID
+    source_run_id: UUID
+    url: str
+    final_url: str
+    status_code: int | None = None
+    content_type: str
+    fetch_error: str
+    fetched_at: datetime
+
+
 class OperationalMetricsResponse(BaseSchema):
     total_canonical_institutions: int
     pending_resolution_candidates: int

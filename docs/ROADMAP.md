@@ -161,8 +161,32 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   optional seed-discovery step (`job.yaml`'s `search_queries` list; requires
   `BRAVE_SEARCH_API_KEY`), since its only purpose is discovering more seed URLs for the same web
   crawler that already exists, not a separate ingestion path.
-- **Ingestion**: not modularized as its own layer; scheduling/rate-limiting logic is embedded
-  in `pipeline.py`/`sources/web.py` rather than a distinct `ingestion/` module.
+- **Ingestion**: done for the pieces that were genuine gaps; the rest of this module's
+  sub-concerns were already satisfied by existing code, just not living under a dedicated
+  `ingestion/` directory -- moving already-correct, already-tested code into a new folder purely
+  for naming purity would have been pure churn, not a real improvement, so it wasn't done.
+  `web_crawler`/`page_fetcher`/`rate_limiter` are `sources/web.py`'s `WebCrawler`/`_fetch`/
+  `DomainRateLimiter` (plus `RobotsCache` for robots.txt compliance); `ingestion_job` is
+  `models/source.py`'s `SourceRun` (status/started_at/completed_at per run, already exposed via
+  `services/operations_service.py`'s `list_source_runs`/`get_source_run_detail`);
+  `source_scheduler` is intentionally external (an operator's cron/k8s CronJob/etc. invokes
+  `lead-harvester run --config job.yaml` on a schedule) rather than an in-process scheduler --
+  a deliberate, common architecture for this kind of tool, not a gap. What was genuinely
+  missing: `raw_snapshot`. `RawSourceRecord.raw_payload` only ever stored the EXTRACTED lead
+  fields for a domain (aggregated across every page that contributed to it) -- the actual
+  fetched HTML was discarded, with no way to audit what a crawl actually saw, re-run extraction
+  against historical pages without re-fetching, or tell "page had no useful data" apart from
+  "page was skipped/failed and never really looked at". `models/source.py`'s new
+  `RawPageSnapshot` is that record: one row per page a WEBSITE crawl attempted, success or
+  failure (robots-disallowed/non-HTML/oversized/HTTP-error/decode-error all captured with a
+  machine-readable `fetch_error` reason), accumulated on `WebCrawler` during `crawl()` (as a
+  `self.snapshots` side channel, not part of `crawl()`'s return value, so no caller's signature
+  had to change) and persisted by `pipeline.py::_run_web_crawler` once the run's `SourceRun`
+  exists. Invokable via the `ops-page-snapshots` CLI command or
+  `GET /api/v1/operations/page-snapshots` (excludes the stored HTML body from the response --
+  query the database directly for that). Known v1 limitation: no separate retention/expiry
+  policy for this table (`services/compliance_service.py::purge_expired_raw_records` only ever
+  targeted `RawSourceRecord`).
 - **Normalization**: partial, lives in `resolution/normalize.py` rather than its own module;
   covers phone/domain/name, plus `normalize_city` and `country_to_iso2` (a ~55-entry country
   name/alias -> ISO-2 table), the latter wired into `sources/authorized_imports.py` so a CSV row

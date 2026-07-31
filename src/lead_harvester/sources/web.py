@@ -46,6 +46,24 @@ class CrawlItem:
     depth: int
 
 
+@dataclass(slots=True)
+class PageSnapshot:
+    """
+    One page-fetch attempt, success or failure -- see
+    docs/ROADMAP.md module 3's raw_snapshot sub-concern. Persisted by
+    pipeline.py::_run_web_crawler into models/source.py's
+    RawPageSnapshot once this crawl's SourceRun exists (this dataclass
+    itself has no DB dependency, matching the rest of this module).
+    """
+
+    url: str
+    final_url: str
+    status_code: int | None
+    content_type: str
+    html: str | None
+    fetch_error: str
+
+
 class RobotsCache:
     def __init__(self, client: httpx.AsyncClient, user_agent: str):
         self.client = client
@@ -93,6 +111,13 @@ class DomainRateLimiter:
 class WebCrawler:
     def __init__(self, settings: Settings):
         self.settings = settings
+        # Populated by _fetch as a side effect of crawl() -- one entry per
+        # page fetch attempted (success or failure), read by
+        # pipeline.py::_run_web_crawler after crawl() returns. Not part of
+        # crawl()'s return value itself so its signature (and every
+        # existing test/caller that mocks WebCrawler.crawl wholesale)
+        # stays unchanged.
+        self.snapshots: list[PageSnapshot] = []
 
     async def crawl(self, seeds: list[str]) -> list[Lead]:
         headers = {
@@ -161,29 +186,82 @@ class WebCrawler:
         item: CrawlItem,
     ) -> tuple[str, str] | None:
         if not await robots.allowed(item.url):
+            self._record_snapshot(item.url, "", None, "", None, "robots_disallowed")
             return None
         await limiter.wait(item.url)
         async with semaphore:
             try:
                 async with client.stream("GET", item.url) as response:
                     response.raise_for_status()
+                    final_url = str(response.url)
                     content_type = response.headers.get("content-type", "").lower()
                     if (
                         "text/html" not in content_type
                         and "application/xhtml+xml" not in content_type
                     ):
+                        self._record_snapshot(
+                            item.url,
+                            final_url,
+                            response.status_code,
+                            content_type,
+                            None,
+                            "non_html_content_type",
+                        )
                         return None
                     chunks: list[bytes] = []
                     size = 0
                     async for chunk in response.aiter_bytes():
                         size += len(chunk)
                         if size > self.settings.max_response_bytes:
+                            self._record_snapshot(
+                                item.url,
+                                final_url,
+                                response.status_code,
+                                content_type,
+                                None,
+                                "response_too_large",
+                            )
                             return None
                         chunks.append(chunk)
                     encoding = response.encoding or "utf-8"
-                    return b"".join(chunks).decode(encoding, errors="replace"), str(response.url)
-            except (httpx.HTTPError, UnicodeError):
+                    html = b"".join(chunks).decode(encoding, errors="replace")
+                    self._record_snapshot(
+                        item.url, final_url, response.status_code, content_type, html, ""
+                    )
+                    return html, final_url
+            except httpx.HTTPStatusError as e:
+                self._record_snapshot(
+                    item.url,
+                    str(e.response.url),
+                    e.response.status_code,
+                    "",
+                    None,
+                    f"http_error: {e.response.status_code}",
+                )
                 return None
+            except (httpx.HTTPError, UnicodeError) as e:
+                self._record_snapshot(item.url, "", None, "", None, f"{type(e).__name__}: {e}")
+                return None
+
+    def _record_snapshot(
+        self,
+        url: str,
+        final_url: str,
+        status_code: int | None,
+        content_type: str,
+        html: str | None,
+        fetch_error: str,
+    ) -> None:
+        self.snapshots.append(
+            PageSnapshot(
+                url=url,
+                final_url=final_url,
+                status_code=status_code,
+                content_type=content_type,
+                html=html,
+                fetch_error=fetch_error,
+            )
+        )
 
     def _extract_lead(self, html: str, url: str) -> tuple[Lead | None, list[str]]:
         text = visible_text(html)

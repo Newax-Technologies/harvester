@@ -4,7 +4,13 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from lead_harvester.models.audit import AuditLog
-from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
+from lead_harvester.models.source import (
+    RawPageSnapshot,
+    RawSourceRecord,
+    RunStatus,
+    SourceRun,
+    SourceType,
+)
 
 
 def _run(
@@ -87,6 +93,72 @@ async def test_list_stranded_records_route(client_a, db_session):
     assert response.status_code == 200
     body = response.json()
     assert [r["id"] for r in body] == [str(record.id)]
+
+
+@pytest.mark.asyncio
+async def test_list_page_snapshots_route(client_a, db_session):
+    run = _run(source_type=SourceType.WEBSITE)
+    db_session.add(run)
+    await db_session.flush()
+    db_session.add(
+        RawPageSnapshot(
+            source_run_id=run.id,
+            url="https://beaconhouse.example.edu/",
+            final_url="https://beaconhouse.example.edu/",
+            status_code=200,
+            content_type="text/html",
+            html="<html>full page body, excluded from the response</html>",
+            fetch_error="",
+        )
+    )
+    await db_session.commit()
+
+    response = await client_a.get("/api/v1/operations/page-snapshots")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["url"] == "https://beaconhouse.example.edu/"
+    assert body[0]["status_code"] == 200
+    assert "html" not in body[0]
+
+
+@pytest.mark.asyncio
+async def test_list_page_snapshots_route_only_errors(client_a, db_session):
+    run = _run(source_type=SourceType.WEBSITE)
+    db_session.add(run)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            RawPageSnapshot(
+                source_run_id=run.id,
+                url="https://ok.example.edu/",
+                final_url="https://ok.example.edu/",
+                status_code=200,
+                content_type="text/html",
+                html="<html></html>",
+                fetch_error="",
+            ),
+            RawPageSnapshot(
+                source_run_id=run.id,
+                url="https://blocked.example.edu/",
+                final_url="",
+                status_code=None,
+                content_type="",
+                html=None,
+                fetch_error="robots_disallowed",
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client_a.get(
+        "/api/v1/operations/page-snapshots", params={"only_errors": "true"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [s["url"] for s in body] == ["https://blocked.example.edu/"]
 
 
 @pytest.mark.asyncio

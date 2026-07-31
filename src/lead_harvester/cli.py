@@ -475,6 +475,28 @@ async def ops_source_health(args: argparse.Namespace) -> int:
     return 0
 
 
+async def ops_page_snapshots(args: argparse.Namespace) -> int:
+    """List raw page-fetch snapshots from WEBSITE crawls (docs/ROADMAP.md module 3)."""
+    import uuid as uuid_module
+
+    from .database import get_session
+    from .services.operations_service import list_page_snapshots
+
+    source_run_id = uuid_module.UUID(args.source_run_id) if args.source_run_id else None
+
+    async with get_session() as session:
+        snapshots = await list_page_snapshots(
+            session, source_run_id=source_run_id, only_errors=args.only_errors, limit=args.limit
+        )
+
+    print(f"\n[Page Snapshots] {len(snapshots)} found")
+    for snapshot in snapshots:
+        status = snapshot.fetch_error or f"HTTP {snapshot.status_code}"
+        print(f"  {snapshot.fetched_at} {snapshot.url} -> {status}")
+    print()
+    return 0
+
+
 async def list_person_candidates_cmd(args: argparse.Namespace) -> int:
     """List discovered person candidates, most recently seen first (docs/ROADMAP.md module 1)."""
     import uuid as uuid_module
@@ -760,6 +782,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print per-source-type run health (last run, last success, recent failures)",
     )
 
+    # -- ops-page-snapshots -----------------------------------------------------
+    ops_page_snapshots_parser = subparsers.add_parser(
+        "ops-page-snapshots",
+        help="List raw page-fetch snapshots from WEBSITE crawls",
+    )
+    ops_page_snapshots_parser.add_argument(
+        "--source-run-id", default=None, help="Filter to one SourceRun's snapshots"
+    )
+    ops_page_snapshots_parser.add_argument(
+        "--only-errors", action="store_true", help="Only show failed/skipped fetches"
+    )
+    ops_page_snapshots_parser.add_argument("--limit", type=int, default=100)
+
     # -- list-person-candidates -----------------------------------------------
     list_person_candidates_parser = subparsers.add_parser(
         "list-person-candidates",
@@ -891,6 +926,7 @@ def main() -> None:
         "ops-health": lambda: sys.exit(asyncio.run(ops_health(args))),
         "ops-metrics": lambda: sys.exit(asyncio.run(ops_metrics(args))),
         "ops-source-health": lambda: sys.exit(asyncio.run(ops_source_health(args))),
+        "ops-page-snapshots": lambda: sys.exit(asyncio.run(ops_page_snapshots(args))),
         "list-person-candidates": lambda: sys.exit(asyncio.run(list_person_candidates_cmd(args))),
         "list-signals": lambda: sys.exit(asyncio.run(list_signals_cmd(args))),
         "linkedin-send": lambda: sys.exit(asyncio.run(linkedin_send(args))),

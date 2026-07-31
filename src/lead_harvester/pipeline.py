@@ -15,7 +15,7 @@ from .config import Settings
 from .database import get_session
 from .integrations.lead_sync_emitter import LeadSyncEmitter
 from .integrations.lead_sync_resync import resync_institution
-from .models import RawSourceRecord, RunStatus, SourceRun, SourceType
+from .models import RawPageSnapshot, RawSourceRecord, RunStatus, SourceRun, SourceType
 from .models.canonical import CanonicalInstitution
 from .models.provenance import FieldProvenance
 from .models.resolution import ResolutionCandidate
@@ -161,6 +161,24 @@ class LeadPipeline:
                 )
                 session.add(run)
                 await session.flush()
+
+                # docs/ROADMAP.md module 3's raw_snapshot sub-concern: one
+                # row per page this crawl attempted (success or failure),
+                # not just the domain-aggregated Leads above -- see
+                # models/source.py::RawPageSnapshot's own docstring for why
+                # this exists separately from RawSourceRecord.
+                for snapshot in crawler.snapshots:
+                    session.add(
+                        RawPageSnapshot(
+                            source_run_id=run.id,
+                            url=snapshot.url,
+                            final_url=snapshot.final_url,
+                            status_code=snapshot.status_code,
+                            content_type=snapshot.content_type,
+                            html=snapshot.html,
+                            fetch_error=snapshot.fetch_error,
+                        )
+                    )
 
                 try:
                     await self._retry_stranded_records(session, run, resync_ids)

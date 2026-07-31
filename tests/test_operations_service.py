@@ -11,7 +11,13 @@ from lead_harvester.models.compliance import SuppressionEntry, SuppressionReason
 from lead_harvester.models.outbox import EventOutbox, OutboxStatus
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.resolution import ResolutionCandidate
-from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
+from lead_harvester.models.source import (
+    RawPageSnapshot,
+    RawSourceRecord,
+    RunStatus,
+    SourceRun,
+    SourceType,
+)
 from lead_harvester.models.verification import DataQualityFlag, FlagStatus, FlagType
 from lead_harvester.services.operations_service import (
     check_health,
@@ -20,6 +26,7 @@ from lead_harvester.services.operations_service import (
     get_sanitized_config,
     get_source_run_detail,
     list_audit_log,
+    list_page_snapshots,
     list_source_runs,
     list_stranded_records,
 )
@@ -63,6 +70,54 @@ async def test_list_source_runs_filters_by_type_and_status(db_session):
     )
 
     assert [r.id for r in runs] == [matching.id]
+
+
+def _snapshot(
+    run_id, *, url: str = "https://example.edu/", fetch_error: str = ""
+) -> RawPageSnapshot:
+    return RawPageSnapshot(
+        source_run_id=run_id,
+        url=url,
+        final_url=url if not fetch_error else "",
+        status_code=200 if not fetch_error else None,
+        content_type="text/html" if not fetch_error else "",
+        html="<html></html>" if not fetch_error else None,
+        fetch_error=fetch_error,
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_page_snapshots_filters_by_source_run(db_session):
+    run_a = _run(source_type=SourceType.WEBSITE)
+    run_b = _run(source_type=SourceType.WEBSITE)
+    db_session.add_all([run_a, run_b])
+    await db_session.flush()
+    db_session.add_all(
+        [_snapshot(run_a.id, url="https://a.edu/"), _snapshot(run_b.id, url="https://b.edu/")]
+    )
+    await db_session.flush()
+
+    results = await list_page_snapshots(db_session, source_run_id=run_a.id)
+
+    assert [r.url for r in results] == ["https://a.edu/"]
+
+
+@pytest.mark.asyncio
+async def test_list_page_snapshots_only_errors_filters_out_successes(db_session):
+    run = _run(source_type=SourceType.WEBSITE)
+    db_session.add(run)
+    await db_session.flush()
+    db_session.add_all(
+        [
+            _snapshot(run.id, url="https://ok.edu/"),
+            _snapshot(run.id, url="https://blocked.edu/", fetch_error="robots_disallowed"),
+        ]
+    )
+    await db_session.flush()
+
+    results = await list_page_snapshots(db_session, source_run_id=run.id, only_errors=True)
+
+    assert [r.url for r in results] == ["https://blocked.edu/"]
 
 
 @pytest.mark.asyncio

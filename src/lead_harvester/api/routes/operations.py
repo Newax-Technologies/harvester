@@ -9,6 +9,7 @@ from lead_harvester.schemas.common import AuditEventSchema
 from lead_harvester.schemas.operations import (
     HealthResponse,
     OperationalMetricsResponse,
+    PageSnapshotResponse,
     SourceHealthResponse,
     SourceRunDetailResponse,
     SourceRunResponse,
@@ -21,6 +22,7 @@ from lead_harvester.services.operations_service import (
     get_sanitized_config,
     get_source_run_detail,
     list_audit_log,
+    list_page_snapshots,
     list_source_runs,
     list_stranded_records,
 )
@@ -70,6 +72,25 @@ async def list_stranded_records_route(
 ):
     records = await list_stranded_records(session, limit=limit)
     return [StrandedRecordResponse.model_validate(r) for r in records]
+
+
+@router.get("/page-snapshots", response_model=list[PageSnapshotResponse])
+async def list_page_snapshots_route(
+    source_run_id: uuid.UUID | None = Query(None),
+    only_errors: bool = Query(False),
+    limit: int = Query(100, ge=1, le=500),
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    docs/ROADMAP.md module 3's raw_snapshot data -- every page a WEBSITE
+    crawl attempted, success or failure. Excludes the stored HTML body
+    (can be large); query the database directly for that.
+    """
+    snapshots = await list_page_snapshots(
+        session, source_run_id=source_run_id, only_errors=only_errors, limit=limit
+    )
+    return [PageSnapshotResponse.model_validate(s) for s in snapshots]
 
 
 @router.get("/audit-log", response_model=list[AuditEventSchema])

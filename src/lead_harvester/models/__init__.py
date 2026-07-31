@@ -17,7 +17,7 @@ from .qualification import QualificationAssessment, QualificationStatus
 from .research import FindingType, JobStatus, ResearchFinding, ResearchJob
 from .resolution import MatchAssessment, MatchDecision, ResolutionCandidate, ReviewOutcome
 from .signal import Signal, SignalType
-from .source import RawSourceRecord, RunStatus, SourceRun, SourceType
+from .source import RawPageSnapshot, RawSourceRecord, RunStatus, SourceRun, SourceType
 from .verification import DataQualityFlag, FlagStatus, FlagType
 
 __all__ = [
@@ -51,6 +51,7 @@ __all__ = [
     "PersonCandidateStatus",
     "QualificationAssessment",
     "QualificationStatus",
+    "RawPageSnapshot",
     "RawSourceRecord",
     "ResearchFinding",
     "ResearchJob",

@@ -26,7 +26,13 @@ from lead_harvester.models.compliance import SuppressionEntry
 from lead_harvester.models.outbox import EventOutbox, OutboxStatus
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.resolution import ResolutionCandidate
-from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
+from lead_harvester.models.source import (
+    RawPageSnapshot,
+    RawSourceRecord,
+    RunStatus,
+    SourceRun,
+    SourceType,
+)
 from lead_harvester.models.verification import DataQualityFlag, FlagStatus
 from lead_harvester.services.dashboard_service import DashboardService
 
@@ -87,6 +93,29 @@ async def get_source_run_detail(session: AsyncSession, run_id: uuid.UUID) -> dic
         "record_count": record_count or 0,
         "unresolved_records": run.run_metadata.get("unresolved_records", []),
     }
+
+
+async def list_page_snapshots(
+    session: AsyncSession,
+    *,
+    source_run_id: uuid.UUID | None = None,
+    only_errors: bool = False,
+    limit: int = 100,
+) -> list[RawPageSnapshot]:
+    """
+    Read visibility into docs/ROADMAP.md module 3's raw_snapshot data
+    (models/source.py::RawPageSnapshot) -- every page a WEBSITE crawl
+    attempted, success or failure. only_errors filters to fetch_error != ""
+    (robots-disallowed, non-HTML, oversized, HTTP errors, decode
+    failures), for auditing why a domain yielded fewer leads than expected
+    without paging through every successful fetch too.
+    """
+    stmt = select(RawPageSnapshot).order_by(RawPageSnapshot.fetched_at.desc()).limit(limit)
+    if source_run_id is not None:
+        stmt = stmt.where(RawPageSnapshot.source_run_id == source_run_id)
+    if only_errors:
+        stmt = stmt.where(RawPageSnapshot.fetch_error != "")
+    return list(await session.scalars(stmt))
 
 
 async def compute_source_health(session: AsyncSession) -> list[dict[str, Any]]:
