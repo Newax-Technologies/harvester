@@ -105,6 +105,52 @@ These are gaps identified while building the harvester → core-newax lead sync 
 15. **Operations and Administration** (`operations/`) — job_management, source_health,
     failure_queue, configuration, audit, metrics, health_checks, admin_api.
 
+## Phase 2 — planned modules
+
+Modules 1-15 above are v1 scope: a single implicit "sector" (whatever institutions the operator
+happens to source), one global ICP, one global qualification rule set, one global daily
+selection batch. Phase 2's flagship change is making sector/vertical a first-class,
+DB-configurable dimension rather than an assumption baked into `Settings` and a hardcoded mock —
+decomposed into four modules so each lands (and is reviewed) as its own unit, in this order since
+16 is the foundation the other three build on.
+
+16. **Sector / Vertical Registry** (`sectors/`) — `Sector` model (`code`, `display_name`,
+    `institution_types` membership list, `icp_criteria`, `qualification_rules`, all
+    DB-configurable, not hardcoded) + migration; `canonical_institutions.sector_id` (nullable FK);
+    `services/sector_service.py::resolve_sector_for_institution_type` wired into every path that
+    sets/backfills `institution_type` (`canonical/merger.py`, `api/routes/manual_leads.py`) so
+    classification is automatic, not a separate manual step; `sectors` CRUD API/CLI; a one-time
+    `classify-sectors` backfill command for institutions that predate this module; an optional
+    `sector` hint in `job.yaml`, used only as a fallback when `institution_type` doesn't resolve
+    to any configured sector (`institution_type` stays authoritative, so the two sources of truth
+    can't silently disagree). Known v1 limitation (by design, not an oversight): one sector per
+    institution, classified by `institution_type` membership only — no fuzzy/ML classification
+    from name or description, and no multi-sector institutions.
+17. **Sector-Aware ICP & Qualification** (`intelligence/`, `qualification/`) — depends on 16.
+    `intelligence/icp_matching.py::score_icp_fit` reads `institution.sector.icp_criteria` when a
+    sector is assigned, falling back to today's global `Settings.icp_target_institution_types`/
+    `icp_min_branch_count` for anything still unclassified (no regression for existing data).
+    `qualification/agent.py`'s `QualificationAgent` — currently a hardcoded mock that qualifies
+    or disqualifies literally every institution in every sector against education-specific rules
+    ("not middle/elementary school") — is replaced with real evaluation against
+    `institution.sector.qualification_rules` (a small structured schema: `requires_website`,
+    `disqualifying_name_keywords`, `min_branch_count`, not a full rules DSL). This is a genuine
+    bug fix as much as a feature: today a clinic or a real-estate office is silently qualified
+    against school-specific criteria.
+18. **Sector-Segmented Daily Selection** (`allocation/`) — depends on 16.
+    `lead_reservations.sector_id` (nullable FK, a denormalized snapshot at claim time — same
+    "don't let a later change drift a past batch" principle `LeadScoreSnapshot` already uses —
+    not a live join to `canonical_institutions.sector_id`, which could change after the batch is
+    claimed). `services/daily_selection_service.py::select_daily_batch` gains a `sector_id`
+    parameter, producing one reservation batch per sector per day instead of one global ranked
+    list; `GET/POST /api/v1/daily-selection*` and `select-daily-leads` gain a matching
+    `sector_id` param/filter.
+19. **Sector Visibility in Exports & Operations** (`exports/`, `operations/`) — depends on 16.
+    `GET /api/v1/exports/leads`, `GET /api/v1/lead-profiles*`, and
+    `services/operations_service.py::compute_operational_metrics` all gain a `sector_id`
+    filter/breakdown, so a downstream consumer or dashboard can scope to (or compare across)
+    sectors instead of only ever seeing one undifferentiated pool of leads.
+
 ## Explicitly not part of Harvester
 
 Moved to the separate NEWAX Engagement Engine: email sending, WhatsApp sending, message
