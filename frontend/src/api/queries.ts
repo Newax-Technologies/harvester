@@ -33,6 +33,14 @@ export const queryKeys = {
   verification: {
     flags: (filters: any) => ["verification", "flags", filters],
   },
+  compliance: {
+    suppressions: (limit: number) => ["compliance", "suppressions", limit],
+    deletionRequests: (status?: string) => [
+      "compliance",
+      "deletion-requests",
+      status,
+    ],
+  },
 };
 
 export const dashboardQueries = {
@@ -174,6 +182,27 @@ export const verificationQueries = {
                 limit,
               },
             },
+          })
+          .then(handleApiResponse),
+    }),
+};
+
+export const complianceQueries = {
+  suppressions: (limit = 100) =>
+    queryOptions({
+      queryKey: queryKeys.compliance.suppressions(limit),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/compliance/suppressions", { params: { query: { limit } } })
+          .then(handleApiResponse),
+    }),
+  deletionRequests: (status?: string, limit = 100) =>
+    queryOptions({
+      queryKey: queryKeys.compliance.deletionRequests(status),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/compliance/deletion-requests", {
+            params: { query: { status: status as any, limit } },
           })
           .then(handleApiResponse),
     }),
