@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+import uuid
 from pathlib import Path
 
 from .config import Settings
@@ -302,18 +303,22 @@ async def select_daily_leads(args: argparse.Namespace) -> int:
             ttl_hours=args.ttl_hours,
             min_score=args.min_score,
             batch_label=args.batch_label,
+            sector_id=args.sector_id,
         )
         # Captured before the session closes -- ORM attribute access after
         # that would need a live connection to lazy-load anything not
         # already resident.
         summary = [
-            (r.institution_id, r.score_at_reservation, r.batch_label, r.expires_at)
+            (r.institution_id, r.score_at_reservation, r.batch_label, r.sector_id, r.expires_at)
             for r in reservations
         ]
 
     print(f"\n[DailySelection] Reserved {len(summary)} lead(s):")
-    for institution_id, score, batch_label, expires_at in summary:
-        print(f"  {institution_id}  score={score}  batch={batch_label}  expires={expires_at}")
+    for institution_id, score, batch_label, sector_id, expires_at in summary:
+        print(
+            f"  {institution_id}  score={score}  batch={batch_label}  "
+            f"sector={sector_id or 'none'}  expires={expires_at}"
+        )
     print()
     return 0
 
@@ -716,6 +721,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     select_daily.add_argument(
         "--batch-label", default=None, help="Label for this batch (default: today's date)"
+    )
+    select_daily.add_argument(
+        "--sector-id",
+        type=uuid.UUID,
+        default=None,
+        help="Restrict selection to one sector (default: all sectors)",
     )
 
     # -- verify-data-quality --------------------------------------------------

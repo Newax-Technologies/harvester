@@ -54,6 +54,15 @@ class LeadReservation(Base):
     # not a hard "one selection per calendar day" constraint.
     batch_label: Mapped[str] = mapped_column(String(64), nullable=False)
 
+    # Snapshot of institution.sector_id at claim time (docs/ROADMAP.md
+    # module 18) -- like score_at_reservation above, deliberately not a
+    # live join to canonical_institutions.sector_id, which could change
+    # after this batch was claimed. Nullable because an institution can be
+    # unclassified (see models/sector.py).
+    sector_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("sectors.id"), nullable=True, index=True
+    )
+
     reserved_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )

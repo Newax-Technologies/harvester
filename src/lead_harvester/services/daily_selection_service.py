@@ -61,6 +61,7 @@ async def select_daily_batch(
     ttl_hours: float | None = None,
     min_score: int | None = None,
     batch_label: str | None = None,
+    sector_id: uuid.UUID | None = None,
 ) -> list[LeadReservation]:
     """
     Claims up to `limit` eligible LeadProfiles, highest-scoring first, and
@@ -70,6 +71,16 @@ async def select_daily_batch(
     Python-side statement of the same filtering rules this query applies
     in SQL: institution must be OPERATIONAL, never DISQUALIFIED, meets
     min_score, and has at least one real contact method.
+
+    docs/ROADMAP.md module 18: passing `sector_id` restricts the candidate
+    pool to that sector, producing one reservation batch per sector per
+    day instead of one global ranked list -- omitting it preserves today's
+    global-batch behavior unchanged. Every created reservation snapshots
+    the claimed institution's *own* current sector_id (which equals the
+    filter when one was applied, or whatever sector the institution
+    actually belongs to -- possibly none -- when it wasn't), the same
+    "don't let a later change drift a past batch" principle
+    score_at_reservation already uses for scores.
 
     The FOR UPDATE lock on LeadProfile is what actually prevents a double
     claim -- the "not already reserved" exclusion below only sees
@@ -93,7 +104,7 @@ async def select_daily_batch(
     )
 
     stmt = (
-        select(LeadProfile)
+        select(LeadProfile, CanonicalInstitution.sector_id)
         .join(CanonicalInstitution, CanonicalInstitution.id == LeadProfile.institution_id)
         .where(CanonicalInstitution.status == OperatingStatus.OPERATIONAL)
         .where(
@@ -107,17 +118,20 @@ async def select_daily_batch(
         .limit(limit)
         .with_for_update(of=LeadProfile, skip_locked=True)
     )
+    if sector_id is not None:
+        stmt = stmt.where(CanonicalInstitution.sector_id == sector_id)
 
-    candidates = list(await session.scalars(stmt))
+    candidates = list((await session.execute(stmt)).all())
 
     now = datetime.now(UTC)
     expires_at = now + timedelta(hours=ttl_hours)
     reservations = []
-    for profile in candidates:
+    for profile, institution_sector_id in candidates:
         reservation = LeadReservation(
             institution_id=profile.institution_id,
             score_at_reservation=profile.overall_score,
             batch_label=batch_label,
+            sector_id=institution_sector_id,
             reserved_at=now,
             expires_at=expires_at,
         )
@@ -169,9 +183,15 @@ async def release_reservation(session: AsyncSession, reservation_id: uuid.UUID) 
 
 
 async def list_reservations(
-    session: AsyncSession, *, status: ReservationStatus | None = None, limit: int = 100
+    session: AsyncSession,
+    *,
+    status: ReservationStatus | None = None,
+    sector_id: uuid.UUID | None = None,
+    limit: int = 100,
 ) -> list[LeadReservation]:
     stmt = select(LeadReservation).order_by(LeadReservation.reserved_at.desc()).limit(limit)
     if status is not None:
         stmt = stmt.where(LeadReservation.status == status)
+    if sector_id is not None:
+        stmt = stmt.where(LeadReservation.sector_id == sector_id)
     return list(await session.scalars(stmt))

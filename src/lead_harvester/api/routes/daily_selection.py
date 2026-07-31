@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +34,7 @@ async def trigger_daily_selection(
         ttl_hours=payload.ttl_hours,
         min_score=payload.min_score,
         batch_label=payload.batch_label,
+        sector_id=payload.sector_id,
     )
     await session.commit()
     return [LeadReservationResponse.model_validate(r) for r in reservations]
@@ -40,11 +43,12 @@ async def trigger_daily_selection(
 @router.get("", response_model=list[LeadReservationListItem])
 async def list_daily_selection(
     status: ReservationStatus | None = Query(None),
+    sector_id: uuid.UUID | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ):
-    """List reservations, most recent first, optionally filtered by status."""
+    """List reservations, most recent first, optionally filtered by status/sector."""
     stmt = (
         select(LeadReservation, CanonicalInstitution.canonical_name)
         .join(CanonicalInstitution, CanonicalInstitution.id == LeadReservation.institution_id)
@@ -53,6 +57,8 @@ async def list_daily_selection(
     )
     if status is not None:
         stmt = stmt.where(LeadReservation.status == status)
+    if sector_id is not None:
+        stmt = stmt.where(LeadReservation.sector_id == sector_id)
 
     result = await session.execute(stmt)
     return [
@@ -62,6 +68,7 @@ async def list_daily_selection(
             status=reservation.status,
             score_at_reservation=reservation.score_at_reservation,
             batch_label=reservation.batch_label,
+            sector_id=reservation.sector_id,
             reserved_at=reservation.reserved_at,
             expires_at=reservation.expires_at,
             consumed_at=reservation.consumed_at,

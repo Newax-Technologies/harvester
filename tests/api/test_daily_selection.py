@@ -4,11 +4,14 @@ import pytest
 
 from lead_harvester.models.canonical import CanonicalInstitution, ContactPoint, OperatingStatus
 from lead_harvester.models.profile import LeadProfile
+from lead_harvester.models.sector import Sector
 
 
-async def _seed_profiled_institution(db_session, *, canonical_name: str, overall_score: int = 50):
+async def _seed_profiled_institution(
+    db_session, *, canonical_name: str, overall_score: int = 50, sector_id: uuid.UUID | None = None
+):
     institution = CanonicalInstitution(
-        canonical_name=canonical_name, status=OperatingStatus.OPERATIONAL
+        canonical_name=canonical_name, status=OperatingStatus.OPERATIONAL, sector_id=sector_id
     )
     db_session.add(institution)
     await db_session.flush()
@@ -136,3 +139,47 @@ async def test_trigger_selection_respects_request_overrides(client_a, db_session
 
     assert len(response.json()) == 1
     assert response.json()[0]["status"] == "reserved"
+
+
+@pytest.mark.asyncio
+async def test_trigger_selection_filters_by_sector_id(client_a, db_session):
+    education = Sector(code="education", display_name="Education", institution_types=["school"])
+    retail = Sector(code="retail", display_name="Retail", institution_types=["retail_store"])
+    db_session.add_all([education, retail])
+    await db_session.flush()
+    school = await _seed_profiled_institution(
+        db_session, canonical_name="Sector School", sector_id=education.id
+    )
+    await _seed_profiled_institution(db_session, canonical_name="Sector Store", sector_id=retail.id)
+    await db_session.commit()
+
+    response = await client_a.post("/api/v1/daily-selection", json={"sector_id": str(education.id)})
+
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["institution_id"] == str(school.id)
+    assert body[0]["sector_id"] == str(education.id)
+
+
+@pytest.mark.asyncio
+async def test_list_selection_filters_by_sector_id(client_a, db_session):
+    education = Sector(code="education", display_name="Education", institution_types=["school"])
+    retail = Sector(code="retail", display_name="Retail", institution_types=["retail_store"])
+    db_session.add_all([education, retail])
+    await db_session.flush()
+    await _seed_profiled_institution(
+        db_session, canonical_name="List Sector School", sector_id=education.id
+    )
+    await _seed_profiled_institution(
+        db_session, canonical_name="List Sector Store", sector_id=retail.id
+    )
+    await db_session.commit()
+    await client_a.post("/api/v1/daily-selection", json={})
+
+    response = await client_a.get(
+        "/api/v1/daily-selection", params={"sector_id": str(education.id)}
+    )
+
+    body = response.json()
+    assert len(body) == 1
+    assert body[0]["canonical_name"] == "List Sector School"

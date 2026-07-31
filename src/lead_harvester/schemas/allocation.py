@@ -11,6 +11,7 @@ class LeadReservationResponse(BaseSchema):
     status: ReservationStatus
     score_at_reservation: int
     batch_label: str
+    sector_id: UUID | None = None
     reserved_at: datetime
     expires_at: datetime
     consumed_at: datetime | None = None
@@ -26,3 +27,4 @@ class SelectDailyBatchRequest(BaseSchema):
     ttl_hours: float | None = None
     min_score: int | None = None
     batch_label: str | None = None
+    sector_id: UUID | None = None

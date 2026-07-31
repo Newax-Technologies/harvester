@@ -168,14 +168,17 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
     extra layer entirely — same non-regression guarantee as the ICP side. `refresh_lead_profile`
     fetches the institution's `Sector` (a plain scalar FK lookup, not a lazy relationship touch)
     and threads it into `score_icp_fit` on every call.
-18. **Sector-Segmented Daily Selection** (`allocation/`) — depends on 16.
+18. **Sector-Segmented Daily Selection** (`allocation/`) — done. Depends on 16.
     `lead_reservations.sector_id` (nullable FK, a denormalized snapshot at claim time — same
     "don't let a later change drift a past batch" principle `LeadScoreSnapshot` already uses —
     not a live join to `canonical_institutions.sector_id`, which could change after the batch is
     claimed). `services/daily_selection_service.py::select_daily_batch` gains a `sector_id`
-    parameter, producing one reservation batch per sector per day instead of one global ranked
-    list; `GET/POST /api/v1/daily-selection*` and `select-daily-leads` gain a matching
-    `sector_id` param/filter.
+    parameter: when given, restricts the candidate pool to that sector (one reservation batch
+    per sector per day instead of one global ranked list); every created reservation always
+    snapshots the claimed institution's own current `sector_id` regardless of whether a filter
+    was applied, so unfiltered batches keep full sector visibility too. `list_reservations` gains
+    a matching `sector_id` filter. `GET/POST /api/v1/daily-selection*` and `select-daily-leads`
+    (`--sector-id`) gain a matching `sector_id` param/filter.
 19. **Sector Visibility in Exports & Operations** (`exports/`, `operations/`) — depends on 16.
     `GET /api/v1/exports/leads`, `GET /api/v1/lead-profiles*`, and
     `services/operations_service.py::compute_operational_metrics` all gain a `sector_id`

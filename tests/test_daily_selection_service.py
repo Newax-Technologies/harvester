@@ -11,6 +11,7 @@ from lead_harvester.models.allocation import LeadReservation, ReservationStatus
 from lead_harvester.models.canonical import CanonicalInstitution, ContactPoint, OperatingStatus
 from lead_harvester.models.profile import LeadProfile
 from lead_harvester.models.qualification import QualificationStatus
+from lead_harvester.models.sector import Sector
 from lead_harvester.services.daily_selection_service import (
     list_reservations,
     mark_consumed,
@@ -29,8 +30,11 @@ async def _seed_profiled_institution(
     has_email: bool = False,
     qualification_status: QualificationStatus | None = None,
     status: OperatingStatus = OperatingStatus.OPERATIONAL,
+    sector_id: uuid.UUID | None = None,
 ) -> CanonicalInstitution:
-    institution = CanonicalInstitution(canonical_name=canonical_name, status=status)
+    institution = CanonicalInstitution(
+        canonical_name=canonical_name, status=status, sector_id=sector_id
+    )
     db_session.add(institution)
     await db_session.flush()
     if has_phone:
@@ -216,6 +220,61 @@ async def test_list_reservations_filters_by_status(db_session):
 
     assert len(reserved_only) == 1
     assert len(consumed_only) == 1
+
+
+@pytest.mark.asyncio
+async def test_select_daily_batch_filters_by_sector_id(db_session):
+    education = Sector(code="education", display_name="Education", institution_types=["school"])
+    retail = Sector(code="retail", display_name="Retail", institution_types=["retail_store"])
+    db_session.add_all([education, retail])
+    await db_session.flush()
+
+    school = await _seed_profiled_institution(
+        db_session, canonical_name="A School", sector_id=education.id
+    )
+    await _seed_profiled_institution(db_session, canonical_name="A Store", sector_id=retail.id)
+
+    reservations = await select_daily_batch(db_session, limit=10, sector_id=education.id)
+
+    assert [r.institution_id for r in reservations] == [school.id]
+
+
+@pytest.mark.asyncio
+async def test_select_daily_batch_snapshots_institution_sector_id_even_without_a_filter(
+    db_session,
+):
+    education = Sector(code="education", display_name="Education", institution_types=["school"])
+    db_session.add(education)
+    await db_session.flush()
+    await _seed_profiled_institution(
+        db_session, canonical_name="Unfiltered", sector_id=education.id
+    )
+    await _seed_profiled_institution(db_session, canonical_name="No Sector", sector_id=None)
+
+    reservations = await select_daily_batch(db_session, limit=10)
+
+    reserved_by_name = {r.institution_id: r.sector_id for r in reservations}
+    assert set(reserved_by_name.values()) == {education.id, None}
+
+
+@pytest.mark.asyncio
+async def test_list_reservations_filters_by_sector_id(db_session):
+    education = Sector(code="education", display_name="Education", institution_types=["school"])
+    retail = Sector(code="retail", display_name="Retail", institution_types=["retail_store"])
+    db_session.add_all([education, retail])
+    await db_session.flush()
+    await _seed_profiled_institution(db_session, canonical_name="A School", sector_id=education.id)
+    await _seed_profiled_institution(db_session, canonical_name="A Store", sector_id=retail.id)
+
+    await select_daily_batch(db_session, limit=10)
+
+    education_only = await list_reservations(db_session, sector_id=education.id)
+    retail_only = await list_reservations(db_session, sector_id=retail.id)
+
+    assert len(education_only) == 1
+    assert education_only[0].sector_id == education.id
+    assert len(retail_only) == 1
+    assert retail_only[0].sector_id == retail.id
 
 
 @pytest.mark.asyncio
