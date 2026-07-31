@@ -1,4 +1,5 @@
 from .canonical import Branch, CanonicalInstitution, ContactPoint, OperatingStatus
+from .verification import ContactVerification, VerificationStatus
 from .provenance import FieldProvenance
 from .resolution import MatchAssessment, MatchDecision, ResolutionCandidate
 from .source import RawSourceRecord, RunStatus, SourceRun, SourceType
@@ -19,6 +20,8 @@ __all__ = [
     "Branch",
     "ContactPoint",
     "OperatingStatus",
+    "ContactVerification",
+    "VerificationStatus",
     "FieldProvenance",
     "QualificationAssessment",
     "QualificationStatus",

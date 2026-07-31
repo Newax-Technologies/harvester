@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     test_database_url: Optional[str] = "postgresql+asyncpg://opportunity_test:TEST_PASSWORD@127.0.0.1:5432/lead_harvester_test"
     google_places_api_key: str = ""
     brave_search_api_key: str = ""
+    email_verification_api_url: str = ""
+    email_verification_api_key: str = ""
     job_config_path: str = ""
     job_config: dict = {}
     app_env: str = "development"

@@ -41,6 +41,25 @@ def run_command(args: argparse.Namespace) -> int:
     return 0
 
 
+async def verify_contacts(args: argparse.Namespace) -> int:
+    from .database import get_session
+    from .verification import EmailVerificationService
+    from .verification.service import build_default_provider
+
+    settings = Settings(
+        email_verification_api_url=args.api_url or _env("EMAIL_VERIFICATION_API_URL"),
+        email_verification_api_key=args.api_key or _env("EMAIL_VERIFICATION_API_KEY"),
+    )
+    provider = build_default_provider(settings)
+    service = EmailVerificationService(provider)
+
+    print(f"[Verification] Using provider: {provider.name}")
+    async with get_session() as session:
+        count = await service.verify_pending(session, limit=args.limit)
+    print(f"[Verification] Verified {count} pending contact(s).")
+    return 0
+
+
 async def check_db_health() -> int:
     from sqlalchemy import text
     try:
@@ -228,6 +247,15 @@ def build_parser() -> argparse.ArgumentParser:
     # -- db-health ----------------------------------------------------------
     subparsers.add_parser("db-health", help="Check PostgreSQL connection health")
 
+    # -- verify-contacts ------------------------------------------------------
+    verify = subparsers.add_parser(
+        "verify-contacts",
+        help="Verify pending email ContactPoints via a licensed provider (or local heuristics if unset)",
+    )
+    verify.add_argument("--api-url", default="", help="Licensed email verification API URL (or set EMAIL_VERIFICATION_API_URL)")
+    verify.add_argument("--api-key", default="", help="Licensed email verification API key (or set EMAIL_VERIFICATION_API_KEY)")
+    verify.add_argument("--limit", type=int, default=100, help="Max contacts to verify in this run")
+
     # -- migrate-phase1 -----------------------------------------------------
     migrate = subparsers.add_parser("migrate-phase1", help="Migrate Phase 1 SQLite data to PostgreSQL")
     migrate.add_argument("--database", default="leads_v2.sqlite3")
@@ -323,6 +351,7 @@ def main() -> None:
     dispatch = {
         "run":                lambda: sys.exit(run_command(args)),
         "db-health":          lambda: sys.exit(asyncio.run(check_db_health())),
+        "verify-contacts":    lambda: sys.exit(asyncio.run(verify_contacts(args))),
         "migrate-phase1":     lambda: sys.exit(asyncio.run(_migrate(args))),
         "seed-demo-data":     lambda: sys.exit(asyncio.run(_seed(args))),
         "linkedin-login":     lambda: sys.exit(asyncio.run(linkedin_login(args))),

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from geoalchemy2 import Geography
 
 from lead_harvester.database import Base
+from lead_harvester.models.verification import ContactVerification, VerificationStatus
 
 
 class OperatingStatus(str, enum.Enum):
@@ -83,4 +84,9 @@ class ContactPoint(Base):
     
     is_publicly_listed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # Latest verification result (see models/verification.py for full history)
+    verification_status: Mapped[VerificationStatus] = mapped_column(Enum(VerificationStatus), default=VerificationStatus.PENDING, nullable=False)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     institution: Mapped["CanonicalInstitution"] = relationship("CanonicalInstitution", back_populates="contact_points")
+    verifications: Mapped[list["ContactVerification"]] = relationship("ContactVerification", back_populates="contact_point", cascade="all, delete-orphan")

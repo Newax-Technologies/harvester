@@ -3,6 +3,7 @@ from sqlalchemy import select
 
 from lead_harvester.models.canonical import CanonicalInstitution, ContactPoint
 from lead_harvester.models.outreach import AccountBrief, OutreachDraft, BriefStatus, DraftStatus
+from lead_harvester.models.verification import VerificationStatus
 
 class OutreachGenerator:
     """
@@ -65,16 +66,20 @@ class OutreachGenerator:
         contacts_stmt = select(ContactPoint).where(ContactPoint.institution_id == brief.institution_id)
         contact_points = (await session.execute(contacts_stmt)).scalars().all()
 
-        # Prefer a contact matching the target role with an email, then any email,
-        # then any contact at all.
-        contact = next((c for c in contact_points if c.role == target_role and c.contact_type == "email"), None)
-        if contact is None:
-            contact = next((c for c in contact_points if c.contact_type == "email"), None)
-        if contact is None and contact_points:
-            contact = contact_points[0]
+        # Prefer a verified email matching the target role, then any verified email,
+        # then an unverified email matching the role, then any email, then any contact.
+        emails = [c for c in contact_points if c.contact_type == "email"]
+        contact = (
+            next((c for c in emails if c.role == target_role and c.verification_status == VerificationStatus.VALID), None)
+            or next((c for c in emails if c.verification_status == VerificationStatus.VALID), None)
+            or next((c for c in emails if c.role == target_role), None)
+            or next(iter(emails), None)
+            or next(iter(contact_points), None)
+        )
 
         target_name = (stakeholder.get("name") if stakeholder else None) or (contact.person_name if contact else None) or "Unknown"
         target_contact_value = contact.contact_value if contact else ""
+        contact_is_verified = bool(contact) and contact.contact_type == "email" and contact.verification_status == VerificationStatus.VALID
 
         # MOCK AI GENERATION
         subject = f"Streamlining operations at {brief.institution.canonical_name}"
@@ -92,8 +97,8 @@ class OutreachGenerator:
 
         session.add(draft)
 
-        # Without a real contact address there's nothing to send to, so leave it
-        # for a human to fill in rather than marking it ready to go out.
-        draft.status = DraftStatus.GENERATED if target_contact_value else DraftStatus.NEEDS_REVISION
+        # Only auto-advance to GENERATED with a verified email; anything else
+        # (missing, unverified, or risky/invalid) needs a human to confirm first.
+        draft.status = DraftStatus.GENERATED if contact_is_verified else DraftStatus.NEEDS_REVISION
 
         return draft
