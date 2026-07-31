@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from geoalchemy2 import Geography
-from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -128,6 +128,71 @@ class ContactPoint(Base):
 
     is_publicly_listed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # Which discovered person this contact belongs to, if any -- see
+    # PersonCandidate below. Null for contacts with no person_name at all
+    # (e.g. a bare institutional "info@" address).
+    person_candidate_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("person_candidates.id"), nullable=True, index=True
+    )
+
     institution: Mapped["CanonicalInstitution"] = relationship(
         "CanonicalInstitution", back_populates="contact_points"
+    )
+    person_candidate: Mapped["PersonCandidate | None"] = relationship(
+        "PersonCandidate", back_populates="contact_points"
+    )
+
+
+class PersonCandidate(Base):
+    """
+    A discovered *possible* contact for an institution -- not a verified
+    person, and not core-newax's canonical CorePerson (which this codebase
+    doesn't own; see docs/ROADMAP.md's Harvester/Core boundary). Exists to
+    group multiple ContactPoint rows that name the same individual (e.g.
+    their phone from a Google Places listing and their email from a later
+    web-crawled page) under one identity within an institution, instead of
+    leaving them as two unrelated rows with no link between them -- see
+    docs/ROADMAP.md's tracked follow-up #5 (cross-record person
+    deduplication).
+    """
+
+    __tablename__ = "person_candidates"
+    __table_args__ = (
+        # Defense in depth against two concurrent merges of the same
+        # institution racing _resolve_person_candidate's own select-then-
+        # insert (see canonical/merger.py) -- makes a genuine race raise
+        # IntegrityError instead of silently creating two PersonCandidate
+        # rows for the same person.
+        UniqueConstraint(
+            "institution_id",
+            "normalized_name",
+            name="uq_person_candidates_institution_normalized_name",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("canonical_institutions.id"), nullable=False, index=True
+    )
+
+    # As first encountered (kept for display -- casing/punctuation can differ
+    # across sources even once they're recognized as the same person).
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # resolution/normalize.py's normalize_name(display_name) -- the actual
+    # matching key, so "Dr. Ayesha Khan" and "ayesha khan" from two
+    # different sources attach to the same candidate.
+    normalized_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    # Best-known role across every contributing ContactPoint. First
+    # non-null value wins and is never overwritten by a later null --
+    # same "don't silently discard known data" policy canonical/merger.py
+    # already uses for person_name/role on ContactPoint itself.
+    role: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+
+    institution = relationship("CanonicalInstitution")
+    contact_points: Mapped[list["ContactPoint"]] = relationship(
+        "ContactPoint", back_populates="person_candidate"
     )

@@ -8,7 +8,7 @@ from lead_harvester.canonical.merger import (
     find_canonical_for_raw_record,
     merge_records,
 )
-from lead_harvester.models.canonical import Branch, ContactPoint, OperatingStatus
+from lead_harvester.models.canonical import Branch, ContactPoint, OperatingStatus, PersonCandidate
 from lead_harvester.models.provenance import FieldProvenance
 
 from .factories import google_places_record, website_record
@@ -904,3 +904,222 @@ async def test_merge_records_populates_branch_city_and_country_code_from_authori
     ).scalar_one()
     assert branch.city == "Karachi"
     assert branch.country_code == "PK"
+
+
+@pytest.mark.asyncio
+async def test_merge_records_creates_person_candidate_for_named_contact(db_session, source_run):
+    record = _authorized_import_record(
+        source_run.id,
+        contacts=[
+            {
+                "contact_type": "phone",
+                "contact_value": "+923001234567",
+                "person_name": "Ali Khan",
+                "role": "Principal",
+            }
+        ],
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [record])
+    await db_session.flush()
+
+    contact = (
+        await db_session.execute(
+            select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+        )
+    ).scalar_one()
+    assert contact.person_candidate_id is not None
+
+    candidate = (
+        await db_session.execute(
+            select(PersonCandidate).where(PersonCandidate.id == contact.person_candidate_id)
+        )
+    ).scalar_one()
+    assert candidate.institution_id == institution.id
+    assert candidate.display_name == "Ali Khan"
+    assert candidate.normalized_name == "ali khan"
+    assert candidate.role == "Principal"
+
+
+@pytest.mark.asyncio
+async def test_merge_records_groups_same_person_across_contact_points(db_session, source_run):
+    # docs/ROADMAP.md tracked follow-up #5: the same person named on two
+    # different ContactPoint rows for the same institution (their phone
+    # from one contact, their email from another, with differing
+    # casing/punctuation) previously had no link between them at all --
+    # each became an entirely separate, unrelated ContactPoint.
+    record = _authorized_import_record(
+        source_run.id,
+        contacts=[
+            {
+                "contact_type": "phone",
+                "contact_value": "+923001234567",
+                "person_name": "Ali Khan",
+                "role": "Principal",
+            },
+            {
+                "contact_type": "email",
+                "contact_value": "ali.khan@beacon.edu",
+                "person_name": "ALI  khan.",  # different casing/punctuation, same person
+                "role": "",
+            },
+        ],
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [record])
+    await db_session.flush()
+
+    contacts = (
+        (
+            await db_session.execute(
+                select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(contacts) == 2
+    candidate_ids = {c.person_candidate_id for c in contacts}
+    assert len(candidate_ids) == 1
+    assert None not in candidate_ids
+
+    candidates = (
+        (
+            await db_session.execute(
+                select(PersonCandidate).where(PersonCandidate.institution_id == institution.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(candidates) == 1
+    # Role from the first contact is preserved rather than cleared by the
+    # second contact's blank role.
+    assert candidates[0].role == "Principal"
+
+
+@pytest.mark.asyncio
+async def test_merge_records_creates_separate_person_candidates_for_different_names(
+    db_session, source_run
+):
+    record = _authorized_import_record(
+        source_run.id,
+        contacts=[
+            {
+                "contact_type": "phone",
+                "contact_value": "+923001234567",
+                "person_name": "Ali Khan",
+                "role": "Principal",
+            },
+            {
+                "contact_type": "whatsapp",
+                "contact_value": "+923009999999",
+                "person_name": "Sara Malik",
+                "role": "Admissions Officer",
+            },
+        ],
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [record])
+    await db_session.flush()
+
+    candidates = (
+        (
+            await db_session.execute(
+                select(PersonCandidate).where(PersonCandidate.institution_id == institution.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert {c.display_name for c in candidates} == {"Ali Khan", "Sara Malik"}
+
+
+@pytest.mark.asyncio
+async def test_contact_with_no_person_name_has_no_person_candidate(db_session, source_run):
+    record = _authorized_import_record(
+        source_run.id,
+        contacts=[
+            {
+                "contact_type": "email",
+                "contact_value": "info@beacon.edu",
+                "person_name": "",
+                "role": "",
+            }
+        ],
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [record])
+    await db_session.flush()
+
+    contact = (
+        await db_session.execute(
+            select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+        )
+    ).scalar_one()
+    assert contact.person_candidate_id is None
+    assert (await db_session.execute(select(PersonCandidate))).first() is None
+
+
+@pytest.mark.asyncio
+async def test_backfilling_a_contacts_name_resolves_a_person_candidate(db_session, source_run):
+    # A contact created without a person_name (e.g. a bare phone number)
+    # later enriched with one by attach_record_to_institution should get
+    # linked to a PersonCandidate at that point too, not only on initial
+    # creation.
+    a = _authorized_import_record(
+        source_run.id,
+        contacts=[
+            {
+                "contact_type": "phone",
+                "contact_value": "+923001234567",
+                "person_name": "",
+                "role": "",
+            }
+        ],
+    )
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+
+    contact = (await db_session.execute(select(ContactPoint))).scalar_one()
+    assert contact.person_candidate_id is None
+
+    b = _authorized_import_record(
+        source_run.id,
+        contacts=[
+            {
+                "contact_type": "phone",
+                "contact_value": "+923001234567",
+                "person_name": "Ali Khan",
+                "role": "Principal",
+            }
+        ],
+    )
+    db_session.add(b)
+    await db_session.flush()
+
+    await attach_record_to_institution(db_session, b, institution, target_branch=None)
+    await db_session.flush()
+
+    contact = (
+        await db_session.execute(
+            select(ContactPoint).where(ContactPoint.institution_id == institution.id)
+        )
+    ).scalar_one()
+    assert contact.person_candidate_id is not None
+    candidate = (
+        await db_session.execute(
+            select(PersonCandidate).where(PersonCandidate.id == contact.person_candidate_id)
+        )
+    ).scalar_one()
+    assert candidate.display_name == "Ali Khan"

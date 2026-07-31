@@ -52,6 +52,46 @@ class LeadSyncEmitter:
 
         supported_contacts = self._filter_supported_contacts(institution.id, contact_points)
         payload = self._build_payload(institution, branches, supported_contacts)
+        await self._deliver(payload, error_context=f"institution {institution.id}")
+
+    async def emit_contact_point_deleted(
+        self, institution_id: uuid.UUID, contact_point_id: uuid.UUID
+    ) -> None:
+        """
+        Notifies core-newax that a previously-synced ContactPoint no longer
+        exists here (compliance_service.py::fulfill_deletion is currently
+        the only path that removes one) -- see docs/ROADMAP.md's tracked
+        follow-up #4 ("Deletion/reconciliation"): the sync was
+        append-and-update only before this, so a deleted contact stayed
+        live in core-newax forever with nothing telling it otherwise.
+
+        Fire-and-forget like emit_institution_upserted originally was,
+        with the same known gap: no retry/outbox yet for this event type
+        (durability was layered onto the upsert path separately in
+        services/outbox_service.py; doing the same here would need
+        EventOutbox.institution_id to tolerate an institution that may no
+        longer exist by delivery time, which is a real schema question,
+        not something to bolt on silently).
+        """
+        if not self.settings.lead_sync_enabled or not self.settings.lead_sync_webhook_url:
+            return
+
+        payload = self._build_deletion_payload(
+            "contact_point.deleted",
+            institution_id,
+            contactPointId=str(contact_point_id),
+        )
+        await self._deliver(payload, error_context=f"contact point {contact_point_id}")
+
+    async def emit_institution_deleted(self, institution_id: uuid.UUID) -> None:
+        """Same as emit_contact_point_deleted, for a whole institution being erased."""
+        if not self.settings.lead_sync_enabled or not self.settings.lead_sync_webhook_url:
+            return
+
+        payload = self._build_deletion_payload("institution.deleted", institution_id)
+        await self._deliver(payload, error_context=f"institution {institution_id}")
+
+    async def _deliver(self, payload: dict[str, Any], *, error_context: str) -> None:
         body = json.dumps(payload, separators=(",", ":"))
         timestamp = str(int(time.time()))
         signature = self._sign(timestamp, body)
@@ -71,7 +111,7 @@ class LeadSyncEmitter:
                 )
                 response.raise_for_status()
         except httpx.HTTPError as e:
-            print(f"lead_sync webhook delivery failed for institution {institution.id}: {e}")
+            print(f"lead_sync webhook delivery failed for {error_context}: {e}")
 
     @staticmethod
     def _filter_supported_contacts(
@@ -135,6 +175,18 @@ class LeadSyncEmitter:
                 }
                 for contact in contact_points
             ],
+        }
+
+    def _build_deletion_payload(
+        self, event_type: str, institution_id: uuid.UUID, **extra: str
+    ) -> dict[str, Any]:
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "eventId": str(uuid.uuid4()),
+            "eventType": event_type,
+            "occurredAt": self._isoformat_now(),
+            "institutionId": str(institution_id),
+            **extra,
         }
 
     def _sign(self, timestamp: str, body: str) -> str:

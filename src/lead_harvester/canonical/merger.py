@@ -9,10 +9,11 @@ from lead_harvester.models.canonical import (
     CanonicalInstitution,
     ContactPoint,
     OperatingStatus,
+    PersonCandidate,
 )
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.source import RawSourceRecord, SourceType
-from lead_harvester.resolution.normalize import normalize_phone
+from lead_harvester.resolution.normalize import normalize_name, normalize_phone
 from lead_harvester.verification.confidence import bump_confidence, confidence_for_source_count
 
 # Google Places' response (the only live raw-record source today) does not
@@ -339,6 +340,48 @@ async def _add_contacts_and_provenance(
     )
 
 
+async def _resolve_person_candidate(
+    session: AsyncSession,
+    institution_id: uuid.UUID,
+    person_name: str | None,
+    role: str | None,
+) -> PersonCandidate | None:
+    """
+    Finds (or creates) the PersonCandidate for a given name within an
+    institution, matching on normalize_name so casing/punctuation
+    differences across sources still attach to the same candidate --
+    docs/ROADMAP.md's tracked follow-up #5 (cross-record person
+    deduplication): the same person named on two different ContactPoint
+    rows previously had no link between them at all.
+    """
+    if not person_name:
+        return None
+    normalized = normalize_name(person_name)
+    if not normalized:
+        return None
+
+    stmt = select(PersonCandidate).where(
+        PersonCandidate.institution_id == institution_id,
+        PersonCandidate.normalized_name == normalized,
+    )
+    candidate = (await session.execute(stmt)).scalar_one_or_none()
+    if candidate is None:
+        candidate = PersonCandidate(
+            institution_id=institution_id,
+            display_name=person_name,
+            normalized_name=normalized,
+            role=role,
+        )
+        session.add(candidate)
+        # Flush so the caller can read candidate.id immediately (the
+        # ContactPoint being linked to it is usually added in the same
+        # call), rather than relying on a later flush to assign it.
+        await session.flush()
+    elif role and not candidate.role:
+        candidate.role = role
+    return candidate
+
+
 async def _add_contact_if_present(
     session: AsyncSession,
     institution: CanonicalInstitution,
@@ -359,6 +402,9 @@ async def _add_contact_if_present(
     # it) instead.
     existing = await _find_contact_point(session, institution.id, contact_type, contact_value)
     if existing is None:
+        person_candidate = await _resolve_person_candidate(
+            session, institution.id, person_name, role
+        )
         session.add(
             ContactPoint(
                 institution_id=institution.id,
@@ -366,6 +412,7 @@ async def _add_contact_if_present(
                 contact_value=contact_value,
                 person_name=person_name,
                 role=role,
+                person_candidate_id=person_candidate.id if person_candidate else None,
             )
         )
     else:
@@ -378,6 +425,17 @@ async def _add_contact_if_present(
             existing.person_name = person_name
         if role and existing.role != role:
             existing.role = role
+        # Only resolve once -- if a later correction changes an already-
+        # linked contact's name, re-grouping it (and anything else that
+        # already shares its candidate) into a different PersonCandidate
+        # is a rarer edge case left as a known v1 limitation rather than
+        # disproportionate machinery for this fix.
+        if existing.person_candidate_id is None and existing.person_name:
+            person_candidate = await _resolve_person_candidate(
+                session, institution.id, existing.person_name, existing.role
+            )
+            if person_candidate:
+                existing.person_candidate_id = person_candidate.id
     session.add(
         FieldProvenance(
             canonical_id=institution.id,

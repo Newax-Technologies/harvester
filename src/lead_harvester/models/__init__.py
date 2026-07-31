@@ -1,6 +1,6 @@
 from .allocation import LeadReservation, ReservationStatus
 from .audit import AuditLog
-from .canonical import Branch, CanonicalInstitution, ContactPoint, OperatingStatus
+from .canonical import Branch, CanonicalInstitution, ContactPoint, OperatingStatus, PersonCandidate
 from .compliance import (
     DeletionRequest,
     DeletionRequestStatus,
@@ -45,6 +45,7 @@ __all__ = [
     "OutboxStatus",
     "OutreachDraft",
     "OutreachOutcome",
+    "PersonCandidate",
     "QualificationAssessment",
     "QualificationStatus",
     "RawSourceRecord",

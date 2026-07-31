@@ -197,3 +197,109 @@ async def test_filters_unsupported_contact_types_before_delivery():
     body = mock_post.call_args.kwargs["content"]
     payload = json.loads(body)
     assert [c["id"] for c in payload["contactPoints"]] == [str(supported.id)]
+
+
+@pytest.mark.asyncio
+async def test_emit_contact_point_deleted_noops_when_disabled():
+    settings = _settings(lead_sync_enabled=False)
+    emitter = LeadSyncEmitter(settings)
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        await emitter.emit_contact_point_deleted(uuid.uuid4(), uuid.uuid4())
+
+    mock_post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_emit_contact_point_deleted_sends_signed_payload():
+    settings = _settings()
+    emitter = LeadSyncEmitter(settings)
+    institution_id = uuid.uuid4()
+    contact_point_id = uuid.uuid4()
+
+    mock_response = httpx.Response(
+        200, request=httpx.Request("POST", settings.lead_sync_webhook_url)
+    )
+    with patch(
+        "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_response
+    ) as mock_post:
+        await emitter.emit_contact_point_deleted(institution_id, contact_point_id)
+
+    mock_post.assert_awaited_once()
+    args, kwargs = mock_post.call_args
+    assert args[0] == settings.lead_sync_webhook_url
+
+    body = kwargs["content"]
+    payload = json.loads(body)
+    assert payload["schemaVersion"] == 1
+    assert payload["eventType"] == "contact_point.deleted"
+    assert uuid.UUID(payload["eventId"])
+    assert payload["institutionId"] == str(institution_id)
+    assert payload["contactPointId"] == str(contact_point_id)
+
+    timestamp = kwargs["headers"][TIMESTAMP_HEADER]
+    signature = kwargs["headers"][SIGNATURE_HEADER]
+    expected_signature = hmac.new(
+        settings.lead_sync_webhook_secret.encode(),
+        f"{timestamp}.{body}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    assert signature == expected_signature
+
+
+@pytest.mark.asyncio
+async def test_emit_contact_point_deleted_swallows_http_errors():
+    settings = _settings()
+    emitter = LeadSyncEmitter(settings)
+
+    with patch(
+        "httpx.AsyncClient.post",
+        new_callable=AsyncMock,
+        side_effect=httpx.ConnectError("connection refused"),
+    ):
+        await emitter.emit_contact_point_deleted(uuid.uuid4(), uuid.uuid4())  # must not raise
+
+
+@pytest.mark.asyncio
+async def test_emit_institution_deleted_noops_when_disabled():
+    settings = _settings(lead_sync_enabled=False)
+    emitter = LeadSyncEmitter(settings)
+
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        await emitter.emit_institution_deleted(uuid.uuid4())
+
+    mock_post.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_emit_institution_deleted_sends_signed_payload():
+    settings = _settings()
+    emitter = LeadSyncEmitter(settings)
+    institution_id = uuid.uuid4()
+
+    mock_response = httpx.Response(
+        200, request=httpx.Request("POST", settings.lead_sync_webhook_url)
+    )
+    with patch(
+        "httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_response
+    ) as mock_post:
+        await emitter.emit_institution_deleted(institution_id)
+
+    body = mock_post.call_args.kwargs["content"]
+    payload = json.loads(body)
+    assert payload["eventType"] == "institution.deleted"
+    assert payload["institutionId"] == str(institution_id)
+    assert "contactPointId" not in payload
+
+
+@pytest.mark.asyncio
+async def test_emit_institution_deleted_swallows_http_errors():
+    settings = _settings()
+    emitter = LeadSyncEmitter(settings)
+
+    with patch(
+        "httpx.AsyncClient.post",
+        new_callable=AsyncMock,
+        side_effect=httpx.ConnectError("connection refused"),
+    ):
+        await emitter.emit_institution_deleted(uuid.uuid4())  # must not raise
