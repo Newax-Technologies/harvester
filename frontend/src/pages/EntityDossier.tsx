@@ -10,9 +10,11 @@ import {
   AlertTriangle,
   FileText,
   AlertCircle,
+  TrendingUp,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { institutionQueries } from "../api/queries";
+import { institutionQueries, leadProfileQueries } from "../api/queries";
+import { StatusBadge } from "../components/StatusBadge";
 
 export function EntityDossier() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +26,17 @@ export function EntityDossier() {
     isError,
     error,
   } = useQuery(institutionQueries.detail(id!));
+
+  // Only fetched once the Score tab is opened -- a brand-new institution
+  // may not have a profile computed yet at all (404, not an error state).
+  const { data: profile, isLoading: profileLoading } = useQuery({
+    ...leadProfileQueries.detail(id!),
+    enabled: activeTab === "score",
+  });
+  const { data: scoreHistory } = useQuery({
+    ...leadProfileQueries.scoreHistory(id!),
+    enabled: activeTab === "score",
+  });
 
   if (isLoading)
     return (
@@ -88,6 +101,7 @@ export function EntityDossier() {
         <nav className="flex space-x-8">
           {[
             "Overview",
+            "Score",
             "Branches",
             "Contacts",
             "Research Findings",
@@ -185,6 +199,154 @@ export function EntityDossier() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeTab === "score" && (
+          <div className="grid grid-cols-3 gap-6">
+            {profileLoading ? (
+              <div className="col-span-3 p-8 text-center text-muted-foreground">
+                Loading score...
+              </div>
+            ) : !profile ? (
+              <div className="col-span-3 bg-card border border-border rounded-lg p-8 text-center text-muted-foreground">
+                No score has been computed for this institution yet.
+              </div>
+            ) : (
+              <>
+                <div className="col-span-2 space-y-6">
+                  <div className="bg-card border border-border rounded-lg p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold">Score Breakdown</h3>
+                      <div className="flex items-center gap-3">
+                        {(profile as any).qualification_status && (
+                          <StatusBadge
+                            status={(profile as any).qualification_status}
+                          />
+                        )}
+                        <span className="font-mono text-2xl font-bold text-verified">
+                          {(profile as any).overall_score}
+                        </span>
+                        <span className="text-muted-foreground">/100</span>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {Object.entries(
+                        (profile as any).score_breakdown as Record<
+                          string,
+                          number
+                        >,
+                      )
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([key, value]) => (
+                          <div key={key}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="capitalize text-muted-foreground">
+                                {key.replace(/_/g, " ")}
+                              </span>
+                              <span className="font-mono">{value}</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                              <div
+                                className="h-full bg-verified"
+                                style={{
+                                  width: `${Math.min(100, Math.max(0, value))}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  {scoreHistory && (scoreHistory as any[]).length > 0 && (
+                    <div className="bg-card border border-border rounded-lg p-6">
+                      <h3 className="text-lg font-semibold mb-4">
+                        Score History
+                      </h3>
+                      <div className="space-y-2">
+                        {(scoreHistory as any[]).map((point, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center justify-between text-sm py-2 border-b border-border last:border-0"
+                          >
+                            <span className="text-muted-foreground">
+                              {new Date(point.computed_at).toLocaleString()}
+                            </span>
+                            <span className="font-mono font-medium">
+                              {point.overall_score}/100
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-6">
+                  <div className="bg-card border border-border rounded-lg p-6">
+                    <h3 className="text-lg font-semibold mb-4">Signals</h3>
+                    <div className="space-y-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">
+                          Evidence points
+                        </span>
+                        <span className="font-mono">
+                          {(profile as any).evidence_count}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">
+                          Has phone
+                        </span>
+                        <TrendingUp
+                          size={14}
+                          className={
+                            (profile as any).has_phone
+                              ? "text-verified"
+                              : "text-stale"
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">
+                          Has email
+                        </span>
+                        <TrendingUp
+                          size={14}
+                          className={
+                            (profile as any).has_email
+                              ? "text-verified"
+                              : "text-stale"
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">
+                          Named contact
+                        </span>
+                        <TrendingUp
+                          size={14}
+                          className={
+                            (profile as any).has_named_contact
+                              ? "text-verified"
+                              : "text-stale"
+                          }
+                        />
+                      </div>
+                    </div>
+                    {(profile as any).organization_summary && (
+                      <>
+                        <div className="h-px bg-border my-4" />
+                        <p className="text-sm text-muted-foreground">
+                          {(profile as any).organization_summary}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
