@@ -2,7 +2,13 @@ seeds:
   - https://www.lums.edu.pk/
   - https://nust.edu.pk/
   - https://www.fast.edu.pk/
-  
+
+# Brave Search query discovery (requires BRAVE_SEARCH_API_KEY); discovered
+# URLs are merged with `seeds` and crawled the same way.
+# queries:
+#   - "private schools Islamabad contact"
+# count_per_query: 10
+
 # Google Places Configuration (requires valid API key)
 # cities:
 #   Islamabad:

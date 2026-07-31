@@ -5,6 +5,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://postgres:development-only@localhost:5432/opportunity_engine"
     test_database_url: Optional[str] = "postgresql+asyncpg://opportunity_test:TEST_PASSWORD@127.0.0.1:5432/lead_harvester_test"
     google_places_api_key: str = ""
+    brave_search_api_key: str = ""
     job_config_path: str = ""
     job_config: dict = {}
     app_env: str = "development"
