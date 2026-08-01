@@ -26,6 +26,13 @@ depends_on: str | Sequence[str] | None = None
 # services/compliance_service.py::erase_institution for the explicit
 # deletion graph this backs, and models/*.py's individual FK declarations
 # (now carrying the matching ondelete=) for per-table rationale.
+#
+# raw_page_snapshots.raw_source_record_id -> raw_source_records is
+# deliberately NOT listed here: migration e2a4c6f8b0d2 already made that
+# FK ondelete=CASCADE (for purge_expired_raw_records' sake, a separate
+# reason that happens to want the same behavior) -- redeclaring it here
+# would make this migration's downgrade() incorrectly reset it to NO
+# ACTION, undoing that earlier fix, for no benefit (it's already correct).
 _CASCADE_FKS: list[tuple[str, str, str, str]] = [
     (
         "account_briefs_institution_id_fkey",
@@ -107,12 +114,6 @@ _CASCADE_FKS: list[tuple[str, str, str, str]] = [
         "raw_page_snapshots",
         "institution_id",
         "canonical_institutions",
-    ),
-    (
-        "fk_raw_page_snapshots_raw_source_record_id",
-        "raw_page_snapshots",
-        "raw_source_record_id",
-        "raw_source_records",
     ),
     (
         "research_findings_institution_id_fkey",
