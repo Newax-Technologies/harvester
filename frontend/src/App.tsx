@@ -9,6 +9,7 @@ import {
   AlertCircle,
   Plus,
   TrendingUp,
+  Sparkles,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { dashboardQueries } from "./api/queries";
@@ -19,6 +20,7 @@ import { ReadinessGateDetail } from "./pages/ReadinessGateDetail";
 import { ResolutionQueue } from "./pages/ResolutionQueue";
 import { ResolutionDetail } from "./pages/ResolutionDetail";
 import { LeadProfiles } from "./pages/LeadProfiles";
+import { DailyQueue } from "./pages/DailyQueue";
 import { ManualLeadDrawer } from "./components/ManualLeadDrawer";
 
 // Sidebar nav is grouped into sections (Pipeline/Review/Governance/Admin)
@@ -93,6 +95,9 @@ function Layout() {
             </NavLink>
             <NavLink to="/leads" icon={<TrendingUp size={18} />}>
               Lead Profiles
+            </NavLink>
+            <NavLink to="/daily-queue" icon={<Sparkles size={18} />}>
+              Daily Queue
             </NavLink>
           </NavSection>
           <NavSection label="Review">
@@ -238,6 +243,7 @@ function App() {
           <Route path="institutions" element={<InstitutionsExplorer />} />
           <Route path="institutions/:id" element={<EntityDossier />} />
           <Route path="leads" element={<LeadProfiles />} />
+          <Route path="daily-queue" element={<DailyQueue />} />
           <Route path="resolution" element={<ResolutionQueue />} />
           <Route path="resolution/:id" element={<ResolutionDetail />} />
           <Route path="readiness" element={<ReadinessGate />} />
