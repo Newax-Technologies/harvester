@@ -1,8 +1,10 @@
 import uuid
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from lead_harvester.models.canonical import CanonicalInstitution
+from lead_harvester.models.canonical import CanonicalInstitution, ContactPoint
 
 
 @pytest.mark.asyncio
@@ -142,3 +144,85 @@ async def test_list_deletion_requests_filters_by_status(client_a, db_session):
 
     assert pending.json() == []
     assert len(completed.json()) == 1
+
+
+@pytest.mark.asyncio
+async def test_fulfill_contact_deletion_schedules_resync_only_after_commit(
+    client_a, db_session, monkeypatch
+):
+    # Correction regression test: compliance_service.py's
+    # _resync_institution_id_if_eligible deliberately only determines
+    # eligibility (no delivery attempt) inside fulfill_deletion's own
+    # transaction -- this route is the one that must actually schedule
+    # the resync, as a background task, AFTER session.commit() above it,
+    # mirroring services/resolution_service.py::make_decision's identical
+    # pattern for the same "don't let a downstream system observe this
+    # change before it's durable, and don't deliver it on a
+    # transaction that could still roll back" reason.
+    from lead_harvester.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "lead_sync_enabled", True)
+    monkeypatch.setattr(app_settings, "lead_sync_webhook_url", "https://core-newax.test/webhook")
+
+    institution = CanonicalInstitution(
+        canonical_name="API Resync Contact School", lead_synced_at=datetime.now(UTC)
+    )
+    db_session.add(institution)
+    await db_session.flush()
+    contact = ContactPoint(
+        institution_id=institution.id, contact_type="email", contact_value="erase-me@example.com"
+    )
+    db_session.add(contact)
+    await db_session.commit()
+    contact_id = contact.id
+    institution_id = institution.id
+
+    created = await client_a.post(
+        "/api/v1/compliance/deletion-requests",
+        json={"subject_type": "contact_point", "subject_id": str(contact_id)},
+    )
+    request_id = created.json()["id"]
+
+    with patch(
+        "lead_harvester.api.routes.compliance.resync_institution",
+        new=AsyncMock(),
+    ) as mock_resync:
+        response = await client_a.post(f"/api/v1/compliance/deletion-requests/{request_id}/fulfill")
+
+    assert response.status_code == 200
+    assert response.json()["manifest"]["downstream_resync_enqueued"] is True
+    mock_resync.assert_awaited_once()
+    args, _ = mock_resync.call_args
+    _emitter, resynced_institution_id = args
+    assert resynced_institution_id == institution_id
+
+
+@pytest.mark.asyncio
+async def test_fulfill_contact_deletion_against_never_synced_institution_skips_resync(
+    client_a, db_session
+):
+    institution = CanonicalInstitution(canonical_name="API Never Synced Contact School")
+    db_session.add(institution)
+    await db_session.flush()
+    contact = ContactPoint(
+        institution_id=institution.id, contact_type="email", contact_value="a@b.com"
+    )
+    db_session.add(contact)
+    await db_session.commit()
+    contact_id = contact.id
+
+    created = await client_a.post(
+        "/api/v1/compliance/deletion-requests",
+        json={"subject_type": "contact_point", "subject_id": str(contact_id)},
+    )
+    request_id = created.json()["id"]
+
+    with patch(
+        "lead_harvester.api.routes.compliance.resync_institution",
+        new=AsyncMock(),
+    ) as mock_resync:
+        response = await client_a.post(f"/api/v1/compliance/deletion-requests/{request_id}/fulfill")
+
+    assert response.status_code == 200
+    assert response.json()["manifest"]["downstream_resync_enqueued"] is False
+    mock_resync.assert_not_awaited()

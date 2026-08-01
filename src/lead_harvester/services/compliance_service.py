@@ -39,7 +39,6 @@ from lead_harvester.models.source import RawPageSnapshot, RawSourceRecord, Sourc
 from lead_harvester.models.verification import DataQualityFlag
 from lead_harvester.resolution.normalize import normalize_phone
 from lead_harvester.services.lead_profile_service import refresh_lead_profile
-from lead_harvester.services.outbox_service import enqueue_and_attempt_delivery
 
 
 def normalize_contact_value(value: str, *, default_region: str | None = None) -> str:
@@ -545,46 +544,42 @@ async def _erase_institution(
     }
 
 
-async def _resync_after_contact_erasure(session: AsyncSession, institution_id: uuid.UUID) -> bool:
+async def _resync_institution_id_if_eligible(
+    session: AsyncSession, institution_id: uuid.UUID
+) -> uuid.UUID | None:
     """
     Correction (docs/ROADMAP.md module 11): if this contact's institution
     was already mirrored to core-newax, LeadSyncEmitter._build_payload's
     upsert embedded this exact contact's name/value in that copy --
     deleting only the local ContactPoint row leaves it there forever
-    unless something re-syncs. Re-enqueues a fresh "institution.upserted"
-    event through the same durable outbox path (services/outbox_service.py
-    ::enqueue_and_attempt_delivery) every ordinary institution update
-    already uses, built from this institution's branches/contacts as they
-    stand NOW -- read in the SAME transaction, after the delete, so the
-    erased contact is correctly absent from it. Deliberately not
-    resync_institution (integrations/lead_sync_resync.py): that helper
-    opens its own fresh session/transaction, which would read this
-    institution's contacts from BEFORE this call's still-uncommitted
-    delete, re-syncing the very data being erased.
+    unless something re-syncs it.
 
-    Returns whether an event was actually enqueued, purely for the
-    manifest.
+    Deliberately does NOT enqueue or attempt delivery itself -- this runs
+    inside fulfill_deletion's still-open transaction, and the erasure
+    could yet be rolled back by something later in the same request.
+    Attempting delivery here would let an external system observe
+    "contact erased" (via a synchronous webhook call) before the local
+    delete is actually durable, and do it on THIS session/transaction
+    rather than a fresh one, unlike every other resync call site in this
+    codebase (integrations/lead_sync_resync.py::resync_institution, used
+    by services/resolution_service.py::make_decision the same way,
+    scheduled as a background task only after the caller's transaction
+    commits). This only determines eligibility (a pure read, safe
+    mid-transaction) and returns the institution_id for the caller to
+    schedule the SAME resync_institution helper post-commit, so it reads
+    this institution's branches/contacts fresh -- correctly reflecting
+    the now-committed absence of the erased contact.
+
+    Returns the institution_id if a resync should be scheduled, else None
+    -- also used to populate the manifest.
     """
     emitter = LeadSyncEmitter(app_settings)
     if not emitter.settings.lead_sync_enabled or not emitter.settings.lead_sync_webhook_url:
-        return False
+        return None
     institution = await session.get(CanonicalInstitution, institution_id)
     if institution is None or institution.lead_synced_at is None:
-        return False
-    branches = list(
-        (await session.scalars(select(Branch).where(Branch.institution_id == institution_id))).all()
-    )
-    contact_points = list(
-        (
-            await session.scalars(
-                select(ContactPoint).where(ContactPoint.institution_id == institution_id)
-            )
-        ).all()
-    )
-    row = await enqueue_and_attempt_delivery(
-        session, emitter, institution, branches, contact_points
-    )
-    return row is not None
+        return None
+    return institution_id
 
 
 def _redact_value_in_payload(payload: Any, value: str) -> tuple[Any, bool]:
@@ -621,7 +616,7 @@ def _redact_value_in_payload(payload: Any, value: str) -> tuple[Any, bool]:
 
 async def _erase_contact_source_evidence(
     session: AsyncSession, institution_id: uuid.UUID, contact_type: str, contact_value: str
-) -> int:
+) -> tuple[int, list[uuid.UUID]]:
     """
     Deleting the ContactPoint row alone leaves this exact value sitting in
     two other places written by canonical/merger.py::_add_contact_if_present
@@ -631,20 +626,34 @@ async def _erase_contact_source_evidence(
     still carry the erased value even after the ContactPoint fulfilling a
     deletion request reports verified: true.
 
-    Deletes the exact matching FieldProvenance assertions and redacts (not
-    deletes) the same value out of each contributing RawSourceRecord --
-    deleting the whole RawSourceRecord would also destroy any unrelated
-    evidence (address, other contacts) it still carries for this
-    institution or, if it's shared, for a different one entirely.
+    Deletes the exact matching FieldProvenance assertions outright (they
+    are never shared the way a RawSourceRecord can be -- each one asserts a
+    single institution's field). Redacting the raw payload itself is
+    trickier: a manual lead (api/routes/manual_leads.py) never writes a
+    contact_<type> FieldProvenance row at all -- only "branch_membership"
+    -- so restricting raw-record discovery to contact_<type> provenance
+    silently misses manual leads' own RawSourceRecord, which still carries
+    this exact value in raw_payload["contacts"]. Discover candidates the
+    same way _partition_institution_raw_source_records does for a whole
+    institution erasure instead: every raw record this institution's
+    FieldProvenance points at, of any field_name, excluding any record
+    ALSO referenced by a different institution's FieldProvenance --
+    redacting a value out of a shared record would silently destroy that
+    OTHER institution's evidence trail even though this deletion only
+    targets one contact. Redacts (never deletes) the value out of each
+    non-shared candidate -- deleting the whole RawSourceRecord would
+    destroy unrelated evidence (address, other contacts) it still carries.
 
-    Returns the number of RawSourceRecord rows redacted, purely so the
-    manifest can report it.
+    Returns (number of RawSourceRecord rows redacted, ids of any shared
+    records that contain this value but were left untouched) so the
+    manifest can report both instead of silently reporting a complete
+    erasure over a retained shared record.
     """
     # asserted_value is JSONB, not a plain string column -- Postgres has no
     # `jsonb = varchar` operator, so the value match is done in Python
     # after narrowing by the two indexed/typed columns (canonical_id,
     # field_name) rather than pushing the equality into SQL.
-    candidate_rows = list(
+    candidate_provenance_rows = list(
         (
             await session.scalars(
                 select(FieldProvenance).where(
@@ -654,13 +663,35 @@ async def _erase_contact_source_evidence(
             )
         ).all()
     )
-    provenance_rows = [row for row in candidate_rows if row.asserted_value == contact_value]
-    raw_record_ids = {row.raw_record_id for row in provenance_rows}
+    provenance_rows = [
+        row for row in candidate_provenance_rows if row.asserted_value == contact_value
+    ]
+
+    # Partition BEFORE deleting the provenance rows below -- this
+    # institution's own contact_<type> assertion is itself one of the
+    # candidate_ids _partition_institution_raw_source_records looks at, so
+    # deleting it first (autoflush would push that DELETE to the database
+    # before the partition's SELECT runs) would make a raw record that IS
+    # genuinely shared look like it no longer has any of this institution's
+    # provenance pointing at it, hiding it from the shared set entirely.
+    (
+        exclusive_raw_record_ids,
+        shared_raw_record_ids,
+    ) = await _partition_institution_raw_source_records(session, institution_id)
+    shared_raw_record_id_set = set(shared_raw_record_ids)
+
     for row in provenance_rows:
         await session.delete(row)
+    # A contact_<type> provenance row can itself point at a raw record
+    # that is ALSO referenced by a different institution -- exclude those
+    # from the redaction candidates too, not just the ones discovered via
+    # the broader exclusive-records fallback below.
+    candidate_raw_record_ids = (
+        set(exclusive_raw_record_ids) | {row.raw_record_id for row in provenance_rows}
+    ) - shared_raw_record_id_set
 
     redacted_count = 0
-    for raw_record_id in raw_record_ids:
+    for raw_record_id in candidate_raw_record_ids:
         record = await session.get(RawSourceRecord, raw_record_id)
         if record is None:
             continue
@@ -672,9 +703,20 @@ async def _erase_contact_source_evidence(
             record.raw_payload = new_payload
             redacted_count += 1
 
+    retained_shared_ids: list[uuid.UUID] = []
+    for raw_record_id in shared_raw_record_ids:
+        record = await session.get(RawSourceRecord, raw_record_id)
+        if record is None:
+            continue
+        _, contains_value = _redact_value_in_payload(record.raw_payload, contact_value)
+        if not contains_value and contact_type == "phone":
+            contains_value = record.normalized_phone == contact_value
+        if contains_value:
+            retained_shared_ids.append(raw_record_id)
+
     if provenance_rows or redacted_count:
         await session.flush()
-    return redacted_count
+    return redacted_count, retained_shared_ids
 
 
 async def _erase_contact_point(session: AsyncSession, contact: ContactPoint) -> dict[str, Any]:
@@ -703,8 +745,9 @@ async def _erase_contact_point(session: AsyncSession, contact: ContactPoint) -> 
     await session.flush()
     still_present = await _count_where(session, ContactPoint, ContactPoint.id, contact_point_id) > 0
 
-    downstream_resync_enqueued = False
+    resync_institution_id: uuid.UUID | None = None
     redacted_source_records = 0
+    retained_shared_source_records: list[uuid.UUID] = []
     if not still_present:
         # Compliance gate (docs/ROADMAP.md module 11): the exact same
         # suppression mechanism outreach/automator.py already checks via
@@ -721,19 +764,34 @@ async def _erase_contact_point(session: AsyncSession, contact: ContactPoint) -> 
             note="deletion_request_fulfilled",
             suppressed_by="system",
         )
-        redacted_source_records = await _erase_contact_source_evidence(
+        (
+            redacted_source_records,
+            retained_shared_source_records,
+        ) = await _erase_contact_source_evidence(
             session, institution_id, contact_type, contact_value
         )
         await refresh_lead_profile(session, institution_id)
-        downstream_resync_enqueued = await _resync_after_contact_erasure(session, institution_id)
+        resync_institution_id = await _resync_institution_id_if_eligible(session, institution_id)
 
     return {
         "subject_type": DeletionSubjectType.CONTACT_POINT.value,
         "subject_id": str(contact_point_id),
         "deleted_counts": {"contact_points": 1},
-        "retained": {"audit_logs": "retained_for_lawful_audit"},
+        "retained": {
+            "audit_logs": "retained_for_lawful_audit",
+            "shared_raw_source_records_with_contact_evidence": [
+                str(record_id) for record_id in retained_shared_source_records
+            ],
+        },
         "redacted_source_records": redacted_source_records,
-        "downstream_resync_enqueued": downstream_resync_enqueued,
+        "downstream_resync_enqueued": resync_institution_id is not None,
+        # Read by api/routes/compliance.py AFTER this transaction commits,
+        # to schedule integrations/lead_sync_resync.py::resync_institution
+        # as a background task -- see _resync_institution_id_if_eligible
+        # for why the resync itself must not happen in this transaction.
+        "downstream_resync_institution_id": (
+            str(resync_institution_id) if resync_institution_id is not None else None
+        ),
         "verified": not still_present,
         "residual_counts": {} if not still_present else {"contact_points": 1},
     }

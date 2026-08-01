@@ -265,9 +265,13 @@ async def test_fulfill_deletion_deletes_a_single_contact_point(db_session):
         "subject_type": "contact_point",
         "subject_id": str(contact_id),
         "deleted_counts": {"contact_points": 1},
-        "retained": {"audit_logs": "retained_for_lawful_audit"},
+        "retained": {
+            "audit_logs": "retained_for_lawful_audit",
+            "shared_raw_source_records_with_contact_evidence": [],
+        },
         "redacted_source_records": 0,
         "downstream_resync_enqueued": False,
+        "downstream_resync_institution_id": None,
         "verified": True,
         "residual_counts": {},
     }
@@ -355,6 +359,156 @@ async def test_fulfill_deletion_erases_contact_source_evidence_and_lead_profile(
     )
     assert profile is not None
     assert profile.has_phone is False
+
+
+@pytest.mark.asyncio
+async def test_fulfill_deletion_erases_manual_lead_contact_without_contact_provenance(db_session):
+    # Correction regression test: api/routes/manual_leads.py only ever
+    # writes a "branch_membership" FieldProvenance row -- never a
+    # contact_<type> one -- so the earlier contact_<type>-only discovery
+    # never found a manual lead's own RawSourceRecord and silently left its
+    # raw_payload["contacts"] carrying the erased value while still
+    # reporting a successful erasure. Discovery must fall back to this
+    # institution's exclusive raw records (mirroring
+    # _partition_institution_raw_source_records), not just contact_<type>
+    # provenance.
+    run = SourceRun(source_type=SourceType.MANUAL, run_metadata={}, status=RunStatus.COMPLETED)
+    db_session.add(run)
+    await db_session.flush()
+
+    raw_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.MANUAL,
+        source_id="manual:evidence-1",
+        raw_payload={
+            "institution_name": "Manual Evidence School",
+            "contacts": [{"contact_type": "phone", "contact_value": "+15550001111"}],
+        },
+        normalized_phone="+15550001111",
+    )
+    db_session.add(raw_record)
+    await db_session.flush()
+
+    institution = CanonicalInstitution(canonical_name="Manual Evidence School")
+    db_session.add(institution)
+    await db_session.flush()
+
+    contact = ContactPoint(
+        institution_id=institution.id, contact_type="phone", contact_value="+15550001111"
+    )
+    db_session.add(contact)
+    # Only branch_membership provenance -- no contact_phone row, matching
+    # manual_leads.py's actual write pattern.
+    db_session.add(
+        FieldProvenance(
+            canonical_id=institution.id,
+            raw_record_id=raw_record.id,
+            field_name="branch_membership",
+            asserted_value="manual:evidence-1",
+            assertion_trust=1.0,
+        )
+    )
+    await db_session.flush()
+    contact_id = contact.id
+    raw_record_id = raw_record.id
+
+    request = await request_deletion(db_session, DeletionSubjectType.CONTACT_POINT, contact_id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
+
+    assert fulfilled.manifest["redacted_source_records"] == 1
+
+    redacted_record = await db_session.get(RawSourceRecord, raw_record_id)
+    assert redacted_record.normalized_phone is None
+    assert redacted_record.raw_payload["contacts"][0]["contact_value"] == "[REDACTED]"
+    assert redacted_record.raw_payload["institution_name"] == "Manual Evidence School"
+
+
+@pytest.mark.asyncio
+async def test_fulfill_deletion_preserves_raw_evidence_shared_with_another_institution(db_session):
+    # Correction regression test: a raw record ALSO referenced by a
+    # different institution's FieldProvenance must never be redacted here
+    # -- doing so would silently destroy that OTHER institution's evidence
+    # trail even though this deletion only targets one contact. Mirrors
+    # _partition_institution_raw_source_records' own exclusive/shared
+    # split for whole-institution erasure.
+    run = SourceRun(source_type=SourceType.WEBSITE, run_metadata={}, status=RunStatus.COMPLETED)
+    db_session.add(run)
+    await db_session.flush()
+
+    shared_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.WEBSITE,
+        source_id="web:shared-1",
+        raw_payload={"phone": "+15550002222", "organization": "Shared Evidence School"},
+        normalized_phone="+15550002222",
+    )
+    db_session.add(shared_record)
+    await db_session.flush()
+
+    institution = CanonicalInstitution(canonical_name="Shared Evidence School A")
+    other_institution = CanonicalInstitution(canonical_name="Shared Evidence School B")
+    db_session.add_all([institution, other_institution])
+    await db_session.flush()
+
+    contact = ContactPoint(
+        institution_id=institution.id, contact_type="phone", contact_value="+15550002222"
+    )
+    db_session.add(contact)
+    db_session.add_all(
+        [
+            FieldProvenance(
+                canonical_id=institution.id,
+                raw_record_id=shared_record.id,
+                field_name="contact_phone",
+                asserted_value="+15550002222",
+                assertion_trust=1.0,
+            ),
+            FieldProvenance(
+                canonical_id=other_institution.id,
+                raw_record_id=shared_record.id,
+                field_name="contact_phone",
+                asserted_value="+15550002222",
+                assertion_trust=1.0,
+            ),
+        ]
+    )
+    await db_session.flush()
+    contact_id = contact.id
+    raw_record_id = shared_record.id
+
+    request = await request_deletion(db_session, DeletionSubjectType.CONTACT_POINT, contact_id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
+
+    # The shared record's payload/normalized_phone must survive untouched.
+    assert fulfilled.manifest["redacted_source_records"] == 0
+    assert fulfilled.manifest["retained"]["shared_raw_source_records_with_contact_evidence"] == [
+        str(raw_record_id)
+    ]
+    retained_record = await db_session.get(RawSourceRecord, raw_record_id)
+    assert retained_record.normalized_phone == "+15550002222"
+    assert retained_record.raw_payload["phone"] == "+15550002222"
+
+    # This institution's own contact_phone assertion is still deleted --
+    # FieldProvenance rows are never shared, only the raw record they
+    # point at can be.
+    remaining_provenance = (
+        await db_session.scalars(
+            select(FieldProvenance).where(
+                FieldProvenance.canonical_id == institution.id,
+                FieldProvenance.field_name == "contact_phone",
+            )
+        )
+    ).all()
+    assert remaining_provenance == []
+    other_provenance = (
+        await db_session.scalars(
+            select(FieldProvenance).where(
+                FieldProvenance.canonical_id == other_institution.id,
+                FieldProvenance.field_name == "contact_phone",
+            )
+        )
+    ).all()
+    assert len(other_provenance) == 1
 
 
 @pytest.mark.asyncio
@@ -1012,59 +1166,49 @@ async def test_fulfill_deletion_persists_tombstone_even_when_lead_sync_currently
 
 
 @pytest.mark.asyncio
-async def test_fulfill_deletion_resyncs_institution_after_contact_erasure_when_synced(
+async def test_fulfill_deletion_reports_resync_eligibility_after_contact_erasure_when_synced(
     db_session, monkeypatch
 ):
-    from unittest.mock import AsyncMock, patch
-
-    import httpx
-
+    # Correction regression test: fulfill_deletion (the service layer)
+    # must NOT attempt delivery itself -- it runs inside a still-open
+    # transaction that the caller (api/routes/compliance.py) hasn't
+    # committed yet, and attempting a synchronous webhook delivery here
+    # would let an external system observe "contact erased" before the
+    # local delete is durable. It only determines eligibility and reports
+    # the institution to resync via the manifest; the route schedules the
+    # actual resync_institution call as a background task AFTER commit
+    # (see tests/api/test_compliance.py for that half).
     from lead_harvester.config import settings as app_settings
 
     monkeypatch.setattr(app_settings, "lead_sync_enabled", True)
     monkeypatch.setattr(app_settings, "lead_sync_webhook_url", "https://core-newax.test/webhook")
-    monkeypatch.setattr(
-        app_settings, "lead_sync_webhook_secret", "test-secret-with-more-than-32-characters"
-    )
 
     institution = CanonicalInstitution(
         canonical_name="Synced Contact School", lead_synced_at=datetime.now(UTC)
     )
     db_session.add(institution)
     await db_session.flush()
-    kept_contact = ContactPoint(
-        institution_id=institution.id, contact_type="phone", contact_value="+15550001111"
-    )
     erased_contact = ContactPoint(
         institution_id=institution.id, contact_type="email", contact_value="erase-me@example.com"
     )
-    db_session.add_all([kept_contact, erased_contact])
+    db_session.add(erased_contact)
     await db_session.flush()
     erased_contact_id = erased_contact.id
+    institution_id = institution.id
 
-    mock_response = httpx.Response(
-        200, request=httpx.Request("POST", "https://core-newax.test/webhook")
+    request = await request_deletion(
+        db_session, DeletionSubjectType.CONTACT_POINT, erased_contact_id
     )
-    with patch.object(httpx.AsyncClient, "post", new=AsyncMock(return_value=mock_response)):
-        request = await request_deletion(
-            db_session, DeletionSubjectType.CONTACT_POINT, erased_contact_id
-        )
-        fulfilled = await fulfill_deletion(db_session, request.id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
 
     assert fulfilled.manifest["downstream_resync_enqueued"] is True
+    assert fulfilled.manifest["downstream_resync_institution_id"] == str(institution_id)
 
-    outbox_rows = (
-        await db_session.scalars(
-            select(EventOutbox).where(EventOutbox.event_type == "institution.upserted")
-        )
-    ).all()
-    assert len(outbox_rows) == 1
-    contact_values = {c["contactValue"] for c in outbox_rows[0].payload["contactPoints"]}
-    # The erased contact must be absent from the re-synced payload, not
-    # just from our own local table -- otherwise the mirror still has it.
-    assert "erase-me@example.com" not in contact_values
-    assert "+15550001111" in contact_values
-    assert outbox_rows[0].status == OutboxStatus.DELIVERED
+    # No delivery attempt (and therefore no EventOutbox row) at this
+    # layer -- that only happens once the route schedules resync_institution
+    # post-commit.
+    outbox_rows = (await db_session.scalars(select(EventOutbox))).all()
+    assert outbox_rows == []
 
 
 @pytest.mark.asyncio
@@ -1082,5 +1226,6 @@ async def test_fulfill_deletion_skips_resync_after_contact_erasure_when_never_sy
     fulfilled = await fulfill_deletion(db_session, request.id)
 
     assert fulfilled.manifest["downstream_resync_enqueued"] is False
+    assert fulfilled.manifest["downstream_resync_institution_id"] is None
     outbox_rows = (await db_session.scalars(select(EventOutbox))).all()
     assert outbox_rows == []
