@@ -34,6 +34,9 @@ export const queryKeys = {
   dailySelection: {
     list: (filters: any) => ["daily-selection", "list", filters],
   },
+  verification: {
+    flags: (filters: any) => ["verification", "flags", filters],
+  },
 };
 
 export const dashboardQueries = {
@@ -159,6 +162,25 @@ export const dailySelectionQueries = {
         apiClient
           .GET("/api/v1/daily-selection", {
             params: { query: { status: status as any, limit } },
+          })
+          .then(handleApiResponse),
+    }),
+};
+
+export const verificationQueries = {
+  flags: (status?: string, flagType?: string, limit = 100) =>
+    queryOptions({
+      queryKey: queryKeys.verification.flags({ status, flagType, limit }),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/verification/flags", {
+            params: {
+              query: {
+                status: status as any,
+                flag_type: flagType as any,
+                limit,
+              },
+            },
           })
           .then(handleApiResponse),
     }),
