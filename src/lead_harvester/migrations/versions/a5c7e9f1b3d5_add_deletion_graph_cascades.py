@@ -27,12 +27,14 @@ depends_on: str | Sequence[str] | None = None
 # deletion graph this backs, and models/*.py's individual FK declarations
 # (now carrying the matching ondelete=) for per-table rationale.
 #
-# raw_page_snapshots.raw_source_record_id -> raw_source_records is
-# deliberately NOT listed here: migration e2a4c6f8b0d2 already made that
-# FK ondelete=CASCADE (for purge_expired_raw_records' sake, a separate
-# reason that happens to want the same behavior) -- redeclaring it here
-# would make this migration's downgrade() incorrectly reset it to NO
-# ACTION, undoing that earlier fix, for no benefit (it's already correct).
+# raw_page_snapshots.raw_source_record_id -> raw_source_records and
+# raw_page_snapshots.institution_id -> canonical_institutions are
+# deliberately NOT listed here: migration e2a4c6f8b0d2 already made both
+# ondelete=CASCADE (for purge_expired_raw_records' sake and for
+# fulfill_deletion's sake respectively -- separate reasons that happen to
+# want the same behavior) -- redeclaring either here would make this
+# migration's downgrade() incorrectly reset it to NO ACTION, undoing that
+# earlier fix, for no benefit (both are already correct).
 _CASCADE_FKS: list[tuple[str, str, str, str]] = [
     (
         "account_briefs_institution_id_fkey",
@@ -110,12 +112,6 @@ _CASCADE_FKS: list[tuple[str, str, str, str]] = [
         "canonical_institutions",
     ),
     (
-        "fk_raw_page_snapshots_institution_id",
-        "raw_page_snapshots",
-        "institution_id",
-        "canonical_institutions",
-    ),
-    (
         "research_findings_institution_id_fkey",
         "research_findings",
         "institution_id",
@@ -182,8 +178,27 @@ def upgrade() -> None:
         ),
     )
 
+    # Correction: services/compliance_service.py::_erase_institution's own
+    # "institution.deleted" tombstone event must survive the institution
+    # row it's about being deleted in the same transaction -- see
+    # models/outbox.py's institution_id comment. Every other EventOutbox
+    # row still sets it; only this one deliberately doesn't.
+    op.alter_column(
+        "event_outbox",
+        "institution_id",
+        existing_type=postgresql.UUID(as_uuid=True),
+        nullable=True,
+    )
+
 
 def downgrade() -> None:
+    op.alter_column(
+        "event_outbox",
+        "institution_id",
+        existing_type=postgresql.UUID(as_uuid=True),
+        nullable=False,
+    )
+
     op.drop_column("deletion_requests", "manifest")
 
     for name, table, column, foreign_table in _SET_NULL_FKS:

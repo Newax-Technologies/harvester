@@ -601,3 +601,148 @@ async def test_fulfill_deletion_retains_a_raw_source_record_shared_with_another_
     ).all()
     assert len(remaining_provenance) == 1
     assert remaining_provenance[0].canonical_id == institution_b.id
+
+
+@pytest.mark.asyncio
+async def test_fulfill_deletion_counts_candidates_cascaded_via_raw_record_id(db_session):
+    # Correction: resolution/blocking.py's normal candidate-generation
+    # shape uses raw_record_id/target_raw_record_id, not target_canonical_id
+    # -- a candidate shaped this way still gets cascade-deleted when its
+    # raw record is exclusively purged, and the manifest must count it,
+    # not just the target_canonical_id shape covered by the other tests.
+    institution = CanonicalInstitution(canonical_name="Blocking Path School")
+    db_session.add(institution)
+    await db_session.flush()
+
+    run = SourceRun(
+        source_type=SourceType.GOOGLE_PLACES, run_metadata={}, status=RunStatus.COMPLETED
+    )
+    db_session.add(run)
+    await db_session.flush()
+
+    raw_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.GOOGLE_PLACES,
+        source_id=f"gp:{uuid.uuid4().hex[:8]}",
+        raw_payload={},
+    )
+    other_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.GOOGLE_PLACES,
+        source_id=f"gp:{uuid.uuid4().hex[:8]}",
+        raw_payload={},
+    )
+    db_session.add_all([raw_record, other_record])
+    await db_session.flush()
+
+    db_session.add(
+        FieldProvenance(
+            canonical_id=institution.id,
+            raw_record_id=raw_record.id,
+            field_name="canonical_name",
+            asserted_value="Blocking Path School",
+        )
+    )
+
+    # No target_canonical_id at all -- exactly the shape blocking.py
+    # actually produces, and the shape the old count missed.
+    candidate = ResolutionCandidate(
+        raw_record_id=raw_record.id,
+        target_raw_record_id=other_record.id,
+        blocking_strategy="blocking_domain",
+    )
+    db_session.add(candidate)
+    await db_session.flush()
+
+    db_session.add(
+        MatchAssessment(candidate_id=candidate.id, decision=MatchDecision.PENDING, total_score=40.0)
+    )
+    await db_session.flush()
+
+    request = await request_deletion(db_session, DeletionSubjectType.INSTITUTION, institution.id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
+
+    manifest = fulfilled.manifest
+    assert manifest["verified"] is True
+    assert manifest["deleted_counts"]["resolution_candidates"] == 1
+    assert manifest["deleted_counts"]["match_assessments"] == 1
+    assert (await db_session.scalar(select(func.count()).select_from(ResolutionCandidate))) == 0
+    assert (await db_session.scalar(select(func.count()).select_from(MatchAssessment))) == 0
+
+
+@pytest.mark.asyncio
+async def test_fulfill_deletion_enqueues_downstream_event_when_previously_synced(
+    db_session, monkeypatch
+):
+    from lead_harvester.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "lead_sync_enabled", True)
+    monkeypatch.setattr(app_settings, "lead_sync_webhook_url", "https://core-newax.test/webhook")
+
+    institution = CanonicalInstitution(
+        canonical_name="Already Synced School", lead_synced_at=datetime.now(UTC)
+    )
+    db_session.add(institution)
+    await db_session.flush()
+    institution_id = institution.id
+
+    request = await request_deletion(db_session, DeletionSubjectType.INSTITUTION, institution_id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
+
+    assert fulfilled.manifest["downstream_deletion_event_enqueued"] is True
+
+    tombstones = (
+        await db_session.scalars(
+            select(EventOutbox).where(EventOutbox.event_type == "institution.deleted")
+        )
+    ).all()
+    assert len(tombstones) == 1
+    tombstone = tombstones[0]
+    # NULL, not institution_id -- the institution row it's about is gone
+    # in this same transaction; this FK's CASCADE would otherwise delete
+    # the tombstone right along with it. See models/outbox.py.
+    assert tombstone.institution_id is None
+    assert tombstone.status == OutboxStatus.PENDING
+    assert tombstone.payload["institution"]["id"] == str(institution_id)
+
+
+@pytest.mark.asyncio
+async def test_fulfill_deletion_skips_downstream_event_when_never_synced(db_session, monkeypatch):
+    from lead_harvester.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "lead_sync_enabled", True)
+    monkeypatch.setattr(app_settings, "lead_sync_webhook_url", "https://core-newax.test/webhook")
+
+    # lead_synced_at is never set -- this institution was never mirrored,
+    # so there is nothing downstream to tell about its erasure.
+    institution = CanonicalInstitution(canonical_name="Never Synced School")
+    db_session.add(institution)
+    await db_session.flush()
+
+    request = await request_deletion(db_session, DeletionSubjectType.INSTITUTION, institution.id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
+
+    assert fulfilled.manifest["downstream_deletion_event_enqueued"] is False
+    tombstones = (
+        await db_session.scalars(
+            select(EventOutbox).where(EventOutbox.event_type == "institution.deleted")
+        )
+    ).all()
+    assert tombstones == []
+
+
+@pytest.mark.asyncio
+async def test_fulfill_deletion_skips_downstream_event_when_lead_sync_disabled(db_session):
+    # lead_sync is disabled by default in test settings -- even a
+    # previously-synced institution must not enqueue an event nobody will
+    # ever deliver.
+    institution = CanonicalInstitution(
+        canonical_name="Synced But Sync Now Off School", lead_synced_at=datetime.now(UTC)
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    request = await request_deletion(db_session, DeletionSubjectType.INSTITUTION, institution.id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
+
+    assert fulfilled.manifest["downstream_deletion_event_enqueued"] is False

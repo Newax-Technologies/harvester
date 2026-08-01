@@ -14,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.api.errors import ResourceNotFoundError
 from lead_harvester.compliance.channel_eligibility import EligibilityResult, is_channel_eligible
+from lead_harvester.config import settings as app_settings
+from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.models.allocation import LeadReservation
 from lead_harvester.models.audit import AuditLog
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
@@ -24,7 +26,7 @@ from lead_harvester.models.compliance import (
     SuppressionEntry,
     SuppressionReason,
 )
-from lead_harvester.models.outbox import EventOutbox
+from lead_harvester.models.outbox import EventOutbox, OutboxStatus
 from lead_harvester.models.outreach import AccountBrief, OutreachDraft, OutreachOutcome
 from lead_harvester.models.person import PersonCandidate
 from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot
@@ -150,6 +152,28 @@ async def _count_where(session: AsyncSession, model: Any, column: Any, value: An
     return int(await session.scalar(stmt) or 0)
 
 
+def _resolution_candidate_condition(
+    institution_id: uuid.UUID, exclusive_raw_record_ids: list[uuid.UUID]
+):
+    """
+    A ResolutionCandidate is reachable from this institution's erasure two
+    ways: directly (target_canonical_id -- the automated-resolution-
+    against-an-existing-institution shape) or indirectly, because
+    blocking.py's normal candidate-generation shape (raw_record_id/
+    target_raw_record_id) points at a RawSourceRecord this institution's
+    own erasure is about to purge (see
+    _partition_institution_raw_source_records) -- DB-level CASCADE on
+    those two FKs (migration a5c7e9f1b3d5) removes the second kind just as
+    surely as the first, so both must count as "deleted" here, not just
+    the target_canonical_id shape.
+    """
+    conditions = [ResolutionCandidate.target_canonical_id == institution_id]
+    if exclusive_raw_record_ids:
+        conditions.append(ResolutionCandidate.raw_record_id.in_(exclusive_raw_record_ids))
+        conditions.append(ResolutionCandidate.target_raw_record_id.in_(exclusive_raw_record_ids))
+    return or_(*conditions)
+
+
 # Correction (docs/ROADMAP.md module 11): every table directly owned by a
 # CanonicalInstitution -- a real FK to canonical_institutions.id. The
 # actual removal happens at the database level (ON DELETE CASCADE on each
@@ -158,8 +182,11 @@ async def _count_where(session: AsyncSession, model: Any, column: Any, value: An
 # this list exists purely so the deletion manifest can report an exact
 # per-table count of what that one statement removed.
 async def _count_institution_dependents(
-    session: AsyncSession, institution_id: uuid.UUID
+    session: AsyncSession, institution_id: uuid.UUID, exclusive_raw_record_ids: list[uuid.UUID]
 ) -> dict[str, int]:
+    resolution_candidate_condition = _resolution_candidate_condition(
+        institution_id, exclusive_raw_record_ids
+    )
     counts = {
         "branches": await _count_where(session, Branch, Branch.institution_id, institution_id),
         "contact_points": await _count_where(
@@ -168,8 +195,13 @@ async def _count_institution_dependents(
         "account_briefs": await _count_where(
             session, AccountBrief, AccountBrief.institution_id, institution_id
         ),
-        "resolution_candidates": await _count_where(
-            session, ResolutionCandidate, ResolutionCandidate.target_canonical_id, institution_id
+        "resolution_candidates": int(
+            await session.scalar(
+                select(func.count())
+                .select_from(ResolutionCandidate)
+                .where(resolution_candidate_condition)
+            )
+            or 0
         ),
         "field_provenance": await _count_where(
             session, FieldProvenance, FieldProvenance.canonical_id, institution_id
@@ -233,7 +265,7 @@ async def _count_institution_dependents(
             select(func.count())
             .select_from(MatchAssessment)
             .join(ResolutionCandidate, MatchAssessment.candidate_id == ResolutionCandidate.id)
-            .where(ResolutionCandidate.target_canonical_id == institution_id)
+            .where(resolution_candidate_condition)
         )
         or 0
     )
@@ -284,26 +316,76 @@ async def _partition_institution_raw_source_records(
     return sorted(exclusive_ids), sorted(shared_ids)
 
 
-async def _erase_institution(session: AsyncSession, institution_id: uuid.UUID) -> dict[str, Any]:
+async def _enqueue_deletion_event(session: AsyncSession, institution_id: uuid.UUID) -> bool:
+    """
+    Correction (docs/ROADMAP.md module 11): an institution already
+    mirrored to core-newax (CanonicalInstitution.lead_synced_at is set)
+    has had its contact values/names copied into an external system this
+    local erasure alone can't reach -- deleting our own EventOutbox
+    ledger (which _erase_institution's cascade does, along with
+    everything else) tells core-newax nothing, so its copy would
+    silently survive a "completed" deletion request forever. Enqueues a
+    durable "institution.deleted" event through the exact same
+    retry/backoff machinery (services/outbox_service.py::
+    process_pending_deliveries) every other outbound event already uses.
+
+    institution_id is deliberately NOT set on the row itself (unlike
+    every other EventOutbox row) -- see models/outbox.py's own comment:
+    the institution this row is about is being deleted in the same
+    transaction, and this FK's CASCADE would otherwise delete the
+    tombstone right along with it before it can ever be delivered.
+
+    Returns whether a row was actually enqueued (false when lead_sync
+    isn't configured), purely for the manifest.
+    """
+    emitter = LeadSyncEmitter(app_settings)
+    if not emitter.settings.lead_sync_enabled or not emitter.settings.lead_sync_webhook_url:
+        return False
+    payload = emitter._build_deletion_payload(institution_id)
+    session.add(
+        EventOutbox(
+            id=uuid.UUID(payload["eventId"]),
+            institution_id=None,
+            event_type=payload["eventType"],
+            payload=payload,
+            status=OutboxStatus.PENDING,
+            next_attempt_at=datetime.now(UTC),
+        )
+    )
+    await session.flush()
+    return True
+
+
+async def _erase_institution(
+    session: AsyncSession, institution: CanonicalInstitution
+) -> dict[str, Any]:
     """
     The explicit deletion graph for an institution-level erasure request,
-    run as part of the caller's single transaction (see fulfill_deletion):
+    run as part of the caller's single transaction (see fulfill_deletion,
+    which locks `institution` with SELECT ... FOR UPDATE before calling
+    this -- required so a concurrent writer can't add new evidence
+    between the partition below and the delete; canonical/merger.py::
+    attach_record_to_institution already takes the same lock before
+    mutating an institution, so it blocks until this transaction ends):
 
-    1. Count every dependent row (the manifest's "deleted_counts") before
-       touching anything.
-    2. Partition this institution's raw evidence (RawSourceRecord, via
+    1. Partition this institution's raw evidence (RawSourceRecord, via
        FieldProvenance) into exclusive (erase) vs shared (retain, report).
-    3. Delete the exclusive RawSourceRecord rows -- DB-level CASCADE (see
+    2. Count every dependent row (the manifest's "deleted_counts"),
+       including what the exclusive raw-record purge itself cascades
+       away, before touching anything.
+    3. Enqueue a durable deletion event if this institution was ever
+       mirrored downstream (see _enqueue_deletion_event).
+    4. Delete the exclusive RawSourceRecord rows -- DB-level CASCADE (see
        migration a5c7e9f1b3d5) takes their own FieldProvenance/
        ResolutionCandidate/RawPageSnapshot rows with them.
-    4. Delete the institution row itself -- DB-level CASCADE removes every
+    5. Delete the institution row itself -- DB-level CASCADE removes every
        remaining directly- and indirectly-owned table in the same
        statement (Branch, ContactPoint, AccountBrief+drafts+outcomes,
        ResolutionCandidate+assessments, FieldProvenance,
        QualificationAssessment, ResearchJob+findings, PersonCandidate,
        Signal, DataQualityFlag, LeadReservation, LeadProfile,
        LeadScoreSnapshot, EventOutbox, RawPageSnapshot).
-    5. Re-run the same counts (the verification result) to confirm nothing
+    6. Re-run the same counts (the verification result) to confirm nothing
        was left behind.
 
     AuditLog is deliberately untouched throughout -- see models/audit.py:
@@ -314,12 +396,19 @@ async def _erase_institution(session: AsyncSession, institution_id: uuid.UUID) -
     untouched, so a suppressed contact stays suppressed even after the
     institution it was attached to is gone.
     """
-    deleted_counts = await _count_institution_dependents(session, institution_id)
+    institution_id = institution.id
     (
         exclusive_raw_record_ids,
         shared_raw_record_ids,
     ) = await _partition_institution_raw_source_records(session, institution_id)
+    deleted_counts = await _count_institution_dependents(
+        session, institution_id, exclusive_raw_record_ids
+    )
     deleted_counts["raw_source_records"] = len(exclusive_raw_record_ids)
+
+    deletion_event_enqueued = False
+    if institution.lead_synced_at is not None:
+        deletion_event_enqueued = await _enqueue_deletion_event(session, institution_id)
 
     if exclusive_raw_record_ids:
         await session.execute(
@@ -342,7 +431,9 @@ async def _erase_institution(session: AsyncSession, institution_id: uuid.UUID) -
     # map BEFORE the database, so it would return this session's own
     # already-loaded (now stale) institution object instead of correctly
     # reporting it gone; a real SELECT always reflects the database.
-    residual_counts = await _count_institution_dependents(session, institution_id)
+    residual_counts = await _count_institution_dependents(
+        session, institution_id, exclusive_raw_record_ids
+    )
     residual_counts["raw_source_records"] = (
         int(
             await session.scalar(
@@ -372,6 +463,7 @@ async def _erase_institution(session: AsyncSession, institution_id: uuid.UUID) -
             "suppression_entries": "not_linked_to_institution_lifecycle",
             "shared_raw_source_records": [str(record_id) for record_id in shared_raw_record_ids],
         },
+        "downstream_deletion_event_enqueued": deletion_event_enqueued,
         "verified": verified,
         "residual_counts": {k: v for k, v in residual_counts.items() if v},
     }
@@ -432,10 +524,25 @@ async def fulfill_deletion(
         )
 
     if request.subject_type == DeletionSubjectType.INSTITUTION:
-        subject = await session.get(CanonicalInstitution, request.subject_id)
+        # Locked (SELECT ... FOR UPDATE), not a plain session.get -- held
+        # for the rest of this transaction, so a concurrent writer that
+        # also locks this same institution row (attach_record_to_
+        # institution's own with_for_update, canonical/merger.py) either
+        # already committed its new evidence before this lock was
+        # acquired (so _erase_institution's partition sees it and erases
+        # it too) or blocks until this whole erasure transaction ends, by
+        # which point the institution -- and its FK target -- is gone.
+        # Without this, new evidence could land between the partition
+        # query and the delete below, surviving as an orphan while the
+        # manifest still reports verified: true.
+        subject = await session.scalar(
+            select(CanonicalInstitution)
+            .where(CanonicalInstitution.id == request.subject_id)
+            .with_for_update()
+        )
         if subject is None:
             raise ResourceNotFoundError(str(request.subject_id))
-        manifest = await _erase_institution(session, request.subject_id)
+        manifest = await _erase_institution(session, subject)
     else:
         subject = await session.get(ContactPoint, request.subject_id)
         if subject is None:

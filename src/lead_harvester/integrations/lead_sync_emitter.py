@@ -137,6 +137,22 @@ class LeadSyncEmitter:
             ],
         }
 
+    def _build_deletion_payload(self, institution_id: uuid.UUID) -> dict[str, Any]:
+        """
+        Correction (docs/ROADMAP.md module 11): a minimal tombstone
+        payload for services/compliance_service.py::_erase_institution --
+        the receiver only needs to know WHICH institution to forget, not
+        the full upsert shape _build_payload builds (the institution row
+        is already gone locally by the time this is ever delivered).
+        """
+        return {
+            "schemaVersion": SCHEMA_VERSION,
+            "eventId": str(uuid.uuid4()),
+            "eventType": "institution.deleted",
+            "occurredAt": self._isoformat_now(),
+            "institution": {"id": str(institution_id)},
+        }
+
     def _sign(self, timestamp: str, body: str) -> str:
         message = f"{timestamp}.{body}".encode()
         return hmac.new(
