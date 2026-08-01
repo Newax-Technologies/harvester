@@ -284,10 +284,37 @@ class LeadPipeline:
                                 )
                             )
                         ).all()
+                        institutions_by_domain: dict[str, list[CanonicalInstitution]] = defaultdict(
+                            list
+                        )
                         for matched_institution in matched_institutions:
-                            for page_snapshot in snapshots_by_domain[matched_institution.domain]:
-                                page_snapshot.institution_id = matched_institution.id
-                            await refresh_lead_profile(session, matched_institution.id)
+                            institutions_by_domain[matched_institution.domain].append(
+                                matched_institution
+                            )
+                        for domain, institutions in institutions_by_domain.items():
+                            if len(institutions) != 1:
+                                # Correction: CanonicalInstitution.domain
+                                # carries no uniqueness constraint -- linking
+                                # this domain's snapshots to every institution
+                                # that happens to share it would make the
+                                # last one iterated the arbitrary persisted
+                                # owner, while earlier ones already refreshed
+                                # profiles from evidence they don't actually
+                                # own. Skip ambiguous domains rather than
+                                # guess; route them through entity resolution
+                                # instead if this needs to be automatic.
+                                print(
+                                    f"Skipping leadless-domain snapshot link for {domain!r}: "
+                                    f"{len(institutions)} institutions share this domain."
+                                )
+                                continue
+                            matched_institution = institutions[0]
+                            await self._link_snapshots_and_refresh(
+                                session,
+                                run,
+                                matched_institution,
+                                page_snapshots=snapshots_by_domain[domain],
+                            )
 
                     run.status = RunStatus.COMPLETED
                     run.completed_at = datetime.datetime.now(datetime.UTC)

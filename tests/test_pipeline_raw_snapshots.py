@@ -547,3 +547,136 @@ async def test_snapshots_for_a_leadless_unknown_domain_stay_unlinked(db_session)
     ).one()
     assert snapshot.raw_source_record_id is None
     assert snapshot.institution_id is None
+
+
+@pytest.mark.asyncio
+async def test_leadless_domain_shared_by_two_institutions_is_skipped(db_session):
+    # Correction regression test: CanonicalInstitution.domain has no
+    # uniqueness constraint, so a leadless domain can match more than one
+    # institution. Linking to all of them would make whichever one is
+    # iterated last the arbitrary persisted owner while the other already
+    # refreshed a profile from evidence it doesn't own -- must skip
+    # entirely instead of guessing.
+    first = CanonicalInstitution(canonical_name="Epsilon Prep", domain="epsilon.example.edu")
+    second = CanonicalInstitution(canonical_name="Epsilon Annex", domain="epsilon.example.edu")
+    db_session.add_all([first, second])
+    await db_session.flush()
+    first_id, second_id = first.id, second.id
+
+    async def _fake_crawl_shared_domain(self, seeds):
+        self.snapshots.append(
+            PageSnapshot(
+                url="https://epsilon.example.edu/",
+                final_url="https://epsilon.example.edu/",
+                status_code=200,
+                content_type="text/html",
+                html="<html>hi</html>",
+                fetch_error="",
+            )
+        )
+        return []
+
+    pipeline = LeadPipeline(Settings(job_config={"seeds": ["https://epsilon.example.edu"]}))
+
+    with (
+        patch(
+            "lead_harvester.pipeline.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch(
+            "lead_harvester.sources.web.WebCrawler.crawl",
+            new=_fake_crawl_shared_domain,
+        ),
+        patch.object(LeadPipeline, "_emit_resync_events", new=AsyncMock()),
+    ):
+        await pipeline._run_web_crawler()
+
+    snapshot = (
+        await db_session.scalars(
+            select(RawPageSnapshot).where(
+                RawPageSnapshot.normalized_domain == "epsilon.example.edu"
+            )
+        )
+    ).one()
+    assert snapshot.institution_id is None
+    assert snapshot.institution_id not in (first_id, second_id)
+
+
+@pytest.mark.asyncio
+async def test_leadless_domain_refresh_failure_does_not_abort_the_run(db_session):
+    # Correction regression test: the leadless-domain link+refresh used to
+    # run unguarded, same class of bug as the per-lead loop's own
+    # post-link refresh -- one institution's failure must not abort the
+    # whole crawl run or every other leadless domain matched in it.
+    from lead_harvester.models.source import RunStatus, SourceRun
+
+    zeta = CanonicalInstitution(canonical_name="Zeta School", domain="zeta.example.edu")
+    eta = CanonicalInstitution(canonical_name="Eta School", domain="eta.example.edu")
+    db_session.add_all([zeta, eta])
+    await db_session.flush()
+    zeta_id, eta_id = zeta.id, eta.id
+
+    async def _fake_crawl_two_leadless_domains(self, seeds):
+        for domain in ("zeta.example.edu", "eta.example.edu"):
+            self.snapshots.append(
+                PageSnapshot(
+                    url=f"https://{domain}/",
+                    final_url=f"https://{domain}/",
+                    status_code=200,
+                    content_type="text/html",
+                    html="<html>hi</html>",
+                    fetch_error="",
+                )
+            )
+        return []
+
+    calls = {"count": 0}
+    real_refresh_lead_profile = None
+
+    async def _flaky_refresh(session, institution_id):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise RuntimeError("transient scoring failure")
+        return await real_refresh_lead_profile(session, institution_id)
+
+    from lead_harvester.services import lead_profile_service
+
+    real_refresh_lead_profile = lead_profile_service.refresh_lead_profile
+
+    pipeline = LeadPipeline(
+        Settings(job_config={"seeds": ["https://zeta.example.edu", "https://eta.example.edu"]})
+    )
+
+    with (
+        patch(
+            "lead_harvester.pipeline.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch(
+            "lead_harvester.sources.web.WebCrawler.crawl",
+            new=_fake_crawl_two_leadless_domains,
+        ),
+        patch("lead_harvester.pipeline.refresh_lead_profile", new=_flaky_refresh),
+        patch.object(LeadPipeline, "_emit_resync_events", new=AsyncMock()),
+    ):
+        await pipeline._run_web_crawler()
+
+    run = (await db_session.scalars(select(SourceRun))).one()
+    assert run.status == RunStatus.COMPLETED
+    assert len(run.run_metadata["post_link_refresh_failures"]) == 1
+
+    zeta_snapshot = (
+        await db_session.scalars(
+            select(RawPageSnapshot).where(RawPageSnapshot.normalized_domain == "zeta.example.edu")
+        )
+    ).one()
+    eta_snapshot = (
+        await db_session.scalars(
+            select(RawPageSnapshot).where(RawPageSnapshot.normalized_domain == "eta.example.edu")
+        )
+    ).one()
+    # Exactly one of the two failed its refresh (and so kept institution_id
+    # unset by the failed savepoint's rollback); the other succeeded.
+    linked = [s for s in (zeta_snapshot, eta_snapshot) if s.institution_id is not None]
+    assert len(linked) == 1
+    assert linked[0].institution_id in (zeta_id, eta_id)
