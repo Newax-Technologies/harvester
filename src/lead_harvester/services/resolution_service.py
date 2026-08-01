@@ -33,7 +33,10 @@ from lead_harvester.models.resolution import (
 from lead_harvester.models.source import RawSourceRecord
 from lead_harvester.resolution.orchestrator import _has_other_pending_candidate
 from lead_harvester.schemas.resolution import ResolutionDecisionRequest
-from lead_harvester.services.lead_profile_service import link_page_snapshots_to_institution
+from lead_harvester.services.lead_profile_service import (
+    link_page_snapshots_to_institution,
+    refresh_lead_profile,
+)
 
 _OUTCOME_BY_DECISION = {
     "merge": ReviewOutcome.MERGED,
@@ -320,6 +323,16 @@ async def _apply_decision(
     re-sync is needed (a "separate" decision touches no existing
     institution; a "merge"/"branch" against a brand-new record creates a
     fresh institution via merge_records that has never been synced).
+
+    Every institution-touching branch also refreshes its LeadProfile
+    before returning -- linking a record's snapshots (above) is necessary
+    but not sufficient: an institution that already had a LeadProfile
+    keeps its pre-decision, evidence-stale website_quality_tier/
+    service_gap_score until something recomputes it, and nothing else
+    does so as a direct consequence of this decision. Mirrors the same
+    "every branch that touches an institution refreshes before returning"
+    rule resolution/orchestrator.py::resolve_incoming_record already
+    follows for the automated path.
     """
     record = await session.get(RawSourceRecord, candidate.raw_record_id)
     matched_record = None
@@ -337,6 +350,7 @@ async def _apply_decision(
         # the pending-review queue, so it must happen here. See
         # link_page_snapshots_to_institution's own docstring.
         await link_page_snapshots_to_institution(session, record.id, institution.id)
+        await refresh_lead_profile(session, institution.id)
         return None
 
     if matched_record is None:
@@ -353,6 +367,7 @@ async def _apply_decision(
                 raise ResourceNotFoundError(str(candidate.target_canonical_id))
             await attach_record_to_institution(session, record, institution, target_branch=None)
             await link_page_snapshots_to_institution(session, record.id, institution.id)
+            await refresh_lead_profile(session, institution.id)
             return institution.id if institution.lead_synced_at is not None else None
 
         # "merge"/"branch" both require something to attach to; without a
@@ -377,6 +392,7 @@ async def _apply_decision(
         # means), so its own snapshots were already linked when IT was
         # resolved.
         await link_page_snapshots_to_institution(session, record.id, institution.id)
+        await refresh_lead_profile(session, institution.id)
         return institution.id if institution.lead_synced_at is not None else None
 
     # matched_record (B) is itself still unresolved -- unlike the
@@ -402,4 +418,5 @@ async def _apply_decision(
     # RawPageSnapshot rows still waiting to be linked.
     await link_page_snapshots_to_institution(session, record.id, institution.id)
     await link_page_snapshots_to_institution(session, matched_record.id, institution.id)
+    await refresh_lead_profile(session, institution.id)
     return None

@@ -159,8 +159,10 @@ class RawPageSnapshot(Base):
     raw_source_record_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("raw_source_records.id", ondelete="CASCADE"), nullable=True, index=True
     )
+    # CASCADE: see migration e2a4c6f8b0d2 -- fulfill_deletion's institution
+    # delete must not FK-violate against a linked, crawled snapshot.
     institution_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("canonical_institutions.id"), nullable=True, index=True
+        ForeignKey("canonical_institutions.id", ondelete="CASCADE"), nullable=True, index=True
     )
 
     status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -93,6 +93,13 @@ def upgrade() -> None:
         "canonical_institutions",
         ["institution_id"],
         ["id"],
+        # CASCADE, not the default NO ACTION: this column didn't exist
+        # before this migration, so services/compliance_service.py::
+        # fulfill_deletion's existing (unrelated to this PR) institution
+        # delete never had to consider it -- without CASCADE, deleting any
+        # institution with a linked, crawled RawPageSnapshot would newly
+        # start raising a FK violation the moment this column exists.
+        ondelete="CASCADE",
     )
     op.create_index(
         "ix_raw_page_snapshots_normalized_domain", "raw_page_snapshots", ["normalized_domain"]
