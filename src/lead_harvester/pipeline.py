@@ -231,14 +231,14 @@ class LeadPipeline:
                         institution = await self._resolve_or_log(session, run, record, resync_ids)
 
                         # Link every page fetched for this domain to the
-                        # record it produced and (once resolved) the
-                        # institution it resolved to -- see the
-                        # snapshots_by_domain comment above and
-                        # models/source.py::RawPageSnapshot's docstring.
-                        for page_snapshot in snapshots_by_domain.get(record_domain or "", []):
+                        # record it produced -- see the snapshots_by_domain
+                        # comment above and models/source.py::RawPageSnapshot's
+                        # docstring. A plain in-memory attribute set, never
+                        # itself a failure point, so it stays outside the
+                        # savepoint below.
+                        record_snapshots = snapshots_by_domain.get(record_domain or "", [])
+                        for page_snapshot in record_snapshots:
                             page_snapshot.raw_source_record_id = record.id
-                            if institution is not None:
-                                page_snapshot.institution_id = institution.id
 
                         # Correction: _resolve_or_log's own refresh_lead_profile
                         # (called from inside resolve_incoming_record, before
@@ -246,14 +246,16 @@ class LeadPipeline:
                         # record's detected-technology Signal rows
                         # (_persist_detected_signals, also inside
                         # _resolve_or_log) and before the snapshot linkage
-                        # right above ever exist -- so that first refresh
-                        # always scores off ZERO of this crawl's own
-                        # evidence. Refresh again now that both are actually
-                        # attached, so website_quality_tier/service_gap_score/
-                        # detection status reflect the crawl that just ran,
-                        # not just whatever evidence predates it.
+                        # below ever exists -- so that first refresh always
+                        # scores off ZERO of this crawl's own evidence.
+                        # Refresh again now that both are actually attached,
+                        # so website_quality_tier/service_gap_score/detection
+                        # status reflect the crawl that just ran, not just
+                        # whatever evidence predates it.
                         if institution is not None:
-                            await refresh_lead_profile(session, institution.id)
+                            await self._link_snapshots_and_refresh(
+                                session, run, institution, page_snapshots=record_snapshots
+                            )
 
                     run.status = RunStatus.COMPLETED
                     run.completed_at = datetime.datetime.now(datetime.UTC)
@@ -965,8 +967,43 @@ class LeadPipeline:
                 # not just whatever refresh_lead_profile saw when it ran
                 # from inside resolve_incoming_record before either
                 # existed.
-                await link_page_snapshots_to_institution(session, record.id, institution.id)
+                await self._link_snapshots_and_refresh(
+                    session, run, institution, raw_record_id=record.id
+                )
+
+    async def _link_snapshots_and_refresh(
+        self,
+        session,
+        run: SourceRun,
+        institution: CanonicalInstitution,
+        page_snapshots: list[RawPageSnapshot] | None = None,
+        raw_record_id: uuid.UUID | None = None,
+    ) -> None:
+        """
+        Correction: this used to run directly inline after _resolve_or_log,
+        outside that method's own begin_nested() boundary -- a failure here
+        (e.g. a transient error inside refresh_lead_profile's scoring
+        queries) left the surrounding Postgres transaction aborted the same
+        way an unguarded resolution failure would, aborting the whole run
+        and losing every later record. Same isolation reasoning as
+        _resolve_or_log below, applied to the linkage+refresh step that
+        follows it.
+        """
+        try:
+            async with session.begin_nested():
+                if page_snapshots is not None:
+                    for page_snapshot in page_snapshots:
+                        page_snapshot.institution_id = institution.id
+                if raw_record_id is not None:
+                    await link_page_snapshots_to_institution(session, raw_record_id, institution.id)
                 await refresh_lead_profile(session, institution.id)
+        except Exception as e:
+            failed = list(run.run_metadata.get("post_link_refresh_failures", []))
+            failed.append({"institution_id": str(institution.id), "error": str(e)})
+            run.run_metadata = {**run.run_metadata, "post_link_refresh_failures": failed}
+            print(
+                f"Post-resolution snapshot link/refresh failed for institution {institution.id}: {e}"
+            )
 
     async def _resolve_or_log(
         self,

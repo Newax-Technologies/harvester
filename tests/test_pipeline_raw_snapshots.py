@@ -157,6 +157,33 @@ def _fake_lead(*, organization: str, website: str) -> Lead:
     )
 
 
+async def _fake_crawl_two_domains(self, seeds):
+    self.snapshots.append(
+        PageSnapshot(
+            url="https://alpha.example.edu/",
+            final_url="https://alpha.example.edu/",
+            status_code=200,
+            content_type="text/html",
+            html="<html>alpha</html>",
+            fetch_error="",
+        )
+    )
+    self.snapshots.append(
+        PageSnapshot(
+            url="https://beta.example.edu/",
+            final_url="https://beta.example.edu/",
+            status_code=200,
+            content_type="text/html",
+            html="<html>beta</html>",
+            fetch_error="",
+        )
+    )
+    return [
+        _fake_lead(organization="Alpha Academy", website="https://alpha.example.edu"),
+        _fake_lead(organization="Beta College", website="https://beta.example.edu"),
+    ]
+
+
 @pytest.mark.asyncio
 async def test_snapshots_are_linked_to_their_own_domains_record_and_institution(db_session):
     # Correction regression test at the real pipeline._run_web_crawler
@@ -165,32 +192,6 @@ async def test_snapshots_are_linked_to_their_own_domains_record_and_institution(
     # its own Lead/RawSourceRecord/institution -- every RawPageSnapshot
     # must link to the record/institution for ITS OWN domain, never the
     # other one's, even though both share source_run_id.
-    async def _fake_crawl_two_domains(self, seeds):
-        self.snapshots.append(
-            PageSnapshot(
-                url="https://alpha.example.edu/",
-                final_url="https://alpha.example.edu/",
-                status_code=200,
-                content_type="text/html",
-                html="<html>alpha</html>",
-                fetch_error="",
-            )
-        )
-        self.snapshots.append(
-            PageSnapshot(
-                url="https://beta.example.edu/",
-                final_url="https://beta.example.edu/",
-                status_code=200,
-                content_type="text/html",
-                html="<html>beta</html>",
-                fetch_error="",
-            )
-        )
-        return [
-            _fake_lead(organization="Alpha Academy", website="https://alpha.example.edu"),
-            _fake_lead(organization="Beta College", website="https://beta.example.edu"),
-        ]
-
     pipeline = LeadPipeline(
         Settings(job_config={"seeds": ["https://alpha.example.edu", "https://beta.example.edu"]})
     )
@@ -252,3 +253,65 @@ async def test_snapshots_are_linked_to_their_own_domains_record_and_institution(
     # link to the other domain's record/institution.
     assert alpha_snapshot.institution_id != beta_snapshot.institution_id
     assert alpha_snapshot.raw_source_record_id != beta_snapshot.raw_source_record_id
+
+
+@pytest.mark.asyncio
+async def test_post_link_refresh_failure_does_not_abort_the_run(db_session):
+    # Correction regression test: a failure inside the post-resolution
+    # refresh_lead_profile call (e.g. a transient scoring error) used to
+    # run outside _resolve_or_log's own begin_nested() boundary -- it left
+    # the whole run's transaction aborted, so a single institution's
+    # refresh failure lost every later lead in the same crawl. It must now
+    # be isolated in its own savepoint: the run completes, beta's
+    # institution is still linked and scored, and the failure is recorded
+    # instead of silently swallowed or fatal.
+    from lead_harvester.models.source import RunStatus, SourceRun
+
+    real_refresh_lead_profile = None
+    calls = {"count": 0}
+
+    async def _flaky_refresh(session, institution_id):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise RuntimeError("transient scoring failure")
+        return await real_refresh_lead_profile(session, institution_id)
+
+    from lead_harvester.services import lead_profile_service
+
+    real_refresh_lead_profile = lead_profile_service.refresh_lead_profile
+
+    pipeline = LeadPipeline(
+        Settings(job_config={"seeds": ["https://alpha.example.edu", "https://beta.example.edu"]})
+    )
+
+    with (
+        patch(
+            "lead_harvester.pipeline.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch(
+            "lead_harvester.sources.web.WebCrawler.crawl",
+            new=_fake_crawl_two_domains,
+        ),
+        patch("lead_harvester.pipeline.refresh_lead_profile", new=_flaky_refresh),
+        patch.object(LeadPipeline, "_emit_resync_events", new=AsyncMock()),
+    ):
+        await pipeline._run_web_crawler()
+
+    run = (await db_session.scalars(select(SourceRun))).one()
+    assert run.status == RunStatus.COMPLETED
+    assert len(run.run_metadata["post_link_refresh_failures"]) == 1
+
+    beta_institution = (
+        await db_session.scalars(
+            select(CanonicalInstitution).where(
+                CanonicalInstitution.canonical_name == "Beta College"
+            )
+        )
+    ).one()
+    beta_snapshot = (
+        await db_session.scalars(
+            select(RawPageSnapshot).where(RawPageSnapshot.normalized_domain == "beta.example.edu")
+        )
+    ).one()
+    assert beta_snapshot.institution_id == beta_institution.id
