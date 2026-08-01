@@ -102,6 +102,22 @@ class RawPageSnapshot(Base):
     at fetch time) -- no separate retention/expiry policy exists yet for
     this table specifically (services/compliance_service.py's
     purge_expired_raw_records only ever targeted RawSourceRecord).
+
+    Correction: a single WEBSITE SourceRun can (and typically does) crawl
+    several different seed domains in one crawl() call -- sources/web.py's
+    WebCrawler accepts a whole seed list and accumulates every page fetch
+    from every domain onto the same `snapshots` list, and pipeline.py's
+    `for lead in leads:` loop then creates one RawSourceRecord per DOMAIN,
+    not per run. `source_run_id` alone is therefore a "was fetched in the
+    same crawl batch" grain, not a "belongs to this institution's website"
+    grain -- a query that scoped website-quality snapshots by run
+    membership alone (as an earlier version of this table's only consumer,
+    services/lead_profile_service.py::_get_website_snapshots, did) could
+    silently pull in another institution's pages that happened to be
+    crawled in the same run. normalized_domain/raw_source_record_id/
+    institution_id below are the exact-grain link that was missing --
+    every website-quality query must filter by institution_id (or, before
+    resolution has run, normalized_domain), never by source_run_id alone.
     """
 
     __tablename__ = "raw_page_snapshots"
@@ -116,6 +132,32 @@ class RawPageSnapshot(Base):
     # `url` whenever the page redirected; empty when the fetch never got
     # far enough to know (e.g. robots.txt disallowed it).
     final_url: Mapped[str] = mapped_column(String(2048), default="", nullable=False)
+
+    # The exact-grain link this table was missing -- see the class
+    # docstring's "Correction" note. normalized_domain is always
+    # computable at fetch time (from final_url, falling back to url) and
+    # uses the same normalization resolution/normalize.py::normalize_domain
+    # applies to RawSourceRecord.normalized_domain, so the two compare
+    # equal for pages that fed the same domain's Lead.
+    #
+    # raw_source_record_id/institution_id are only knowable once this
+    # snapshot's domain has produced a persisted RawSourceRecord and (for
+    # institution_id) that record has been resolved -- both stay NULL for
+    # a snapshot whose domain never yielded a useful extraction (e.g.
+    # every page for that domain failed/was robots-disallowed) or whose
+    # record failed resolution. A NULL institution_id must never be
+    # treated as "belongs to no institution and is therefore safe to
+    # include" -- it means "not yet linked," and a website-quality query
+    # must exclude it, not fall back to matching by run.
+    normalized_domain: Mapped[str] = mapped_column(
+        String(255), default="", nullable=False, index=True
+    )
+    raw_source_record_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("raw_source_records.id"), nullable=True, index=True
+    )
+    institution_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("canonical_institutions.id"), nullable=True, index=True
+    )
 
     status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
     content_type: Mapped[str] = mapped_column(String(255), default="", nullable=False)

@@ -10,7 +10,6 @@ from lead_harvester.models.profile import (
     SizeTier,
     WebsiteQualityTier,
 )
-from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.qualification import QualificationAssessment, QualificationStatus
 from lead_harvester.models.signal import Signal, SignalType
 from lead_harvester.models.source import RawPageSnapshot, RawSourceRecord, SourceRun, SourceType
@@ -20,6 +19,7 @@ from lead_harvester.services.lead_profile_service import (
     list_lead_profiles,
     qualify_all_unassessed,
     qualify_and_refresh,
+    recompute_all_lead_profiles,
     refresh_lead_profile,
 )
 
@@ -118,15 +118,6 @@ async def test_refresh_computes_website_quality_from_own_crawled_snapshots(db_se
         '<html><head><meta name="viewport" content="width=device-width"></head>'
         "<body><form action='/contact'></form></body></html>"
     )
-    for _ in range(6):
-        db_session.add(
-            RawPageSnapshot(
-                source_run_id=run.id,
-                url="https://riverside.edu",
-                final_url="https://riverside.edu",
-                html=full_html,
-            )
-        )
     record = RawSourceRecord(
         source_run_id=run.id,
         source_type=SourceType.WEBSITE,
@@ -136,19 +127,140 @@ async def test_refresh_computes_website_quality_from_own_crawled_snapshots(db_se
     )
     db_session.add(record)
     await db_session.flush()
-    db_session.add(
-        FieldProvenance(
-            canonical_id=institution.id,
-            raw_record_id=record.id,
-            field_name="website",
-            asserted_value="https://riverside.edu",
+    for _ in range(6):
+        db_session.add(
+            RawPageSnapshot(
+                source_run_id=run.id,
+                url="https://riverside.edu",
+                final_url="https://riverside.edu",
+                normalized_domain="riverside.edu",
+                raw_source_record_id=record.id,
+                institution_id=institution.id,
+                html=full_html,
+            )
         )
-    )
     await db_session.flush()
 
     profile = await refresh_lead_profile(db_session, institution.id)
 
     assert profile.website_quality_tier == WebsiteQualityTier.EXCEPTIONAL
+
+
+@pytest.mark.asyncio
+async def test_refresh_does_not_score_a_snapshot_with_no_institution_link(db_session):
+    # Correction regression test: a RawPageSnapshot whose institution_id
+    # is still NULL (predates the linkage fix, or its domain's record
+    # never resolved) must be excluded, not guessed into scope via
+    # source_run_id membership alone.
+    institution = await _seed_institution(db_session)
+
+    run = SourceRun(source_type=SourceType.WEBSITE)
+    db_session.add(run)
+    await db_session.flush()
+
+    full_html = (
+        '<html><head><meta name="viewport" content="width=device-width"></head>'
+        "<body><form action='/contact'></form></body></html>"
+    )
+    for _ in range(6):
+        db_session.add(
+            RawPageSnapshot(
+                source_run_id=run.id,
+                url="https://riverside.edu",
+                final_url="https://riverside.edu",
+                normalized_domain="riverside.edu",
+                # institution_id deliberately left unset.
+                html=full_html,
+            )
+        )
+    await db_session.flush()
+
+    profile = await refresh_lead_profile(db_session, institution.id)
+
+    # Not NONE -- institution.website is still present, so NONE isn't
+    # forced (that's only for an institution with no site at all, see
+    # compute_website_quality_tier's own docstring); the unlinked
+    # snapshots are simply invisible to the corrected query, same as if
+    # zero pages had ever been crawled at all (https-only credit, no
+    # depth/broken-link bonus since page_count is 0).
+    assert profile.website_quality_tier == WebsiteQualityTier.POOR
+
+
+@pytest.mark.asyncio
+async def test_refresh_never_scores_a_different_institutions_snapshots_from_the_same_run(
+    db_session,
+):
+    # Correction regression test: WebCrawler.crawl() fetches every seed
+    # domain in one call, so one SourceRun's snapshots span multiple
+    # institutions -- this institution's own snapshots are POOR (no
+    # https/viewport/form/depth), while a same-run sibling institution's
+    # snapshots are a fully-featured EXCEPTIONAL site. Scoping by
+    # source_run_id alone (the bug this correction fixes) would leak the
+    # sibling's high-quality pages into this institution's score.
+    # http (not https) + a single bare page + no depth/broken-link penalty
+    # scores POOR (0 https + 0 viewport + 0 form + 0 depth + 2 low-broken =
+    # 2, below the ADEQUATE threshold of 3) -- see
+    # intelligence/website_quality.py's point weights.
+    institution = await _seed_institution(db_session, website="http://riverside.edu")
+    other_institution = await _seed_institution(
+        db_session, canonical_name="Lakeside Academy", website="https://lakeside.edu"
+    )
+
+    run = SourceRun(source_type=SourceType.WEBSITE)
+    db_session.add(run)
+    await db_session.flush()
+
+    riverside_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.WEBSITE,
+        source_id="https://riverside.edu",
+        raw_payload={},
+        normalized_domain="riverside.edu",
+    )
+    lakeside_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.WEBSITE,
+        source_id="https://lakeside.edu",
+        raw_payload={},
+        normalized_domain="lakeside.edu",
+    )
+    db_session.add_all([riverside_record, lakeside_record])
+    await db_session.flush()
+
+    full_html = (
+        '<html><head><meta name="viewport" content="width=device-width"></head>'
+        "<body><form action='/contact'></form></body></html>"
+    )
+    db_session.add(
+        RawPageSnapshot(
+            source_run_id=run.id,
+            url="https://riverside.edu",
+            final_url="https://riverside.edu",
+            normalized_domain="riverside.edu",
+            raw_source_record_id=riverside_record.id,
+            institution_id=institution.id,
+            html="<html><body>bare page, no viewport/form</body></html>",
+        )
+    )
+    for _ in range(6):
+        db_session.add(
+            RawPageSnapshot(
+                source_run_id=run.id,
+                url="https://lakeside.edu",
+                final_url="https://lakeside.edu",
+                normalized_domain="lakeside.edu",
+                raw_source_record_id=lakeside_record.id,
+                institution_id=other_institution.id,
+                html=full_html,
+            )
+        )
+    await db_session.flush()
+
+    riverside_profile = await refresh_lead_profile(db_session, institution.id)
+    lakeside_profile = await refresh_lead_profile(db_session, other_institution.id)
+
+    assert riverside_profile.website_quality_tier == WebsiteQualityTier.POOR
+    assert lakeside_profile.website_quality_tier == WebsiteQualityTier.EXCEPTIONAL
 
 
 @pytest.mark.asyncio
@@ -418,3 +530,62 @@ async def test_get_lead_score_history_returns_most_recent_first(db_session):
 
     assert len(history) == 2
     assert history[0].computed_at >= history[1].computed_at
+
+
+@pytest.mark.asyncio
+async def test_recompute_all_lead_profiles_only_touches_institutions_with_a_profile(db_session):
+    profiled = await _seed_institution(db_session, canonical_name="Already Profiled School")
+    await refresh_lead_profile(db_session, profiled.id)
+    never_profiled = await _seed_institution(db_session, canonical_name="Never Profiled School")
+    await db_session.flush()
+
+    count = await recompute_all_lead_profiles(db_session)
+
+    assert count == 1
+    assert await get_lead_profile(db_session, never_profiled.id) is None
+
+
+@pytest.mark.asyncio
+async def test_recompute_all_lead_profiles_recomputes_website_quality(db_session):
+    # The direct remediation this correction requires: a profile computed
+    # before the RawPageSnapshot institution_id fix must pick up the
+    # corrected (now-empty, since these snapshots predate the link) score
+    # on recompute rather than keeping whatever it was scored as before.
+    institution = await _seed_institution(db_session, website="https://riverside.edu")
+    profile = await refresh_lead_profile(db_session, institution.id)
+    # Simulate a stale/untrusted pre-correction score sitting in the DB.
+    profile.website_quality_tier = WebsiteQualityTier.EXCEPTIONAL
+    await db_session.flush()
+
+    count = await recompute_all_lead_profiles(db_session)
+
+    assert count == 1
+    recomputed = await get_lead_profile(db_session, institution.id)
+    assert recomputed.website_quality_tier == WebsiteQualityTier.POOR
+
+
+@pytest.mark.asyncio
+async def test_recompute_all_lead_profiles_isolates_one_institutions_failure(
+    db_session, monkeypatch
+):
+    good_one = await _seed_institution(db_session, canonical_name="Good School One")
+    await refresh_lead_profile(db_session, good_one.id)
+    bad_one = await _seed_institution(db_session, canonical_name="Bad School")
+    await refresh_lead_profile(db_session, bad_one.id)
+    good_two = await _seed_institution(db_session, canonical_name="Good School Two")
+    await refresh_lead_profile(db_session, good_two.id)
+
+    from lead_harvester.services import lead_profile_service as service_module
+
+    real_refresh_lead_profile = service_module.refresh_lead_profile
+
+    async def flaky_refresh_lead_profile(session, institution_id, **kwargs):
+        if institution_id == bad_one.id:
+            raise RuntimeError("simulated recompute failure")
+        return await real_refresh_lead_profile(session, institution_id, **kwargs)
+
+    monkeypatch.setattr(service_module, "refresh_lead_profile", flaky_refresh_lead_profile)
+
+    count = await recompute_all_lead_profiles(db_session)
+
+    assert count == 2

@@ -26,12 +26,11 @@ from lead_harvester.intelligence.size_estimation import estimate_size_tier
 from lead_harvester.intelligence.website_quality import compute_website_quality_tier
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot
-from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.qualification import QualificationAssessment
 from lead_harvester.models.research import ResearchFinding
 from lead_harvester.models.sector import Sector
 from lead_harvester.models.signal import Signal
-from lead_harvester.models.source import RawPageSnapshot, RawSourceRecord, SourceType
+from lead_harvester.models.source import RawPageSnapshot
 from lead_harvester.profiles.scoring import compute_lead_score
 from lead_harvester.qualification.agent import QualificationAgent
 from lead_harvester.schemas.profiles import (
@@ -126,10 +125,9 @@ async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID)
     operational_maturity_score = compute_operational_maturity(institution, signals)
     icp_match_score = score_icp_fit(institution, len(branches), app_settings, sector=sector)
 
-    # docs/ROADMAP.md module 20: scope to snapshots from crawl runs that
-    # actually contributed to this institution's canonical record (via
-    # FieldProvenance -> RawSourceRecord -> source_run_id), not a domain-
-    # string match against every crawl this harvester has ever run.
+    # docs/ROADMAP.md module 20: the crawled pages that belong to this
+    # institution's own website specifically -- see _get_website_snapshots'
+    # own docstring for why this is institution_id, not source_run_id.
     website_snapshots = await _get_website_snapshots(session, institution_id)
     website_quality_tier = compute_website_quality_tier(institution.website, website_snapshots)
     service_gap_score = compute_service_gap_score(website_quality_tier, signals, size_tier)
@@ -174,27 +172,25 @@ async def _get_website_snapshots(
     session: AsyncSession, institution_id: uuid.UUID
 ) -> list[RawPageSnapshot]:
     """
-    docs/ROADMAP.md module 20: the RawPageSnapshot rows from WEBSITE crawl
-    runs that actually contributed a field to this institution -- traced
-    via FieldProvenance rather than a domain-string match, since that's
-    the same provenance link canonical/merger.py already relies on
-    elsewhere for "which raw record asserted this".
+    docs/ROADMAP.md module 20: the RawPageSnapshot rows that actually
+    belong to this institution's own crawled website.
+
+    Correction: a single WEBSITE SourceRun crawls every seed domain passed
+    to WebCrawler.crawl() in one call, not just one -- filtering by
+    "snapshots from a run that touched this institution" (source_run_id
+    membership, this function's original approach) could silently pull in
+    another institution's pages that happened to be fetched in the same
+    run. RawPageSnapshot.institution_id (models/source.py, stamped by
+    pipeline.py::_run_web_crawler once a page's domain has both produced a
+    RawSourceRecord and been resolved) is the exact-grain link that fixes
+    this -- filter on it directly, never on source_run_id alone. A row
+    with institution_id still NULL (predates this column, or its domain's
+    record never resolved) is correctly excluded, not guessed into scope.
     """
-    run_ids = (
-        await session.scalars(
-            select(RawSourceRecord.source_run_id)
-            .join(FieldProvenance, FieldProvenance.raw_record_id == RawSourceRecord.id)
-            .where(FieldProvenance.canonical_id == institution_id)
-            .where(RawSourceRecord.source_type == SourceType.WEBSITE)
-            .distinct()
-        )
-    ).all()
-    if not run_ids:
-        return []
     return list(
         (
             await session.scalars(
-                select(RawPageSnapshot).where(RawPageSnapshot.source_run_id.in_(run_ids))
+                select(RawPageSnapshot).where(RawPageSnapshot.institution_id == institution_id)
             )
         ).all()
     )
@@ -269,6 +265,36 @@ async def qualify_all_unassessed(
             print(f"[LeadProfile] qualification failed for institution {institution_id}: {e}")
 
     return qualified_count
+
+
+async def recompute_all_lead_profiles(session: AsyncSession, *, limit: int = 500) -> int:
+    """
+    Re-runs refresh_lead_profile for every institution that already has a
+    LeadProfile row -- the direct remediation for the RawPageSnapshot
+    institution-linkage correction (see migration e2a4c6f8b0d2 and
+    _get_website_snapshots' docstring): every website_quality_tier/
+    service_gap_score computed before that fix landed is treated as
+    untrusted, since it may have been scored from another institution's
+    crawled pages that happened to share a SourceRun. Calling this
+    recomputes both fields (and every other refresh_lead_profile field)
+    fresh, from the now-correctly-scoped institution_id-filtered snapshot
+    query. Each institution is processed in its own savepoint (see
+    docs/CODE_REVIEW_LESSONS.md pattern 3) so one failure doesn't abort
+    the batch or the ones already recomputed in it. Returns the number
+    successfully recomputed.
+    """
+    institution_ids = (await session.scalars(select(LeadProfile.institution_id).limit(limit))).all()
+
+    recomputed_count = 0
+    for institution_id in institution_ids:
+        try:
+            async with session.begin_nested():
+                await refresh_lead_profile(session, institution_id)
+            recomputed_count += 1
+        except Exception as e:
+            print(f"[LeadProfile] recompute failed for institution {institution_id}: {e}")
+
+    return recomputed_count
 
 
 async def list_lead_profiles(

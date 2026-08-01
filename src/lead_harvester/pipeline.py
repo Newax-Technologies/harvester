@@ -1,6 +1,7 @@
 import datetime
 import hashlib
 import uuid
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -167,23 +168,39 @@ class LeadPipeline:
                 # not just the domain-aggregated Leads above -- see
                 # models/source.py::RawPageSnapshot's own docstring for why
                 # this exists separately from RawSourceRecord.
+                #
+                # Correction: a single crawl() call (and so a single
+                # SourceRun) fetches every seed domain in `seeds`, not just
+                # one -- source_run_id alone can't distinguish which
+                # institution's website a given snapshot belongs to.
+                # normalized_domain is stamped on every snapshot up front
+                # (always computable from final_url/url); raw_source_record_id/
+                # institution_id are backfilled below, once each domain's
+                # own RawSourceRecord exists and (for institution_id) has
+                # been resolved -- snapshots_by_domain keeps the just-added,
+                # still-uncommitted ORM objects addressable by domain for
+                # that backfill.
+                snapshots_by_domain: dict[str, list[RawPageSnapshot]] = defaultdict(list)
                 for snapshot in crawler.snapshots:
-                    session.add(
-                        RawPageSnapshot(
-                            source_run_id=run.id,
-                            url=snapshot.url,
-                            final_url=snapshot.final_url,
-                            status_code=snapshot.status_code,
-                            content_type=snapshot.content_type,
-                            html=snapshot.html,
-                            fetch_error=snapshot.fetch_error,
-                        )
+                    domain = normalize_domain(snapshot.final_url or snapshot.url)
+                    page_snapshot = RawPageSnapshot(
+                        source_run_id=run.id,
+                        url=snapshot.url,
+                        final_url=snapshot.final_url,
+                        normalized_domain=domain,
+                        status_code=snapshot.status_code,
+                        content_type=snapshot.content_type,
+                        html=snapshot.html,
+                        fetch_error=snapshot.fetch_error,
                     )
+                    session.add(page_snapshot)
+                    snapshots_by_domain[domain].append(page_snapshot)
 
                 try:
                     await self._retry_stranded_records(session, run, resync_ids)
 
                     for lead in leads:
+                        record_domain = normalize_domain(lead.website) if lead.website else None
                         record = RawSourceRecord(
                             source_run_id=run.id,
                             source_type=SourceType.WEBSITE,
@@ -205,14 +222,22 @@ class LeadPipeline:
                                 if lead.phone
                                 else None
                             ),
-                            normalized_domain=(
-                                normalize_domain(lead.website) if lead.website else None
-                            ),
+                            normalized_domain=record_domain,
                             location=None,
                         )
                         session.add(record)
                         await session.flush()
-                        await self._resolve_or_log(session, run, record, resync_ids)
+                        institution = await self._resolve_or_log(session, run, record, resync_ids)
+
+                        # Link every page fetched for this domain to the
+                        # record it produced and (once resolved) the
+                        # institution it resolved to -- see the
+                        # snapshots_by_domain comment above and
+                        # models/source.py::RawPageSnapshot's docstring.
+                        for page_snapshot in snapshots_by_domain.get(record_domain or "", []):
+                            page_snapshot.raw_source_record_id = record.id
+                            if institution is not None:
+                                page_snapshot.institution_id = institution.id
 
                     run.status = RunStatus.COMPLETED
                     run.completed_at = datetime.datetime.now(datetime.UTC)
@@ -916,7 +941,7 @@ class LeadPipeline:
         run: SourceRun,
         record: RawSourceRecord,
         resync_ids: set[uuid.UUID] | None = None,
-    ) -> None:
+    ) -> CanonicalInstitution | None:
         # A resolution failure for one record must never abort the rest of
         # the run -- the outer per-run except/finally would otherwise mark
         # the whole run FAILED and stop processing every remaining
@@ -929,6 +954,12 @@ class LeadPipeline:
         # "current transaction is aborted" until something rolls back. Catching
         # the exception here without a savepoint would still leave every
         # later record's flush, and the run's own final commit, broken.
+        #
+        # Returns the resolved institution (or None) -- _run_web_crawler
+        # uses this to stamp RawPageSnapshot.institution_id for the pages
+        # that fed this record's domain (see models/source.py::RawPageSnapshot's
+        # "Correction" docstring note). Every other caller ignores the
+        # return value, unaffected by this addition.
         try:
             async with session.begin_nested():
                 # docs/ROADMAP.md module 16: job.yaml's optional `sector`
@@ -943,6 +974,7 @@ class LeadPipeline:
                 )
                 if institution is not None:
                     LeadPipeline._persist_detected_signals(session, institution.id, record)
+                return institution
         except Exception as e:
             unresolved = list(run.run_metadata.get("unresolved_records", []))
             unresolved.append({"raw_record_id": str(record.id), "error": str(e)})
@@ -952,6 +984,7 @@ class LeadPipeline:
             # actually marks `run` dirty.
             run.run_metadata = {**run.run_metadata, "unresolved_records": unresolved}
             print(f"Entity resolution failed for raw record {record.id}: {e}")
+            return None
 
     @staticmethod
     def _persist_detected_signals(

@@ -225,16 +225,32 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
       — rule-based, built on the existing static crawler, no headless-browser/JS-rendering pass, as
       decided with the user. A `WebsiteQualityTier` enum (`NONE`/`POOR`/`ADEQUATE`/`GOOD`/
       `EXCEPTIONAL`, `models/profile.py`) computed per institution from a weighted checklist over
-      its own crawled `RawPageSnapshot` rows — scoped via
+      its own crawled `RawPageSnapshot` rows: `has_https`, `has_mobile_viewport` (a
+      `<meta name="viewport">` tag), `has_contact_or_booking_form` (a real `<form>` tag),
+      `page_count_crawled` (2-5 pages adequate, 6+ comprehensive), and `broken_internal_link_rate`
+      (fraction of this site's own snapshots whose `fetch_error` starts with `http_error`,
+      excluding robots/oversized/decode-error rows). `NONE` is forced whenever `institution.website`
+      is absent. Known v1 limitation, explicit rather than silent: purely structural/technical
+      signals, no design/copywriting/visual-quality judgment.
+
+      **Correction (migration `e2a4c6f8b0d2`):** the snapshot-scoping query originally used
       `services/lead_profile_service.py::_get_website_snapshots`'s
-      `FieldProvenance → RawSourceRecord → source_run_id` join (a precise link to "which crawl
-      runs actually contributed to this institution", not a domain-string match): `has_https`,
-      `has_mobile_viewport` (a `<meta name="viewport">` tag), `has_contact_or_booking_form` (a real
-      `<form>` tag), `page_count_crawled` (2-5 pages adequate, 6+ comprehensive), and
-      `broken_internal_link_rate` (fraction of this site's own snapshots whose `fetch_error` starts
-      with `http_error`, excluding robots/oversized/decode-error rows). `NONE` is forced whenever
-      `institution.website` is absent. Known v1 limitation, explicit rather than silent: purely
-      structural/technical signals, no design/copywriting/visual-quality judgment.
+      `FieldProvenance → RawSourceRecord → source_run_id` join, filtering `RawPageSnapshot` by
+      `source_run_id` membership. That's the wrong grain — a single WEBSITE `SourceRun` crawls
+      every seed domain passed to `WebCrawler.crawl()` in one call (`pipeline.py`'s `for lead in
+      leads:` loop creates one `RawSourceRecord` per *domain*, not per run), so scoping by run
+      alone could silently pull another institution's pages into this institution's quality score
+      whenever they happened to be crawled together. Fixed by adding an explicit exact-grain link
+      directly on `RawPageSnapshot` — `normalized_domain` (always computable), `raw_source_record_id`,
+      and `institution_id` (both nullable, stamped by `pipeline.py::_run_web_crawler` once a page's
+      domain has produced a record and, for `institution_id`, been resolved) — and rewriting
+      `_get_website_snapshots` to filter on `institution_id` directly, never on `source_run_id`
+      alone. The migration backfills existing rows using the corrected `(source_run_id, domain)`
+      pair. **Every `website_quality_tier`/`service_gap_score` computed before this migration must
+      be treated as untrusted** (it may have been scored from a different institution's pages) —
+      `recompute-lead-profiles` (`services/lead_profile_service.py::recompute_all_lead_profiles`)
+      re-runs `refresh_lead_profile` for every institution with an existing `LeadProfile` to
+      produce trustworthy values from the corrected query.
     - `service_gap_score` (`intelligence/service_gap.py::compute_service_gap_score`, stored on
       `LeadProfile.service_gap_score`). Implements `missing_product_count * size_multiplier`: a
       small single-branch institution missing every product still scores lower than a multi-branch
