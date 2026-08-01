@@ -1088,6 +1088,59 @@ class LeadPipeline:
                 session, run, institution, raw_record_id=raw_record_id
             )
 
+        # Second case: a leadless-domain snapshot (raw_source_record_id
+        # IS NULL -- no RawSourceRecord was ever created for it, see
+        # _run_web_crawler's own leadless_domains block) whose domain-match
+        # linkage never landed, e.g. because refresh_lead_profile failed
+        # before this run's own split-savepoint fix, or a transient DB
+        # error hit the linkage savepoint itself. Same disambiguation rule
+        # as the live block: only link when exactly one institution
+        # currently owns that domain.
+        leadless_domains_stmt = (
+            select(RawPageSnapshot.normalized_domain)
+            .where(RawPageSnapshot.institution_id.is_(None))
+            .where(RawPageSnapshot.raw_source_record_id.is_(None))
+            .where(RawPageSnapshot.normalized_domain.is_not(None))
+            .distinct()
+        )
+        stranded_domains = {row[0] for row in (await session.execute(leadless_domains_stmt)).all()}
+        if not stranded_domains:
+            return
+
+        matched_institutions = (
+            await session.scalars(
+                select(CanonicalInstitution).where(
+                    CanonicalInstitution.domain.in_(stranded_domains)
+                )
+            )
+        ).all()
+        institutions_by_domain: dict[str, list[CanonicalInstitution]] = defaultdict(list)
+        for matched_institution in matched_institutions:
+            institutions_by_domain[matched_institution.domain].append(matched_institution)
+        for domain, institutions in institutions_by_domain.items():
+            if len(institutions) != 1:
+                print(
+                    f"Skipping stranded leadless-domain snapshot link for {domain!r}: "
+                    f"{len(institutions)} institutions share this domain."
+                )
+                continue
+            matched_institution = institutions[0]
+            snapshots = list(
+                (
+                    await session.scalars(
+                        select(RawPageSnapshot).where(
+                            RawPageSnapshot.normalized_domain == domain,
+                            RawPageSnapshot.institution_id.is_(None),
+                            RawPageSnapshot.raw_source_record_id.is_(None),
+                        )
+                    )
+                ).all()
+            )
+            print(f"Retrying leadless-domain snapshot linkage for {domain!r}...")
+            await self._link_snapshots_and_refresh(
+                session, run, matched_institution, page_snapshots=snapshots
+            )
+
     async def _link_snapshots_and_refresh(
         self,
         session,

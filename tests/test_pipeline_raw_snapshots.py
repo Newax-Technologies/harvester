@@ -682,3 +682,78 @@ async def test_leadless_domain_refresh_failure_does_not_abort_the_run(db_session
     # successful) linkage alongside it.
     assert zeta_snapshot.institution_id == zeta_id
     assert eta_snapshot.institution_id == eta_id
+
+
+@pytest.mark.asyncio
+async def test_retry_stranded_snapshot_links_backfills_a_leadless_domain_snapshot(db_session):
+    # Correction regression test: a leadless-domain snapshot (no
+    # RawSourceRecord at all) whose domain-match linkage never landed in
+    # an earlier run -- e.g. a transient DB error hit the linkage
+    # savepoint -- must self-heal the same way a record-backed stranded
+    # link does, via a domain re-match against currently known
+    # institutions.
+    from lead_harvester.models.source import RunStatus, SourceRun
+
+    run = SourceRun(source_type=SourceType.WEBSITE, run_metadata={}, status=RunStatus.COMPLETED)
+    db_session.add(run)
+    await db_session.flush()
+
+    institution = CanonicalInstitution(canonical_name="Theta School", domain="theta.example.edu")
+    db_session.add(institution)
+    await db_session.flush()
+
+    snapshot = RawPageSnapshot(
+        source_run_id=run.id,
+        url="https://theta.example.edu/",
+        final_url="https://theta.example.edu/",
+        status_code=200,
+        content_type="text/html",
+        html="<html>hi</html>",
+        fetch_error="",
+        normalized_domain="theta.example.edu",
+        raw_source_record_id=None,
+        institution_id=None,
+    )
+    db_session.add(snapshot)
+    await db_session.flush()
+
+    pipeline = LeadPipeline(Settings(job_config={}))
+    await pipeline._retry_stranded_snapshot_links(db_session, run)
+
+    await db_session.refresh(snapshot)
+    assert snapshot.institution_id == institution.id
+
+
+@pytest.mark.asyncio
+async def test_retry_stranded_snapshot_links_skips_ambiguous_leadless_domain(db_session):
+    from lead_harvester.models.source import RunStatus, SourceRun
+
+    run = SourceRun(source_type=SourceType.WEBSITE, run_metadata={}, status=RunStatus.COMPLETED)
+    db_session.add(run)
+    await db_session.flush()
+
+    first = CanonicalInstitution(canonical_name="Iota Prep", domain="iota.example.edu")
+    second = CanonicalInstitution(canonical_name="Iota Annex", domain="iota.example.edu")
+    db_session.add_all([first, second])
+    await db_session.flush()
+
+    snapshot = RawPageSnapshot(
+        source_run_id=run.id,
+        url="https://iota.example.edu/",
+        final_url="https://iota.example.edu/",
+        status_code=200,
+        content_type="text/html",
+        html="<html>hi</html>",
+        fetch_error="",
+        normalized_domain="iota.example.edu",
+        raw_source_record_id=None,
+        institution_id=None,
+    )
+    db_session.add(snapshot)
+    await db_session.flush()
+
+    pipeline = LeadPipeline(Settings(job_config={}))
+    await pipeline._retry_stranded_snapshot_links(db_session, run)
+
+    await db_session.refresh(snapshot)
+    assert snapshot.institution_id is None
