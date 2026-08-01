@@ -1,7 +1,7 @@
 """Add last_recompute_attempted_at to lead_profiles
 
 Revision ID: 99bebd9953d7
-Revises: e2a4c6f8b0d2
+Revises: f4b6d8e0a2c4
 Create Date: 2026-08-01 00:00:00.000000
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "99bebd9953d7"
-down_revision: str | Sequence[str] | None = "e2a4c6f8b0d2"
+down_revision: str | Sequence[str] | None = "f4b6d8e0a2c4"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
