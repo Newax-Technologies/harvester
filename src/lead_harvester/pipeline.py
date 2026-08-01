@@ -1066,27 +1066,25 @@ class LeadPipeline:
             ).all()
         )
         raw_record_ids = {row.raw_source_record_id for row in candidate_rows}
-        if not raw_record_ids:
-            return
-
-        stranded_links = list(
-            (
-                await session.execute(
-                    select(FieldProvenance.raw_record_id, FieldProvenance.canonical_id)
-                    .where(FieldProvenance.raw_record_id.in_(raw_record_ids))
-                    .distinct()
-                )
-            ).all()
-        )
-        if stranded_links:
-            print(f"Retrying snapshot linkage for {len(stranded_links)} stranded record(s)...")
-        for raw_record_id, institution_id in stranded_links:
-            institution = await session.get(CanonicalInstitution, institution_id)
-            if institution is None:
-                continue
-            await self._link_snapshots_and_refresh(
-                session, run, institution, raw_record_id=raw_record_id
+        if raw_record_ids:
+            stranded_links = list(
+                (
+                    await session.execute(
+                        select(FieldProvenance.raw_record_id, FieldProvenance.canonical_id)
+                        .where(FieldProvenance.raw_record_id.in_(raw_record_ids))
+                        .distinct()
+                    )
+                ).all()
             )
+            if stranded_links:
+                print(f"Retrying snapshot linkage for {len(stranded_links)} stranded record(s)...")
+            for raw_record_id, institution_id in stranded_links:
+                institution = await session.get(CanonicalInstitution, institution_id)
+                if institution is None:
+                    continue
+                await self._link_snapshots_and_refresh(
+                    session, run, institution, raw_record_id=raw_record_id
+                )
 
         # Second case: a leadless-domain snapshot (raw_source_record_id
         # IS NULL -- no RawSourceRecord was ever created for it, see
