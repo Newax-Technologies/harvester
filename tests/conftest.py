@@ -78,6 +78,34 @@ async def client_b(override_database_dependency):
 
 
 @pytest_asyncio.fixture
+async def client_admin(override_database_dependency):
+    # api/permissions.py's ROLE_PERMISSIONS grants "admin" every permission --
+    # the role to use for routes gated on a permission client_a's "reviewer"
+    # role doesn't hold (sectors.manage, compliance.manage, deletions.fulfil,
+    # outbox.manage, audit.read).
+    async def override_user_admin():
+        return User(id="admin_A", username="Admin", role="admin")
+
+    app.dependency_overrides[get_current_user] = override_user_admin
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+
+
+@pytest_asyncio.fixture
+async def client_viewer(override_database_dependency):
+    # The most restricted role -- only leads.read/compliance.read/
+    # operations.read (see api/permissions.py's ROLE_PERMISSIONS). Useful
+    # for asserting a permission-gated route correctly 403s a role that
+    # holds none of the permissions it needs.
+    async def override_user_viewer():
+        return User(id="viewer_A", username="Viewer", role="viewer")
+
+    app.dependency_overrides[get_current_user] = override_user_viewer
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+
+
+@pytest_asyncio.fixture
 async def seeded_draft(db_session: AsyncSession):
     inst = CanonicalInstitution(
         id=uuid.uuid4(), canonical_name="Test Institution", domain="test.edu", confidence_score=99.0

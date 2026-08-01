@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.api.dependencies import get_db_session, get_lead_sync_emitter
+from lead_harvester.api.permissions import Permission, require_permission
 from lead_harvester.config import settings
 from lead_harvester.database import get_session
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
@@ -45,7 +46,11 @@ from lead_harvester.services.outbox_service import enqueue_and_attempt_delivery
 from lead_harvester.services.person_candidate_service import resolve_person_candidate
 from lead_harvester.services.sector_service import classify_institution_sector
 
-router = APIRouter(prefix="/leads", tags=["Manual Lead Entry"])
+router = APIRouter(
+    prefix="/leads",
+    tags=["Manual Lead Entry"],
+    dependencies=[Depends(require_permission(Permission.LEADS_CREATE))],
+)
 
 
 # ---------------------------------------------------------------------------

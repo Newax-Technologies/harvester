@@ -2,11 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.api.dependencies import (
-    User,
-    get_current_user,
     get_db_session,
     get_lead_sync_emitter,
 )
+from lead_harvester.api.permissions import Permission, require_permission
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.models.outbox import OutboxStatus
 from lead_harvester.schemas.outbox import EventOutboxResponse, ProcessOutboxResponse
@@ -16,7 +15,11 @@ from lead_harvester.services.outbox_service import (
     requeue_dead_letter,
 )
 
-router = APIRouter(prefix="/outbox", tags=["Event Outbox"])
+router = APIRouter(
+    prefix="/outbox",
+    tags=["Event Outbox"],
+    dependencies=[Depends(require_permission(Permission.OUTBOX_MANAGE))],
+)
 
 
 @router.get("", response_model=list[EventOutboxResponse])
@@ -24,7 +27,6 @@ async def list_outbox_entries_route(
     status: OutboxStatus | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
 ):
     entries = await list_outbox_entries(session, status=status, limit=limit)
     return [EventOutboxResponse.model_validate(e) for e in entries]
@@ -34,7 +36,6 @@ async def list_outbox_entries_route(
 async def process_pending_deliveries_route(
     limit: int = Query(50, ge=1, le=500),
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
     lead_sync_emitter: LeadSyncEmitter = Depends(get_lead_sync_emitter),
 ):
     """Retries every PENDING row whose next_attempt_at has passed."""
@@ -47,7 +48,6 @@ async def process_pending_deliveries_route(
 async def requeue_dead_letter_route(
     outbox_id: str = Path(...),
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
 ):
     """Moves a DEAD_LETTER row back to PENDING for another attempt."""
     try:

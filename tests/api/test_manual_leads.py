@@ -512,3 +512,24 @@ async def test_create_manual_lead_does_not_fail_when_emitter_raises(
     ):
         response = await manual_leads_client.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
     assert response.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_create_manual_lead_requires_leads_create_permission(client_viewer):
+    # Previously this route had no auth dependency at all -- api/permissions.py's
+    # LEADS_CREATE now gates it, and "viewer" (unlike "admin"/"reviewer")
+    # does not hold that permission (see ROLE_PERMISSIONS).
+    response = await client_viewer.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_manual_lead_requires_authentication(override_database_dependency):
+    # get_db_session is overridden (via the fixture) to the test database,
+    # but get_current_user is deliberately left un-overridden -- confirms
+    # the route now actually enforces authentication, not just
+    # authorization (previously it had neither: no get_current_user
+    # dependency existed on this route at all).
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        response = await ac.post("/api/v1/leads/manual", json=VALID_PAYLOAD)
+    assert response.status_code == 401

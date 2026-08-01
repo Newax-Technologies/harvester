@@ -23,7 +23,7 @@ def _enabled_settings() -> Settings:
 
 @pytest.fixture
 def mock_webhook_post():
-    # client_a is ITSELF an httpx.AsyncClient (over ASGITransport) -- see
+    # client_admin is ITSELF an httpx.AsyncClient (over ASGITransport) -- see
     # tests/api/test_manual_leads.py's identical fixture for why a blanket
     # AsyncClient.post patch would also break the test client's own request.
     original_post = httpx.AsyncClient.post
@@ -84,11 +84,11 @@ async def _seed_pending_row(db_session, *, due: bool = True) -> EventOutbox:
 
 
 @pytest.mark.asyncio
-async def test_list_outbox_entries_returns_seeded_rows(client_a, db_session):
+async def test_list_outbox_entries_returns_seeded_rows(client_admin, db_session):
     row = await _seed_pending_row(db_session)
     await db_session.commit()
 
-    response = await client_a.get("/api/v1/outbox")
+    response = await client_admin.get("/api/v1/outbox")
 
     assert response.status_code == 200
     body = response.json()
@@ -97,12 +97,12 @@ async def test_list_outbox_entries_returns_seeded_rows(client_a, db_session):
 
 
 @pytest.mark.asyncio
-async def test_list_outbox_entries_filters_by_status(client_a, db_session):
+async def test_list_outbox_entries_filters_by_status(client_admin, db_session):
     await _seed_pending_row(db_session)
     await db_session.commit()
 
-    delivered = await client_a.get("/api/v1/outbox", params={"status": "delivered"})
-    pending = await client_a.get("/api/v1/outbox", params={"status": "pending"})
+    delivered = await client_admin.get("/api/v1/outbox", params={"status": "delivered"})
+    pending = await client_admin.get("/api/v1/outbox", params={"status": "pending"})
 
     assert delivered.json() == []
     assert len(pending.json()) == 1
@@ -110,13 +110,13 @@ async def test_list_outbox_entries_filters_by_status(client_a, db_session):
 
 @pytest.mark.asyncio
 async def test_process_pending_deliveries_route_delivers_due_rows(
-    client_a, db_session, mock_webhook_post, override_lead_sync_emitter
+    client_admin, db_session, mock_webhook_post, override_lead_sync_emitter
 ):
     due_row = await _seed_pending_row(db_session, due=True)
     future_row = await _seed_pending_row(db_session, due=False)
     await db_session.commit()
 
-    response = await client_a.post("/api/v1/outbox/process")
+    response = await client_admin.post("/api/v1/outbox/process")
 
     assert response.status_code == 200
     assert response.json()["processed"] == 1
@@ -129,14 +129,14 @@ async def test_process_pending_deliveries_route_delivers_due_rows(
 
 
 @pytest.mark.asyncio
-async def test_requeue_dead_letter_route_resets_row(client_a, db_session):
+async def test_requeue_dead_letter_route_resets_row(client_admin, db_session):
     row = await _seed_pending_row(db_session)
     row.status = OutboxStatus.DEAD_LETTER
     row.attempt_count = 6
     row.last_error = "boom"
     await db_session.commit()
 
-    response = await client_a.post(f"/api/v1/outbox/{row.id}/requeue")
+    response = await client_admin.post(f"/api/v1/outbox/{row.id}/requeue")
 
     assert response.status_code == 200
     body = response.json()
@@ -146,16 +146,24 @@ async def test_requeue_dead_letter_route_resets_row(client_a, db_session):
 
 
 @pytest.mark.asyncio
-async def test_requeue_dead_letter_route_404s_for_unknown_id(client_a):
-    response = await client_a.post(f"/api/v1/outbox/{uuid.uuid4()}/requeue")
+async def test_requeue_dead_letter_route_404s_for_unknown_id(client_admin):
+    response = await client_admin.post(f"/api/v1/outbox/{uuid.uuid4()}/requeue")
     assert response.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_requeue_dead_letter_route_400s_for_non_dead_letter_row(client_a, db_session):
+async def test_requeue_dead_letter_route_400s_for_non_dead_letter_row(client_admin, db_session):
     row = await _seed_pending_row(db_session)
     await db_session.commit()
 
-    response = await client_a.post(f"/api/v1/outbox/{row.id}/requeue")
+    response = await client_admin.post(f"/api/v1/outbox/{row.id}/requeue")
 
     assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_list_outbox_entries_requires_outbox_manage_permission(client_a):
+    # client_a's "reviewer" role does not hold outbox.manage (see
+    # api/permissions.py's ROLE_PERMISSIONS).
+    response = await client_a.get("/api/v1/outbox")
+    assert response.status_code == 403

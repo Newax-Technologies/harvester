@@ -3,8 +3,9 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lead_harvester.api.dependencies import User, get_current_user, get_db_session
+from lead_harvester.api.dependencies import get_db_session
 from lead_harvester.api.errors import ResourceNotFoundError
+from lead_harvester.api.permissions import Permission, require_permission
 from lead_harvester.schemas.sectors import CreateSectorRequest, SectorResponse, UpdateSectorRequest
 from lead_harvester.services.sector_service import (
     create_sector,
@@ -13,13 +14,16 @@ from lead_harvester.services.sector_service import (
     update_sector,
 )
 
-router = APIRouter(prefix="/sectors", tags=["Sectors"])
+router = APIRouter(
+    prefix="/sectors",
+    tags=["Sectors"],
+    dependencies=[Depends(require_permission(Permission.SECTORS_MANAGE))],
+)
 
 
 @router.get("", response_model=list[SectorResponse])
 async def list_sectors_route(
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
 ):
     sectors = await list_sectors(session)
     return [SectorResponse.model_validate(s) for s in sectors]
@@ -29,7 +33,6 @@ async def list_sectors_route(
 async def get_sector_route(
     sector_id: uuid.UUID = Path(...),
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
 ):
     sector = await get_sector(session, sector_id)
     if sector is None:
@@ -41,7 +44,6 @@ async def get_sector_route(
 async def create_sector_route(
     payload: CreateSectorRequest,
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
 ):
     try:
         sector = await create_sector(
@@ -63,7 +65,6 @@ async def update_sector_route(
     payload: UpdateSectorRequest,
     sector_id: uuid.UUID = Path(...),
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
 ):
     sector = await update_sector(
         session,

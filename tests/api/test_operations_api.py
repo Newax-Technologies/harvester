@@ -162,7 +162,7 @@ async def test_list_page_snapshots_route_only_errors(client_a, db_session):
 
 
 @pytest.mark.asyncio
-async def test_list_audit_log_route_filters(client_a, db_session):
+async def test_list_audit_log_route_filters(client_admin, db_session):
     entry = AuditLog(
         action="draft.approved",
         actor="reviewer-1",
@@ -178,13 +178,22 @@ async def test_list_audit_log_route_filters(client_a, db_session):
     db_session.add_all([entry, other])
     await db_session.commit()
 
-    response = await client_a.get(
+    response = await client_admin.get(
         "/api/v1/operations/audit-log", params={"entity_type": "OutreachDraft"}
     )
 
     assert response.status_code == 200
     body = response.json()
     assert [e["id"] for e in body] == [str(entry.id)]
+
+
+@pytest.mark.asyncio
+async def test_list_audit_log_route_requires_audit_read_permission(client_a):
+    # client_a's "reviewer" role holds operations.read (every other route
+    # in this file) but not audit.read specifically -- see
+    # api/permissions.py's ROLE_PERMISSIONS.
+    response = await client_a.get("/api/v1/operations/audit-log")
+    assert response.status_code == 403
 
 
 @pytest.mark.asyncio

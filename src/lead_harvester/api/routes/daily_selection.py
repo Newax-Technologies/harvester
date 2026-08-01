@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lead_harvester.api.dependencies import User, get_current_user, get_db_session
+from lead_harvester.api.dependencies import get_db_session
+from lead_harvester.api.permissions import Permission, require_permission
 from lead_harvester.models.allocation import LeadReservation, ReservationStatus
 from lead_harvester.models.canonical import CanonicalInstitution
 from lead_harvester.schemas.allocation import (
@@ -18,14 +19,17 @@ from lead_harvester.services.daily_selection_service import (
     select_daily_batch,
 )
 
-router = APIRouter(prefix="/daily-selection", tags=["Daily Selection"])
+router = APIRouter(
+    prefix="/daily-selection",
+    tags=["Daily Selection"],
+    dependencies=[Depends(require_permission(Permission.SELECTION_MANAGE))],
+)
 
 
 @router.post("", response_model=list[LeadReservationResponse])
 async def trigger_daily_selection(
     payload: SelectDailyBatchRequest,
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
 ):
     """Claim a batch of the highest-scoring eligible leads for outreach work."""
     reservations = await select_daily_batch(
@@ -46,7 +50,6 @@ async def list_daily_selection(
     sector_id: uuid.UUID | None = Query(None),
     limit: int = Query(100, ge=1, le=500),
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
 ):
     """List reservations, most recent first, optionally filtered by status/sector."""
     stmt = (
@@ -83,7 +86,6 @@ async def list_daily_selection(
 async def consume_reservation(
     reservation_id: str = Path(...),
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
 ):
     try:
         reservation = await mark_consumed(session, reservation_id)
@@ -97,7 +99,6 @@ async def consume_reservation(
 async def release_reservation_early(
     reservation_id: str = Path(...),
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
 ):
     try:
         reservation = await release_reservation(session, reservation_id)

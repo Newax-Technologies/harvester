@@ -4,12 +4,17 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lead_harvester.api.dependencies import User, get_current_user, get_db_session
+from lead_harvester.api.dependencies import get_db_session
+from lead_harvester.api.permissions import Permission, require_permission
 from lead_harvester.exports import build_lead_export_rows, rows_to_csv, rows_to_json
 from lead_harvester.models.canonical import OperatingStatus
 from lead_harvester.models.qualification import QualificationStatus
 
-router = APIRouter(prefix="/exports", tags=["Exports"])
+router = APIRouter(
+    prefix="/exports",
+    tags=["Exports"],
+    dependencies=[Depends(require_permission(Permission.LEADS_EXPORT))],
+)
 
 
 @router.get("/leads")
@@ -21,7 +26,6 @@ async def export_leads_route(
     sector_id: uuid.UUID | None = Query(None),
     limit: int = Query(1000, ge=1, le=10000),
     session: AsyncSession = Depends(get_db_session),
-    current_user: User = Depends(get_current_user),
 ):
     """
     One row per contact point across matching institutions, as a CSV or

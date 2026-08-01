@@ -41,11 +41,11 @@ async def _seed_institution(db_session, *, name: str) -> CanonicalInstitution:
 
 
 @pytest.mark.asyncio
-async def test_export_leads_route_defaults_to_csv(client_a, db_session):
+async def test_export_leads_route_defaults_to_csv(client_admin, db_session):
     institution = await _seed_institution(db_session, name="CSV Export School")
     await db_session.commit()
 
-    response = await client_a.get("/api/v1/exports/leads")
+    response = await client_admin.get("/api/v1/exports/leads")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
@@ -56,11 +56,11 @@ async def test_export_leads_route_defaults_to_csv(client_a, db_session):
 
 
 @pytest.mark.asyncio
-async def test_export_leads_route_supports_json(client_a, db_session):
+async def test_export_leads_route_supports_json(client_admin, db_session):
     institution = await _seed_institution(db_session, name="JSON Export School")
     await db_session.commit()
 
-    response = await client_a.get("/api/v1/exports/leads", params={"format": "json"})
+    response = await client_admin.get("/api/v1/exports/leads", params={"format": "json"})
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/json")
@@ -71,7 +71,7 @@ async def test_export_leads_route_supports_json(client_a, db_session):
 
 
 @pytest.mark.asyncio
-async def test_export_leads_route_respects_status_filter(client_a, db_session):
+async def test_export_leads_route_respects_status_filter(client_admin, db_session):
     await _seed_institution(db_session, name="Operational Export School")
     closed = CanonicalInstitution(
         canonical_name="Closed Export School", status=OperatingStatus.CLOSED_PERMANENTLY
@@ -85,10 +85,18 @@ async def test_export_leads_route_respects_status_filter(client_a, db_session):
     )
     await db_session.commit()
 
-    response = await client_a.get(
+    response = await client_admin.get(
         "/api/v1/exports/leads", params={"status": "closed_permanently", "format": "json"}
     )
 
     body = json.loads(response.text)
     assert len(body) == 1
     assert body[0]["institution_id"] == str(closed.id)
+
+
+@pytest.mark.asyncio
+async def test_export_leads_route_requires_leads_export_permission(client_a):
+    # client_a's "reviewer" role holds leads.read but not leads.export --
+    # bulk PII export is admin-only in api/permissions.py's ROLE_PERMISSIONS.
+    response = await client_a.get("/api/v1/exports/leads")
+    assert response.status_code == 403
