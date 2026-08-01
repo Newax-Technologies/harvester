@@ -4,9 +4,7 @@ from lead_harvester.models.signal import Signal, SignalType
 
 
 def _lms_signal() -> Signal:
-    return Signal(
-        signal_type=SignalType.TECHNOLOGY_PRESENT, signal_text="Has a parent portal."
-    )
+    return Signal(signal_type=SignalType.TECHNOLOGY_PRESENT, signal_text="Has a parent portal.")
 
 
 def test_no_website_and_no_lms_is_fully_missing():
@@ -15,9 +13,7 @@ def test_no_website_and_no_lms_is_fully_missing():
 
 
 def test_good_website_and_lms_present_has_no_gap():
-    score = compute_service_gap_score(
-        WebsiteQualityTier.GOOD, [_lms_signal()], SizeTier.SMALL
-    )
+    score = compute_service_gap_score(WebsiteQualityTier.GOOD, [_lms_signal()], SizeTier.SMALL)
     assert score == 0.0
 
 
@@ -37,7 +33,5 @@ def test_non_lms_technology_signal_does_not_count_as_lms_present():
     other_signal = Signal(
         signal_type=SignalType.TECHNOLOGY_PRESENT, signal_text="Uses some unrelated widget."
     )
-    score = compute_service_gap_score(
-        WebsiteQualityTier.GOOD, [other_signal], SizeTier.SMALL
-    )
+    score = compute_service_gap_score(WebsiteQualityTier.GOOD, [other_signal], SizeTier.SMALL)
     assert score == 1.0  # website gap 0.0 + lms gap 1.0
