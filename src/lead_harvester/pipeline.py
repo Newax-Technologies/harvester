@@ -988,18 +988,39 @@ class LeadPipeline:
         retries records with NO FieldProvenance at all), so nothing else
         would ever attempt this linkage again -- self-healing the same
         way _retry_stranded_records self-heals a resolution failure.
+
+        Claims the candidate RawPageSnapshot rows via SELECT ... FOR
+        UPDATE SKIP LOCKED before processing them -- without it, two
+        overlapping pipeline invocations could both select the same
+        stranded snapshots and each perform the linkage + refresh,
+        producing duplicate LeadScoreSnapshot history entries and
+        redundant scoring work. Same claim pattern as the stranded-
+        resolution query above and every other "atomically grab pending
+        work" query in this codebase.
         """
-        stmt = (
-            select(RawPageSnapshot.raw_source_record_id, FieldProvenance.canonical_id)
-            .join(
-                FieldProvenance,
-                FieldProvenance.raw_record_id == RawPageSnapshot.raw_source_record_id,
-            )
-            .where(RawPageSnapshot.institution_id.is_(None))
-            .where(RawPageSnapshot.raw_source_record_id.is_not(None))
-            .distinct()
+        candidate_rows = list(
+            (
+                await session.execute(
+                    select(RawPageSnapshot.id, RawPageSnapshot.raw_source_record_id)
+                    .where(RawPageSnapshot.institution_id.is_(None))
+                    .where(RawPageSnapshot.raw_source_record_id.is_not(None))
+                    .with_for_update(skip_locked=True)
+                )
+            ).all()
         )
-        stranded_links = list((await session.execute(stmt)).all())
+        raw_record_ids = {row.raw_source_record_id for row in candidate_rows}
+        if not raw_record_ids:
+            return
+
+        stranded_links = list(
+            (
+                await session.execute(
+                    select(FieldProvenance.raw_record_id, FieldProvenance.canonical_id)
+                    .where(FieldProvenance.raw_record_id.in_(raw_record_ids))
+                    .distinct()
+                )
+            ).all()
+        )
         if stranded_links:
             print(f"Retrying snapshot linkage for {len(stranded_links)} stranded record(s)...")
         for raw_record_id, institution_id in stranded_links:
