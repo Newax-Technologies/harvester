@@ -23,9 +23,7 @@ def test_whatsapp_with_booking_portal_is_not_flagged():
     # "book now"/"parent portal" suppress the WhatsApp pain point, but the
     # parent-portal mention itself is a real LMS/portal technology_present
     # signal (module 20) -- distinct concern from the pain-point rule above.
-    assert signals == [
-        {"signal_type": "technology_present", "text": "Has a parent portal."}
-    ]
+    assert signals == [{"signal_type": "technology_present", "text": "Has a parent portal."}]
 
 
 def test_detects_google_form_admissions_pain_point():
