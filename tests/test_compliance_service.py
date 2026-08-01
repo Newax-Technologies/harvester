@@ -160,10 +160,95 @@ async def test_fulfill_deletion_deletes_a_single_contact_point(db_session):
         "subject_id": str(contact_id),
         "deleted_counts": {"contact_points": 1},
         "retained": {"audit_logs": "retained_for_lawful_audit"},
+        "redacted_source_records": 0,
         "downstream_resync_enqueued": False,
         "verified": True,
         "residual_counts": {},
     }
+    # A blanket suppression must exist for the erased value -- the exact
+    # mechanism outreach/automator.py checks before ever sending, so any
+    # OutreachDraft still targeting this value can no longer be delivered.
+    suppression = await find_applicable_suppression(db_session, "a@b.com", channel="email")
+    assert suppression is not None
+    assert suppression.channel is None
+    assert suppression.reason == SuppressionReason.LEGAL_REQUEST
+
+
+@pytest.mark.asyncio
+async def test_fulfill_deletion_erases_contact_source_evidence_and_lead_profile(db_session):
+    # Correction regression test: deleting the ContactPoint row alone left
+    # the same value sitting in FieldProvenance.asserted_value and in the
+    # contributing RawSourceRecord's raw_payload/normalized_phone -- a
+    # contact-level erasure reported verified: true while the value was
+    # still stored locally in source evidence, and LeadProfile.has_phone
+    # stayed stale.
+    run = SourceRun(source_type=SourceType.WEBSITE, run_metadata={}, status=RunStatus.COMPLETED)
+    db_session.add(run)
+    await db_session.flush()
+
+    raw_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.WEBSITE,
+        source_id=f"web:{uuid.uuid4().hex[:8]}",
+        raw_payload={
+            "phone": "+15550009999",
+            "organization": "Evidence School",
+            "email": "keep@example.com",
+        },
+        normalized_phone="+15550009999",
+    )
+    db_session.add(raw_record)
+    await db_session.flush()
+
+    institution = CanonicalInstitution(canonical_name="Evidence School")
+    db_session.add(institution)
+    await db_session.flush()
+
+    contact = ContactPoint(
+        institution_id=institution.id, contact_type="phone", contact_value="+15550009999"
+    )
+    db_session.add(contact)
+    db_session.add(
+        FieldProvenance(
+            canonical_id=institution.id,
+            raw_record_id=raw_record.id,
+            field_name="contact_phone",
+            asserted_value="+15550009999",
+            assertion_trust=1.0,
+        )
+    )
+    await db_session.flush()
+    contact_id = contact.id
+    raw_record_id = raw_record.id
+    institution_id = institution.id
+
+    request = await request_deletion(db_session, DeletionSubjectType.CONTACT_POINT, contact_id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
+
+    assert fulfilled.manifest["redacted_source_records"] == 1
+
+    remaining_provenance = (
+        await db_session.scalars(
+            select(FieldProvenance).where(
+                FieldProvenance.canonical_id == institution_id,
+                FieldProvenance.field_name == "contact_phone",
+            )
+        )
+    ).all()
+    assert remaining_provenance == []
+
+    redacted_record = await db_session.get(RawSourceRecord, raw_record_id)
+    assert redacted_record.normalized_phone is None
+    assert redacted_record.raw_payload["phone"] == "[REDACTED]"
+    # Unrelated evidence on the SAME raw record must survive untouched.
+    assert redacted_record.raw_payload["organization"] == "Evidence School"
+    assert redacted_record.raw_payload["email"] == "keep@example.com"
+
+    profile = await db_session.scalar(
+        select(LeadProfile).where(LeadProfile.institution_id == institution_id)
+    )
+    assert profile is not None
+    assert profile.has_phone is False
 
 
 @pytest.mark.asyncio
@@ -788,20 +873,36 @@ async def test_fulfill_deletion_skips_downstream_event_when_never_synced(db_sess
 
 
 @pytest.mark.asyncio
-async def test_fulfill_deletion_skips_downstream_event_when_lead_sync_disabled(db_session):
-    # lead_sync is disabled by default in test settings -- even a
-    # previously-synced institution must not enqueue an event nobody will
-    # ever deliver.
+async def test_fulfill_deletion_persists_tombstone_even_when_lead_sync_currently_disabled(
+    db_session,
+):
+    # Correction regression test: lead_sync is disabled by default in test
+    # settings, but a previously-synced institution's tombstone must still
+    # be persisted -- the institution and its own EventOutbox history are
+    # both about to be deleted in this same transaction, so skipping the
+    # tombstone here would silently drop it forever with no later chance to
+    # reconstruct it once sync is re-enabled. Delivery is deferred to the
+    # normal outbox retry machinery, not creation.
     institution = CanonicalInstitution(
         canonical_name="Synced But Sync Now Off School", lead_synced_at=datetime.now(UTC)
     )
     db_session.add(institution)
     await db_session.flush()
+    institution_id = institution.id
 
     request = await request_deletion(db_session, DeletionSubjectType.INSTITUTION, institution.id)
     fulfilled = await fulfill_deletion(db_session, request.id)
 
-    assert fulfilled.manifest["downstream_deletion_event_enqueued"] is False
+    assert fulfilled.manifest["downstream_deletion_event_enqueued"] is True
+    tombstones = (
+        await db_session.scalars(
+            select(EventOutbox).where(EventOutbox.event_type == "institution.deleted")
+        )
+    ).all()
+    assert len(tombstones) == 1
+    assert tombstones[0].institution_id is None
+    assert tombstones[0].status == OutboxStatus.PENDING
+    assert tombstones[0].payload["institution"]["id"] == str(institution_id)
 
 
 @pytest.mark.asyncio

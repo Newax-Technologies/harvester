@@ -38,6 +38,7 @@ from lead_harvester.models.signal import Signal
 from lead_harvester.models.source import RawPageSnapshot, RawSourceRecord
 from lead_harvester.models.verification import DataQualityFlag
 from lead_harvester.resolution.normalize import normalize_phone
+from lead_harvester.services.lead_profile_service import refresh_lead_profile
 from lead_harvester.services.outbox_service import enqueue_and_attempt_delivery
 
 
@@ -336,12 +337,26 @@ async def _enqueue_deletion_event(session: AsyncSession, institution_id: uuid.UU
     transaction, and this FK's CASCADE would otherwise delete the
     tombstone right along with it before it can ever be delivered.
 
-    Returns whether a row was actually enqueued (false when lead_sync
-    isn't configured), purely for the manifest.
+    Correction: persisted unconditionally once the caller confirms this
+    institution was previously synced (lead_synced_at set) -- deliberately
+    NOT gated on whether lead_sync is CURRENTLY enabled/configured. Gating
+    on live config would silently drop the tombstone forever the moment
+    sync happens to be disabled when an already-synced institution gets
+    erased: the institution and its own EventOutbox history are both about
+    to be deleted in this same transaction, so there is no later chance to
+    reconstruct "this institution needs a deletion event." Delivery itself
+    is deferred to the same outbox retry/dead-letter machinery
+    (process_pending_deliveries) every other row already goes through --
+    if sync is disabled, delivery attempts simply keep failing/backing off
+    like any other unreachable-receiver row, eventually dead-lettering for
+    a human to requeue once configuration is restored, rather than the
+    event being silently lost.
+
+    Always returns True now that creation no longer depends on live
+    config -- kept as a bool (not void) so the manifest field and any
+    future gating condition have somewhere to report False again.
     """
     emitter = LeadSyncEmitter(app_settings)
-    if not emitter.settings.lead_sync_enabled or not emitter.settings.lead_sync_webhook_url:
-        return False
     payload = emitter._build_deletion_payload(institution_id)
     session.add(
         EventOutbox(
@@ -512,18 +527,113 @@ async def _resync_after_contact_erasure(session: AsyncSession, institution_id: u
     return row is not None
 
 
-async def _erase_contact_point(
-    session: AsyncSession, contact_point_id: uuid.UUID
-) -> dict[str, Any]:
+def _redact_value_in_payload(payload: Any, value: str) -> tuple[Any, bool]:
+    """
+    Recursively walks a JSON-shaped structure (RawSourceRecord.raw_payload)
+    and replaces every string exactly equal to `value` with a redaction
+    marker, leaving every other key/value untouched -- a raw_payload blob
+    routinely carries several unrelated fields (name, address, other
+    contacts) for the SAME record, so blanking the whole record or the
+    whole payload would destroy evidence this erasure was never asked to
+    remove. Returns (possibly-new structure, whether anything changed) so
+    the caller only reassigns/flushes when there was actually a match.
+    """
+    if isinstance(payload, dict):
+        changed = False
+        new_dict = {}
+        for key, val in payload.items():
+            new_val, sub_changed = _redact_value_in_payload(val, value)
+            new_dict[key] = new_val
+            changed = changed or sub_changed
+        return new_dict, changed
+    if isinstance(payload, list):
+        changed = False
+        new_list = []
+        for item in payload:
+            new_item, sub_changed = _redact_value_in_payload(item, value)
+            new_list.append(new_item)
+            changed = changed or sub_changed
+        return new_list, changed
+    if isinstance(payload, str) and payload == value:
+        return "[REDACTED]", True
+    return payload, False
+
+
+async def _erase_contact_source_evidence(
+    session: AsyncSession, institution_id: uuid.UUID, contact_type: str, contact_value: str
+) -> int:
+    """
+    Deleting the ContactPoint row alone leaves this exact value sitting in
+    two other places written by canonical/merger.py::_add_contact_if_present
+    at ingestion time: a FieldProvenance row (field_name=f"contact_{type}",
+    asserted_value=contact_value) and, inside the RawSourceRecord it points
+    at, raw_payload (and normalized_phone, for a phone contact) -- both
+    still carry the erased value even after the ContactPoint fulfilling a
+    deletion request reports verified: true.
+
+    Deletes the exact matching FieldProvenance assertions and redacts (not
+    deletes) the same value out of each contributing RawSourceRecord --
+    deleting the whole RawSourceRecord would also destroy any unrelated
+    evidence (address, other contacts) it still carries for this
+    institution or, if it's shared, for a different one entirely.
+
+    Returns the number of RawSourceRecord rows redacted, purely so the
+    manifest can report it.
+    """
+    # asserted_value is JSONB, not a plain string column -- Postgres has no
+    # `jsonb = varchar` operator, so the value match is done in Python
+    # after narrowing by the two indexed/typed columns (canonical_id,
+    # field_name) rather than pushing the equality into SQL.
+    candidate_rows = list(
+        (
+            await session.scalars(
+                select(FieldProvenance).where(
+                    FieldProvenance.canonical_id == institution_id,
+                    FieldProvenance.field_name == f"contact_{contact_type}",
+                )
+            )
+        ).all()
+    )
+    provenance_rows = [row for row in candidate_rows if row.asserted_value == contact_value]
+    raw_record_ids = {row.raw_record_id for row in provenance_rows}
+    for row in provenance_rows:
+        await session.delete(row)
+
+    redacted_count = 0
+    for raw_record_id in raw_record_ids:
+        record = await session.get(RawSourceRecord, raw_record_id)
+        if record is None:
+            continue
+        new_payload, changed = _redact_value_in_payload(record.raw_payload, contact_value)
+        if contact_type == "phone" and record.normalized_phone == contact_value:
+            record.normalized_phone = None
+            changed = True
+        if changed:
+            record.raw_payload = new_payload
+            redacted_count += 1
+
+    if provenance_rows or redacted_count:
+        await session.flush()
+    return redacted_count
+
+
+async def _erase_contact_point(session: AsyncSession, contact: ContactPoint) -> dict[str, Any]:
     """
     No table holds a real FK to contact_points.id, so a single-row delete
     is already transactionally complete -- this still returns the same
     manifest/verification shape as an institution erasure so
     DeletionRequest.manifest has one consistent contract regardless of
     subject_type.
+
+    Takes the already-locked ContactPoint (see fulfill_deletion's
+    SELECT ... FOR UPDATE) rather than re-fetching by id, so there is no
+    window between "confirm it exists" and "delete it" for a second
+    overlapping request on the same contact to race through.
     """
-    contact = await session.get(ContactPoint, contact_point_id)
-    institution_id = contact.institution_id if contact is not None else None
+    contact_point_id = contact.id
+    institution_id = contact.institution_id
+    contact_type = contact.contact_type
+    contact_value = contact.contact_value
 
     await session.execute(
         delete(ContactPoint)
@@ -534,7 +644,27 @@ async def _erase_contact_point(
     still_present = await _count_where(session, ContactPoint, ContactPoint.id, contact_point_id) > 0
 
     downstream_resync_enqueued = False
-    if institution_id is not None and not still_present:
+    redacted_source_records = 0
+    if not still_present:
+        # Compliance gate (docs/ROADMAP.md module 11): the exact same
+        # suppression mechanism outreach/automator.py already checks via
+        # is_eligible_to_contact before ever sending -- a blanket
+        # (channel=None) LEGAL_REQUEST entry blocks every channel, so any
+        # OutreachDraft still holding this value in target_contact_value
+        # (pending, approved, or otherwise unsent) can no longer actually
+        # be delivered, without needing a new draft-cancellation state
+        # machine of its own.
+        await add_suppression(
+            session,
+            contact_value,
+            SuppressionReason.LEGAL_REQUEST,
+            note="deletion_request_fulfilled",
+            suppressed_by="system",
+        )
+        redacted_source_records = await _erase_contact_source_evidence(
+            session, institution_id, contact_type, contact_value
+        )
+        await refresh_lead_profile(session, institution_id)
         downstream_resync_enqueued = await _resync_after_contact_erasure(session, institution_id)
 
     return {
@@ -542,6 +672,7 @@ async def _erase_contact_point(
         "subject_id": str(contact_point_id),
         "deleted_counts": {"contact_points": 1},
         "retained": {"audit_logs": "retained_for_lawful_audit"},
+        "redacted_source_records": redacted_source_records,
         "downstream_resync_enqueued": downstream_resync_enqueued,
         "verified": not still_present,
         "residual_counts": {} if not still_present else {"contact_points": 1},
@@ -607,10 +738,20 @@ async def fulfill_deletion(
             raise ResourceNotFoundError(str(request.subject_id))
         manifest = await _erase_institution(session, subject)
     else:
-        subject = await session.get(ContactPoint, request.subject_id)
+        # Locked (SELECT ... FOR UPDATE), same reasoning as the institution
+        # branch above: without it, two overlapping deletion requests for
+        # the SAME contact could both load it here before either deletes,
+        # so the second's DELETE affects zero rows without error yet still
+        # reports deleted_counts: {"contact_points": 1} and completes its
+        # own "successful" audit entry. The lock makes the second call
+        # block until the first's transaction ends, then correctly find no
+        # row and raise ResourceNotFoundError below instead.
+        subject = await session.scalar(
+            select(ContactPoint).where(ContactPoint.id == request.subject_id).with_for_update()
+        )
         if subject is None:
             raise ResourceNotFoundError(str(request.subject_id))
-        manifest = await _erase_contact_point(session, request.subject_id)
+        manifest = await _erase_contact_point(session, subject)
     # The DELETEs above ran as Core statements (so the DB-level CASCADE
     # fires uniformly for every dependent table, see _erase_institution),
     # which never told this session's identity map that `subject` is gone.
