@@ -675,8 +675,10 @@ async def test_leadless_domain_refresh_failure_does_not_abort_the_run(db_session
             select(RawPageSnapshot).where(RawPageSnapshot.normalized_domain == "eta.example.edu")
         )
     ).one()
-    # Exactly one of the two failed its refresh (and so kept institution_id
-    # unset by the failed savepoint's rollback); the other succeeded.
-    linked = [s for s in (zeta_snapshot, eta_snapshot) if s.institution_id is not None]
-    assert len(linked) == 1
-    assert linked[0].institution_id in (zeta_id, eta_id)
+    # Linkage now runs in its own savepoint, separate from the fallible
+    # refresh (fd27cf8) -- both snapshots stay linked to their own
+    # institution regardless of which one's refresh failed, since a
+    # refresh failure can no longer roll back the (already independently
+    # successful) linkage alongside it.
+    assert zeta_snapshot.institution_id == zeta_id
+    assert eta_snapshot.institution_id == eta_id
