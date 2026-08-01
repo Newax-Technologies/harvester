@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.config import settings as app_settings
@@ -196,6 +196,38 @@ async def _get_website_snapshots(
     )
 
 
+async def link_page_snapshots_to_institution(
+    session: AsyncSession, raw_record_id: uuid.UUID, institution_id: uuid.UUID
+) -> None:
+    """
+    Correction: backfills RawPageSnapshot.institution_id for every page
+    fetched under raw_record_id -- see models/source.py::RawPageSnapshot's
+    "Correction" docstring and _get_website_snapshots above, which this
+    directly feeds.
+
+    pipeline.py::_run_web_crawler already does this inline for a record
+    resolved within the SAME crawl run that fetched its pages. This is the
+    shared path for every OTHER route that can canonicalize a WEBSITE
+    record afterward, where the snapshots were already persisted (with
+    raw_source_record_id set, institution_id still null) in an earlier,
+    already-committed run:
+      - pipeline.py::_retry_stranded_records, retrying a record that
+        failed resolution in an earlier run;
+      - services/resolution_service.py::_apply_decision, a human review
+        decision canonicalizing a record that was left PENDING.
+    Without this, either path leaves the record's pages permanently
+    unlinked -- _get_website_snapshots excludes them forever, not just
+    until some later recomputation, since nothing else ever revisits this
+    link. A no-op for a non-WEBSITE record, since it has no RawPageSnapshot
+    rows to begin with.
+    """
+    await session.execute(
+        update(RawPageSnapshot)
+        .where(RawPageSnapshot.raw_source_record_id == raw_record_id)
+        .values(institution_id=institution_id)
+    )
+
+
 def _latest_summary(findings: list[ResearchFinding]) -> str | None:
     summary_findings = [f for f in findings if f.finding_key == "summary"]
     if not summary_findings:
@@ -282,8 +314,20 @@ async def recompute_all_lead_profiles(session: AsyncSession, *, limit: int = 500
     docs/CODE_REVIEW_LESSONS.md pattern 3) so one failure doesn't abort
     the batch or the ones already recomputed in it. Returns the number
     successfully recomputed.
+
+    Correction: ordered by computed_at ascending (oldest first), not left
+    unordered, so repeated bounded calls actually make progress across
+    every profile instead of reprocessing the same first `limit` rows
+    forever. refresh_lead_profile sets computed_at to "now" as its last
+    step, so a just-recomputed profile naturally sinks to the back of
+    this ordering -- the next call picks up the next oldest/never-
+    recomputed batch with no separate offset or cursor to track.
     """
-    institution_ids = (await session.scalars(select(LeadProfile.institution_id).limit(limit))).all()
+    institution_ids = (
+        await session.scalars(
+            select(LeadProfile.institution_id).order_by(LeadProfile.computed_at.asc()).limit(limit)
+        )
+    ).all()
 
     recomputed_count = 0
     for institution_id in institution_ids:

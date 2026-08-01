@@ -23,6 +23,7 @@ from .models.resolution import ResolutionCandidate
 from .models.signal import Signal, SignalType
 from .resolution.normalize import normalize_domain, normalize_name, normalize_phone
 from .resolution.orchestrator import resolve_incoming_record
+from .services.lead_profile_service import link_page_snapshots_to_institution, refresh_lead_profile
 from .sources.apple_maps import AppleMapsConnector
 from .sources.authorized_imports import AuthorizedImportInstitution, parse_authorized_import_csv
 from .sources.geographic_tiling import build_queries_for_tile, generate_tiles
@@ -238,6 +239,21 @@ class LeadPipeline:
                             page_snapshot.raw_source_record_id = record.id
                             if institution is not None:
                                 page_snapshot.institution_id = institution.id
+
+                        # Correction: _resolve_or_log's own refresh_lead_profile
+                        # (called from inside resolve_incoming_record, before
+                        # it returns `institution` above) runs before this
+                        # record's detected-technology Signal rows
+                        # (_persist_detected_signals, also inside
+                        # _resolve_or_log) and before the snapshot linkage
+                        # right above ever exist -- so that first refresh
+                        # always scores off ZERO of this crawl's own
+                        # evidence. Refresh again now that both are actually
+                        # attached, so website_quality_tier/service_gap_score/
+                        # detection status reflect the crawl that just ran,
+                        # not just whatever evidence predates it.
+                        if institution is not None:
+                            await refresh_lead_profile(session, institution.id)
 
                     run.status = RunStatus.COMPLETED
                     run.completed_at = datetime.datetime.now(datetime.UTC)
@@ -933,7 +949,24 @@ class LeadPipeline:
         if stranded:
             print(f"Retrying resolution for {len(stranded)} previously-stranded record(s)...")
         for record in stranded:
-            await self._resolve_or_log(session, run, record, resync_ids)
+            institution = await self._resolve_or_log(session, run, record, resync_ids)
+            if institution is not None:
+                # Correction: a stranded WEBSITE record's RawPageSnapshot
+                # rows were already persisted (with raw_source_record_id
+                # set) back when the record was first created, in an
+                # earlier run that failed resolution -- unlike
+                # _run_web_crawler's own per-lead loop, there's no
+                # in-memory snapshots_by_domain here to backfill
+                # institution_id onto, since those objects belong to a
+                # different, already-committed session. Backfill by
+                # raw_source_record_id instead (a no-op for a non-WEBSITE
+                # record), then refresh so the profile reflects both the
+                # signals _resolve_or_log just persisted and this linkage,
+                # not just whatever refresh_lead_profile saw when it ran
+                # from inside resolve_incoming_record before either
+                # existed.
+                await link_page_snapshots_to_institution(session, record.id, institution.id)
+                await refresh_lead_profile(session, institution.id)
 
     async def _resolve_or_log(
         self,

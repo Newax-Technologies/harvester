@@ -51,13 +51,17 @@ def upgrade() -> None:
     row using the corrected (source_run_id, domain) pair instead of
     source_run_id alone.
 
+    normalized_domain is staged nullable -> backfill -> not-null (AGENTS.md
+    convention for any new required column on a table that may already
+    have rows), not added NOT NULL directly.
+
     See models/source.py::RawPageSnapshot's own "Correction" docstring
     note for the full explanation and pipeline.py::_run_web_crawler for
     where these three fields are populated going forward.
     """
     op.add_column(
         "raw_page_snapshots",
-        sa.Column("normalized_domain", sa.String(255), nullable=False, server_default=""),
+        sa.Column("normalized_domain", sa.String(255), nullable=True),
     )
     op.add_column(
         "raw_page_snapshots",
@@ -73,6 +77,15 @@ def upgrade() -> None:
         "raw_source_records",
         ["raw_source_record_id"],
         ["id"],
+        # CASCADE, not the default NO ACTION: services/compliance_service.py
+        # ::purge_expired_raw_records bulk-deletes an old RawSourceRecord
+        # once it has no FieldProvenance reference at all -- a RawPageSnapshot
+        # can still point at one via raw_source_record_id (this table has no
+        # retention policy of its own, see the class docstring's "Known v1
+        # limitation"), and NO ACTION would fail that whole purge statement
+        # with a FK violation. A snapshot whose raw record was just purged as
+        # expired-and-unreferenced has no remaining reason to exist either.
+        ondelete="CASCADE",
     )
     op.create_foreign_key(
         "fk_raw_page_snapshots_institution_id",
@@ -117,45 +130,66 @@ def upgrade() -> None:
         sa.column("canonical_id", postgresql.UUID),
     )
 
+    # Preloaded lookup maps instead of up to two SELECTs per snapshot row --
+    # on a deployment with a substantial snapshot history (this table has
+    # no retention policy, see above), the original row-by-row version
+    # turned this migration into up to 3 round trips per row. Both maps fit
+    # comfortably in memory (one row each per RawSourceRecord/FieldProvenance
+    # ever written), so this is two bulk SELECTs total instead of one per
+    # snapshot.
+    record_id_by_run_and_domain: dict[tuple, object] = {}
+    for row in conn.execute(
+        sa.select(
+            raw_source_records.c.id,
+            raw_source_records.c.source_run_id,
+            raw_source_records.c.normalized_domain,
+        )
+    ):
+        if row.normalized_domain:
+            record_id_by_run_and_domain[(row.source_run_id, row.normalized_domain)] = row.id
+
+    # field_name is irrelevant here -- any FieldProvenance row for a raw
+    # record identifies which institution it was merged into, same as the
+    # original row-by-row version's arbitrary (unordered) .limit(1).
+    canonical_id_by_raw_record: dict[object, object] = {}
+    for row in conn.execute(
+        sa.select(field_provenance.c.raw_record_id, field_provenance.c.canonical_id)
+    ):
+        canonical_id_by_raw_record.setdefault(row.raw_record_id, row.canonical_id)
+
     rows = conn.execute(
         sa.select(snapshots.c.id, snapshots.c.source_run_id, snapshots.c.url, snapshots.c.final_url)
     ).all()
 
+    updates = []
     for snap_id, source_run_id, url, final_url in rows:
         domain = _normalize_domain(final_url or url)
-        record_row = None
-        if domain:
-            # Scoped to (this snapshot's run, this snapshot's domain) --
-            # the composite key that was missing -- not source_run_id
-            # alone, which is exactly the bug this migration fixes.
-            record_row = conn.execute(
-                sa.select(raw_source_records.c.id)
-                .where(
-                    raw_source_records.c.source_run_id == source_run_id,
-                    raw_source_records.c.normalized_domain == domain,
-                )
-                .limit(1)
-            ).first()
+        record_id = record_id_by_run_and_domain.get((source_run_id, domain)) if domain else None
+        institution_id = canonical_id_by_raw_record.get(record_id) if record_id else None
+        updates.append(
+            {
+                "_snap_id": snap_id,
+                "_domain": domain,
+                "_record_id": record_id,
+                "_institution_id": institution_id,
+            }
+        )
 
-        institution_id = None
-        if record_row is not None:
-            fp_row = conn.execute(
-                sa.select(field_provenance.c.canonical_id)
-                .where(field_provenance.c.raw_record_id == record_row.id)
-                .limit(1)
-            ).first()
-            if fp_row is not None:
-                institution_id = fp_row.canonical_id
-
+    if updates:
         conn.execute(
             snapshots.update()
-            .where(snapshots.c.id == snap_id)
+            .where(snapshots.c.id == sa.bindparam("_snap_id"))
             .values(
-                normalized_domain=domain,
-                raw_source_record_id=(record_row.id if record_row is not None else None),
-                institution_id=institution_id,
-            )
+                normalized_domain=sa.bindparam("_domain"),
+                raw_source_record_id=sa.bindparam("_record_id"),
+                institution_id=sa.bindparam("_institution_id"),
+            ),
+            updates,
         )
+
+    op.alter_column(
+        "raw_page_snapshots", "normalized_domain", existing_type=sa.String(255), nullable=False
+    )
 
 
 def downgrade() -> None:

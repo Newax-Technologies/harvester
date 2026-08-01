@@ -152,8 +152,12 @@ class RawPageSnapshot(Base):
     normalized_domain: Mapped[str] = mapped_column(
         String(255), default="", nullable=False, index=True
     )
+    # CASCADE: see migration e2a4c6f8b0d2 -- purge_expired_raw_records must
+    # be able to remove an old, unreferenced RawSourceRecord even when a
+    # snapshot still points at it (this table has no retention policy of
+    # its own yet).
     raw_source_record_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("raw_source_records.id"), nullable=True, index=True
+        ForeignKey("raw_source_records.id", ondelete="CASCADE"), nullable=True, index=True
     )
     institution_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("canonical_institutions.id"), nullable=True, index=True
