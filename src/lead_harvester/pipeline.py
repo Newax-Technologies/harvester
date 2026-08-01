@@ -228,7 +228,9 @@ class LeadPipeline:
                         )
                         session.add(record)
                         await session.flush()
-                        institution = await self._resolve_or_log(session, run, record, resync_ids)
+                        institution = await self._resolve_or_log(
+                            session, run, record, resync_ids, record_history=False
+                        )
 
                         # Link every page fetched for this domain to the
                         # record it produced -- see the snapshots_by_domain
@@ -951,7 +953,9 @@ class LeadPipeline:
         if stranded:
             print(f"Retrying resolution for {len(stranded)} previously-stranded record(s)...")
         for record in stranded:
-            institution = await self._resolve_or_log(session, run, record, resync_ids)
+            institution = await self._resolve_or_log(
+                session, run, record, resync_ids, record_history=False
+            )
             if institution is not None:
                 # Correction: a stranded WEBSITE record's RawPageSnapshot
                 # rows were already persisted (with raw_source_record_id
@@ -970,6 +974,41 @@ class LeadPipeline:
                 await self._link_snapshots_and_refresh(
                     session, run, institution, raw_record_id=record.id
                 )
+
+        await self._retry_stranded_snapshot_links(session, run)
+
+    async def _retry_stranded_snapshot_links(self, session, run: SourceRun) -> None:
+        """
+        A record can become canonicalized (FieldProvenance written) while
+        its RawPageSnapshot rows still show institution_id IS NULL -- if
+        _link_snapshots_and_refresh's own linkage step itself failed (a
+        transient DB error, distinct from the fallible refresh that runs
+        after it in its own separate savepoint), the record is now
+        excluded from the stranded-resolution query above (which only
+        retries records with NO FieldProvenance at all), so nothing else
+        would ever attempt this linkage again -- self-healing the same
+        way _retry_stranded_records self-heals a resolution failure.
+        """
+        stmt = (
+            select(RawPageSnapshot.raw_source_record_id, FieldProvenance.canonical_id)
+            .join(
+                FieldProvenance,
+                FieldProvenance.raw_record_id == RawPageSnapshot.raw_source_record_id,
+            )
+            .where(RawPageSnapshot.institution_id.is_(None))
+            .where(RawPageSnapshot.raw_source_record_id.is_not(None))
+            .distinct()
+        )
+        stranded_links = list((await session.execute(stmt)).all())
+        if stranded_links:
+            print(f"Retrying snapshot linkage for {len(stranded_links)} stranded record(s)...")
+        for raw_record_id, institution_id in stranded_links:
+            institution = await session.get(CanonicalInstitution, institution_id)
+            if institution is None:
+                continue
+            await self._link_snapshots_and_refresh(
+                session, run, institution, raw_record_id=raw_record_id
+            )
 
     async def _link_snapshots_and_refresh(
         self,
@@ -1023,6 +1062,8 @@ class LeadPipeline:
         run: SourceRun,
         record: RawSourceRecord,
         resync_ids: set[uuid.UUID] | None = None,
+        *,
+        record_history: bool = True,
     ) -> CanonicalInstitution | None:
         # A resolution failure for one record must never abort the rest of
         # the run -- the outer per-run except/finally would otherwise mark
@@ -1042,6 +1083,12 @@ class LeadPipeline:
         # that fed this record's domain (see models/source.py::RawPageSnapshot's
         # "Correction" docstring note). Every other caller ignores the
         # return value, unaffected by this addition.
+        #
+        # record_history=False: passed by callers (the web-crawler path)
+        # that always immediately call _link_snapshots_and_refresh right
+        # after this returns -- that second, more complete refresh is the
+        # one that should land in LeadScoreSnapshot history, not this
+        # pre-linkage one. See refresh_lead_profile's own docstring.
         try:
             async with session.begin_nested():
                 # docs/ROADMAP.md module 16: job.yaml's optional `sector`
@@ -1053,6 +1100,7 @@ class LeadPipeline:
                     record,
                     resync_ids=resync_ids,
                     job_sector_hint=self.settings.job_config.get("sector"),
+                    record_history=record_history,
                 )
                 if institution is not None:
                     LeadPipeline._persist_detected_signals(session, institution.id, record)

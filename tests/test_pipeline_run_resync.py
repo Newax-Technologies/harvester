@@ -75,7 +75,7 @@ async def test_run_web_crawler_emits_resync_events_even_when_run_fails(db_sessio
     fake_institution_id = uuid.uuid4()
     calls = {"n": 0}
 
-    async def fake_resolve_or_log(session, run, record, resync_ids=None):
+    async def fake_resolve_or_log(session, run, record, resync_ids=None, **_kwargs):
         calls["n"] += 1
         if calls["n"] == 1:
             if resync_ids is not None:
@@ -161,7 +161,7 @@ async def test_retry_stranded_records_retries_only_neither_canonicalized_nor_que
 
     retried_ids: set[uuid.UUID] = set()
 
-    async def fake_resolve_or_log(session, run, record, resync_ids=None):
+    async def fake_resolve_or_log(session, run, record, resync_ids=None, **_kwargs):
         retried_ids.add(record.id)
 
     pipeline = LeadPipeline(Settings(google_places_api_key="dummy-test-key"))
@@ -200,7 +200,7 @@ async def test_retry_stranded_records_never_retries_linkedin_records(db_session)
 
     retried_ids: set[uuid.UUID] = set()
 
-    async def fake_resolve_or_log(session, run, record, resync_ids=None):
+    async def fake_resolve_or_log(session, run, record, resync_ids=None, **_kwargs):
         retried_ids.add(record.id)
 
     pipeline = LeadPipeline(Settings(google_places_api_key="dummy-test-key"))
@@ -266,7 +266,7 @@ async def test_retry_stranded_records_claim_query_never_double_claims_across_con
         pipeline = LeadPipeline(Settings(google_places_api_key="dummy-test-key"))
         retried_ids: set[uuid.UUID] = set()
 
-        async def fake_resolve_or_log(session, run, record, resync_ids=None):
+        async def fake_resolve_or_log(session, run, record, resync_ids=None, **_kwargs):
             retried_ids.add(record.id)
 
         try:

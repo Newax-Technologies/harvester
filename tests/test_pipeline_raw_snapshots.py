@@ -337,3 +337,120 @@ async def test_post_link_refresh_failure_does_not_abort_the_run(db_session):
         )
     ).one()
     assert beta_snapshot.institution_id == beta_institution.id
+
+
+@pytest.mark.asyncio
+async def test_web_crawler_ingestion_writes_only_one_lead_score_snapshot(db_session):
+    # Correction regression test: resolve_incoming_record's own
+    # refresh_lead_profile call (inside _resolve_or_log, before snapshot
+    # linkage exists) used to append a LeadScoreSnapshot history row, then
+    # _link_snapshots_and_refresh's own refresh appended a SECOND one
+    # immediately after -- a phantom pre-linkage entry that was never
+    # really "current," doubling history growth for every ingested lead.
+    # Only the final, fully-evidenced refresh should record history.
+    from lead_harvester.models.profile import LeadScoreSnapshot
+
+    pipeline = LeadPipeline(Settings(job_config={"seeds": ["https://gamma.example.edu"]}))
+
+    async def _fake_crawl_one_domain(self, seeds):
+        self.snapshots.append(
+            PageSnapshot(
+                url="https://gamma.example.edu/",
+                final_url="https://gamma.example.edu/",
+                status_code=200,
+                content_type="text/html",
+                html="<html>hi</html>",
+                fetch_error="",
+            )
+        )
+        return [_fake_lead(organization="Gamma Academy", website="https://gamma.example.edu")]
+
+    with (
+        patch(
+            "lead_harvester.pipeline.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch(
+            "lead_harvester.sources.web.WebCrawler.crawl",
+            new=_fake_crawl_one_domain,
+        ),
+        patch.object(LeadPipeline, "_emit_resync_events", new=AsyncMock()),
+    ):
+        await pipeline._run_web_crawler()
+
+    institution = (
+        await db_session.scalars(
+            select(CanonicalInstitution).where(
+                CanonicalInstitution.canonical_name == "Gamma Academy"
+            )
+        )
+    ).one()
+    snapshots = (
+        await db_session.scalars(
+            select(LeadScoreSnapshot).where(LeadScoreSnapshot.institution_id == institution.id)
+        )
+    ).all()
+    assert len(snapshots) == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_stranded_snapshot_links_backfills_a_canonicalized_records_unlinked_snapshot(
+    db_session,
+):
+    # Correction regression test: a record can become canonicalized
+    # (FieldProvenance written) while its RawPageSnapshot rows still show
+    # institution_id IS NULL -- e.g. if the linkage step inside
+    # _link_snapshots_and_refresh itself failed on a transient error in an
+    # earlier run. Since the record is now canonicalized,
+    # _retry_stranded_records' own resolution-retry query would never
+    # revisit it. _retry_stranded_snapshot_links must find and fix exactly
+    # this case.
+    from lead_harvester.models.provenance import FieldProvenance
+    from lead_harvester.models.source import RunStatus, SourceRun
+
+    run = SourceRun(source_type=SourceType.WEBSITE, run_metadata={}, status=RunStatus.COMPLETED)
+    db_session.add(run)
+    await db_session.flush()
+
+    institution = CanonicalInstitution(canonical_name="Stranded Link School")
+    db_session.add(institution)
+    await db_session.flush()
+
+    record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.WEBSITE,
+        source_id="web:stranded",
+        raw_payload={},
+        normalized_domain="stranded.example.edu",
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    db_session.add(
+        FieldProvenance(
+            canonical_id=institution.id,
+            raw_record_id=record.id,
+            field_name="canonical_name",
+            asserted_value="Stranded Link School",
+        )
+    )
+    snapshot = RawPageSnapshot(
+        source_run_id=run.id,
+        url="https://stranded.example.edu/",
+        final_url="https://stranded.example.edu/",
+        status_code=200,
+        content_type="text/html",
+        html="<html>hi</html>",
+        fetch_error="",
+        normalized_domain="stranded.example.edu",
+        raw_source_record_id=record.id,
+        institution_id=None,
+    )
+    db_session.add(snapshot)
+    await db_session.flush()
+
+    pipeline = LeadPipeline(Settings(job_config={}))
+    await pipeline._retry_stranded_snapshot_links(db_session, run)
+
+    await db_session.refresh(snapshot)
+    assert snapshot.institution_id == institution.id

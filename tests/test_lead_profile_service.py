@@ -589,3 +589,44 @@ async def test_recompute_all_lead_profiles_isolates_one_institutions_failure(
     count = await recompute_all_lead_profiles(db_session)
 
     assert count == 2
+
+
+@pytest.mark.asyncio
+async def test_recompute_all_lead_profiles_advances_past_a_persistently_failing_profile(
+    db_session, monkeypatch
+):
+    # Correction regression test: a profile whose refresh keeps failing
+    # must not stay at the front of the computed_at-ascending ordering
+    # forever -- otherwise every subsequent bounded call re-selects the
+    # same failure and never reaches a later untrusted-but-healthy
+    # profile behind it. computed_at should advance even on failure (the
+    # score fields themselves stay untouched).
+    bad_one = await _seed_institution(db_session, canonical_name="Persistently Bad School")
+    await refresh_lead_profile(db_session, bad_one.id)
+    healthy_two = await _seed_institution(db_session, canonical_name="Healthy School Two")
+    await refresh_lead_profile(db_session, healthy_two.id)
+
+    original_computed_at = (await get_lead_profile(db_session, bad_one.id)).computed_at
+
+    from lead_harvester.services import lead_profile_service as service_module
+
+    real_refresh_lead_profile = service_module.refresh_lead_profile
+
+    async def flaky_refresh_lead_profile(session, institution_id, **kwargs):
+        if institution_id == bad_one.id:
+            raise RuntimeError("simulated persistent recompute failure")
+        return await real_refresh_lead_profile(session, institution_id, **kwargs)
+
+    monkeypatch.setattr(service_module, "refresh_lead_profile", flaky_refresh_lead_profile)
+
+    # Bounded to 1 -- without the fix, this always re-selects bad_one
+    # (oldest computed_at) and healthy_two is never reached across
+    # repeated calls.
+    first_call_count = await recompute_all_lead_profiles(db_session, limit=1)
+    second_call_count = await recompute_all_lead_profiles(db_session, limit=1)
+
+    assert first_call_count == 0
+    assert second_call_count == 1
+
+    bad_profile = await get_lead_profile(db_session, bad_one.id)
+    assert bad_profile.computed_at > original_computed_at

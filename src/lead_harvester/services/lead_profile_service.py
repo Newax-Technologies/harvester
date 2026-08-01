@@ -40,8 +40,20 @@ from lead_harvester.schemas.profiles import (
 )
 
 
-async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID) -> LeadProfile:
+async def refresh_lead_profile(
+    session: AsyncSession, institution_id: uuid.UUID, *, record_history: bool = True
+) -> LeadProfile:
     """
+    record_history=False skips the LeadScoreSnapshot append (the
+    LeadProfile upsert itself always happens) -- for a caller that already
+    knows a second, more complete refresh is coming immediately after this
+    one within the same per-record processing (e.g. pipeline.py's
+    _resolve_or_log before its own snapshot-linkage step runs), writing
+    history here would record an intermediate score that was never really
+    "current" -- visible nowhere, superseded microseconds later -- as a
+    phantom entry, doubling history growth for no benefit. Defaults True
+    so every other caller keeps recording every call, unaffected.
+
     Idempotent -- safe to call repeatedly as new evidence arrives. Reads the
     institution's current branches/contact points, its latest
     QualificationAssessment (if any has ever run), every ResearchFinding,
@@ -156,13 +168,14 @@ async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID)
     profile.evidence_count = result.evidence_count
     profile.computed_at = datetime.now(UTC)
 
-    session.add(
-        LeadScoreSnapshot(
-            institution_id=institution_id,
-            overall_score=result.overall_score,
-            score_breakdown=result.breakdown,
+    if record_history:
+        session.add(
+            LeadScoreSnapshot(
+                institution_id=institution_id,
+                overall_score=result.overall_score,
+                score_breakdown=result.breakdown,
+            )
         )
-    )
 
     await session.flush()
     return profile
@@ -337,6 +350,30 @@ async def recompute_all_lead_profiles(session: AsyncSession, *, limit: int = 500
             recomputed_count += 1
         except Exception as e:
             print(f"[LeadProfile] recompute failed for institution {institution_id}: {e}")
+            # Correction: without this, a profile whose refresh keeps
+            # failing (a genuinely bad row) stays at the front of the
+            # computed_at-ascending ordering forever -- every subsequent
+            # bounded call re-selects the same failing profile(s) and
+            # never reaches later untrusted-but-healthy profiles behind
+            # it. Bump computed_at alone (in a fresh savepoint, since the
+            # failed one above already rolled back) so the cursor
+            # advances past it; every OTHER field is deliberately left
+            # untouched -- still whatever it was before this call, still
+            # as untrusted as this function's own remediation note
+            # describes, just no longer blocking the queue for every
+            # other profile.
+            try:
+                async with session.begin_nested():
+                    await session.execute(
+                        update(LeadProfile)
+                        .where(LeadProfile.institution_id == institution_id)
+                        .values(computed_at=datetime.now(UTC))
+                    )
+            except Exception as advance_error:
+                print(
+                    f"[LeadProfile] failed to advance cursor past institution "
+                    f"{institution_id}: {advance_error}"
+                )
 
     return recomputed_count
 

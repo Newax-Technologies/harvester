@@ -25,7 +25,10 @@ from lead_harvester.models.resolution import MatchAssessment, MatchDecision, Res
 from lead_harvester.models.source import RawSourceRecord
 from lead_harvester.resolution.blocking import generate_candidates
 from lead_harvester.resolution.scoring import score_candidate
-from lead_harvester.services.lead_profile_service import refresh_lead_profile
+from lead_harvester.services.lead_profile_service import (
+    link_page_snapshots_to_institution,
+    refresh_lead_profile,
+)
 from lead_harvester.services.sector_service import apply_sector_hint_fallback
 
 _ScoredCandidate = tuple[ResolutionCandidate, MatchAssessment]
@@ -37,6 +40,7 @@ async def resolve_incoming_record(
     *,
     resync_ids: set[uuid.UUID] | None = None,
     job_sector_hint: str | None = None,
+    record_history: bool = True,
 ) -> CanonicalInstitution | None:
     """
     Runs blocking + scoring for one newly ingested record and decides its
@@ -92,6 +96,14 @@ async def resolve_incoming_record(
     record's evidence immediately rather than going stale until some
     separate process recomputes them.
 
+    record_history=False (passed through to every refresh_lead_profile
+    call here) skips writing a LeadScoreSnapshot row for THIS refresh --
+    pass it when the caller already knows it will immediately refresh
+    again with more complete evidence (e.g. pipeline.py's web-crawler path,
+    which always re-refreshes right after this returns, once the record's
+    own snapshots/signals are linked/persisted). Defaults True so every
+    other caller's history behavior is unchanged.
+
     job_sector_hint: job.yaml's optional `sector` key (docs/ROADMAP.md
     module 16) -- applied via apply_sector_hint_fallback only when
     canonical/merger.py's own institution_type-based classification left
@@ -129,7 +141,7 @@ async def resolve_incoming_record(
             await apply_sector_hint_fallback(session, institution, job_sector_hint)
             if resync_ids is not None and institution.lead_synced_at is not None:
                 resync_ids.add(institution.id)
-            await refresh_lead_profile(session, institution.id)
+            await refresh_lead_profile(session, institution.id, record_history=record_history)
             return institution
 
         # matched_record (B) is itself still unresolved -- unlike the
@@ -152,13 +164,24 @@ async def resolve_incoming_record(
         merged_institution = await merge_records(
             session, [record, matched_record], same_location=True
         )
+        # Correction: matched_record was itself still unresolved before
+        # this merge, so it may carry its own already-persisted WEBSITE
+        # RawPageSnapshot rows from an earlier run/attempt -- pipeline.py's
+        # caller only ever backfills institution_id for `record` (the one
+        # it knows about), never for matched_record, and matched_record is
+        # now canonicalized so _retry_stranded_records will never revisit
+        # it either. Same fix already applied to the human-decision
+        # equivalent, resolution_service.py's own merge-two-unresolved
+        # branch.
+        await link_page_snapshots_to_institution(session, record.id, merged_institution.id)
+        await link_page_snapshots_to_institution(session, matched_record.id, merged_institution.id)
         await apply_sector_hint_fallback(session, merged_institution, job_sector_hint)
-        await refresh_lead_profile(session, merged_institution.id)
+        await refresh_lead_profile(session, merged_institution.id, record_history=record_history)
         return merged_institution
 
     new_institution = await merge_records(session, [record])
     await apply_sector_hint_fallback(session, new_institution, job_sector_hint)
-    await refresh_lead_profile(session, new_institution.id)
+    await refresh_lead_profile(session, new_institution.id, record_history=record_history)
     return new_institution
 
 
