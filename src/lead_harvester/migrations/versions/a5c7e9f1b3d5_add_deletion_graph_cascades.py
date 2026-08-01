@@ -168,14 +168,22 @@ def upgrade() -> None:
         op.drop_constraint(name, table, type_="foreignkey")
         op.create_foreign_key(name, table, foreign_table, [column], ["id"], ondelete="SET NULL")
 
+    # Staged nullable -> backfill -> not-null (AGENTS.md convention for any
+    # new required column on a table that may already have rows), not
+    # added NOT NULL directly -- a constant server_default alone still
+    # bypasses the convention even though it happens to avoid a null
+    # error.
     op.add_column(
         "deletion_requests",
-        sa.Column(
-            "manifest",
-            postgresql.JSONB(astext_type=sa.Text()),
-            nullable=False,
-            server_default="{}",
-        ),
+        sa.Column("manifest", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+    )
+    op.execute("UPDATE deletion_requests SET manifest = '{}'::jsonb WHERE manifest IS NULL")
+    op.alter_column(
+        "deletion_requests",
+        "manifest",
+        existing_type=postgresql.JSONB(astext_type=sa.Text()),
+        nullable=False,
+        server_default="{}",
     )
 
     # Correction: services/compliance_service.py::_erase_institution's own

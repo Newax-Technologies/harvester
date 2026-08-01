@@ -35,7 +35,7 @@ from lead_harvester.models.qualification import QualificationAssessment
 from lead_harvester.models.research import ResearchFinding, ResearchJob
 from lead_harvester.models.resolution import MatchAssessment, ResolutionCandidate
 from lead_harvester.models.signal import Signal
-from lead_harvester.models.source import RawPageSnapshot, RawSourceRecord
+from lead_harvester.models.source import RawPageSnapshot, RawSourceRecord, SourceRun, SourceType
 from lead_harvester.models.verification import DataQualityFlag
 from lead_harvester.resolution.normalize import normalize_phone
 from lead_harvester.services.lead_profile_service import refresh_lead_profile
@@ -372,6 +372,63 @@ async def _enqueue_deletion_event(session: AsyncSession, institution_id: uuid.UU
     return True
 
 
+async def _redact_manual_source_run_notes(
+    session: AsyncSession, exclusive_raw_record_ids: list[uuid.UUID]
+) -> int:
+    """
+    api/routes/manual_leads.py copies the submitter's free-text
+    lead_source_note/notes into the PARENT SourceRun.run_metadata, not
+    into the RawSourceRecord itself -- deleting the exclusive raw records
+    below never touches that parent row (a SourceRun is the run those
+    records belong to, not something CASCADE-owned by them), so that
+    subject-specific text would otherwise survive this erasure forever.
+
+    Only redacts a SourceRun that exclusively belongs to this erasure's
+    own manual submission -- i.e. no OTHER RawSourceRecord still
+    references it. A WEBSITE/GOOGLE_PLACES/etc SourceRun covers a whole
+    crawl BATCH routinely shared by many unrelated institutions; blanking
+    its run_metadata would destroy audit context this erasure was never
+    asked to touch. A MANUAL SourceRun is created fresh per submission
+    (api/routes/manual_leads.py's own request_deletion call site), so this
+    exclusivity check is expected to always pass for it in practice --
+    still checked explicitly rather than assumed.
+
+    Returns the number of SourceRun rows redacted, purely for the manifest.
+    """
+    if not exclusive_raw_record_ids:
+        return 0
+    manual_records = list(
+        (
+            await session.scalars(
+                select(RawSourceRecord).where(
+                    RawSourceRecord.id.in_(exclusive_raw_record_ids),
+                    RawSourceRecord.source_type == SourceType.MANUAL,
+                )
+            )
+        ).all()
+    )
+    redacted_count = 0
+    for record in manual_records:
+        other_records_on_run = await _count_where(
+            session,
+            RawSourceRecord,
+            RawSourceRecord.source_run_id,
+            record.source_run_id,
+        )
+        if other_records_on_run > 1:
+            continue
+        run = await session.get(SourceRun, record.source_run_id)
+        if run is None:
+            continue
+        run.run_metadata = {
+            **run.run_metadata,
+            "lead_source_note": "[REDACTED]",
+            "notes": "[REDACTED]",
+        }
+        redacted_count += 1
+    return redacted_count
+
+
 async def _erase_institution(
     session: AsyncSession, institution: CanonicalInstitution
 ) -> dict[str, Any]:
@@ -425,6 +482,8 @@ async def _erase_institution(
     deletion_event_enqueued = False
     if institution.lead_synced_at is not None:
         deletion_event_enqueued = await _enqueue_deletion_event(session, institution_id)
+
+    redacted_source_runs = await _redact_manual_source_run_notes(session, exclusive_raw_record_ids)
 
     if exclusive_raw_record_ids:
         await session.execute(
@@ -480,6 +539,7 @@ async def _erase_institution(
             "shared_raw_source_records": [str(record_id) for record_id in shared_raw_record_ids],
         },
         "downstream_deletion_event_enqueued": deletion_event_enqueued,
+        "redacted_source_runs": redacted_source_runs,
         "verified": verified,
         "residual_counts": {k: v for k, v in residual_counts.items() if v},
     }

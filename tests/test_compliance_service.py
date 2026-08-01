@@ -136,6 +136,112 @@ async def test_fulfill_deletion_deletes_the_institution(db_session):
 
 
 @pytest.mark.asyncio
+async def test_fulfill_deletion_redacts_manual_source_run_notes(db_session):
+    # Correction regression test: api/routes/manual_leads.py copies the
+    # submitter's free-text lead_source_note/notes into the PARENT
+    # SourceRun.run_metadata, not into the RawSourceRecord this erasure
+    # deletes -- a SourceRun survives its child record's deletion (it's
+    # the parent, not something CASCADE-owned), so that subject-specific
+    # text would otherwise remain forever despite verified: true.
+    run = SourceRun(
+        source_type=SourceType.MANUAL,
+        run_metadata={
+            "entry_method": "manual_form",
+            "lead_source_note": "Referred by Jane Doe, met at conference",
+            "notes": "Interested in premium tier",
+        },
+        status=RunStatus.COMPLETED,
+    )
+    db_session.add(run)
+    await db_session.flush()
+
+    institution = CanonicalInstitution(canonical_name="Manual Lead School")
+    db_session.add(institution)
+    await db_session.flush()
+
+    record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.MANUAL,
+        source_id="manual:1",
+        raw_payload={"institution_name": "Manual Lead School"},
+    )
+    db_session.add(record)
+    await db_session.flush()
+    db_session.add(
+        FieldProvenance(
+            canonical_id=institution.id,
+            raw_record_id=record.id,
+            field_name="canonical_name",
+            asserted_value="Manual Lead School",
+        )
+    )
+    await db_session.flush()
+    run_id = run.id
+
+    request = await request_deletion(db_session, DeletionSubjectType.INSTITUTION, institution.id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
+
+    assert fulfilled.manifest["redacted_source_runs"] == 1
+    redacted_run = await db_session.get(SourceRun, run_id)
+    assert redacted_run is not None
+    assert redacted_run.run_metadata["lead_source_note"] == "[REDACTED]"
+    assert redacted_run.run_metadata["notes"] == "[REDACTED]"
+    # Non-subject metadata is left alone.
+    assert redacted_run.run_metadata["entry_method"] == "manual_form"
+
+
+@pytest.mark.asyncio
+async def test_fulfill_deletion_does_not_redact_a_shared_source_run(db_session):
+    # A SourceRun referenced by more than one RawSourceRecord (e.g. a
+    # WEBSITE crawl batch) must never be redacted -- it routinely carries
+    # evidence for unrelated institutions this erasure was never asked to
+    # touch.
+    run = SourceRun(
+        source_type=SourceType.MANUAL,
+        run_metadata={"lead_source_note": "shared note", "notes": "shared notes"},
+        status=RunStatus.COMPLETED,
+    )
+    db_session.add(run)
+    await db_session.flush()
+
+    institution = CanonicalInstitution(canonical_name="Shared Run School")
+    db_session.add(institution)
+    await db_session.flush()
+
+    record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.MANUAL,
+        source_id="manual:shared-a",
+        raw_payload={},
+    )
+    other_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.MANUAL,
+        source_id="manual:shared-b",
+        raw_payload={},
+    )
+    db_session.add_all([record, other_record])
+    await db_session.flush()
+    db_session.add(
+        FieldProvenance(
+            canonical_id=institution.id,
+            raw_record_id=record.id,
+            field_name="canonical_name",
+            asserted_value="Shared Run School",
+        )
+    )
+    await db_session.flush()
+    run_id = run.id
+
+    request = await request_deletion(db_session, DeletionSubjectType.INSTITUTION, institution.id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
+
+    assert fulfilled.manifest["redacted_source_runs"] == 0
+    surviving_run = await db_session.get(SourceRun, run_id)
+    assert surviving_run.run_metadata["lead_source_note"] == "shared note"
+
+
+@pytest.mark.asyncio
 async def test_fulfill_deletion_deletes_a_single_contact_point(db_session):
     institution = CanonicalInstitution(canonical_name="Contact Deletion School")
     db_session.add(institution)
