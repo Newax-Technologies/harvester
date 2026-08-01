@@ -164,25 +164,45 @@ def upgrade() -> None:
     ):
         canonical_id_by_raw_record.setdefault(row.raw_record_id, row.canonical_id)
 
-    rows = conn.execute(
-        sa.select(snapshots.c.id, snapshots.c.source_run_id, snapshots.c.url, snapshots.c.final_url)
-    ).all()
-
-    updates = []
-    for snap_id, source_run_id, url, final_url in rows:
-        domain = _normalize_domain(final_url or url)
-        record_id = record_id_by_run_and_domain.get((source_run_id, domain)) if domain else None
-        institution_id = canonical_id_by_raw_record.get(record_id) if record_id else None
-        updates.append(
-            {
-                "_snap_id": snap_id,
-                "_domain": domain,
-                "_record_id": record_id,
-                "_institution_id": institution_id,
-            }
+    # Batched (keyset pagination on id), not one giant .all() -- this
+    # table has no retention policy (see the class docstring's "Known v1
+    # limitation"), so a deployment with a substantial crawl history could
+    # otherwise materialize the ENTIRE table plus an equally large
+    # `updates` list in memory at once. The two lookup maps above stay
+    # preloaded in full -- they're bounded by distinct RawSourceRecord/
+    # FieldProvenance rows (one per resolved entity), an order of
+    # magnitude smaller than total crawled pages, and every batch needs
+    # the whole of both anyway.
+    _BACKFILL_BATCH_SIZE = 5000
+    last_id = None
+    while True:
+        batch_stmt = (
+            sa.select(
+                snapshots.c.id, snapshots.c.source_run_id, snapshots.c.url, snapshots.c.final_url
+            )
+            .order_by(snapshots.c.id)
+            .limit(_BACKFILL_BATCH_SIZE)
         )
+        if last_id is not None:
+            batch_stmt = batch_stmt.where(snapshots.c.id > last_id)
+        batch = conn.execute(batch_stmt).all()
+        if not batch:
+            break
 
-    if updates:
+        updates = []
+        for snap_id, source_run_id, url, final_url in batch:
+            domain = _normalize_domain(final_url or url)
+            record_id = record_id_by_run_and_domain.get((source_run_id, domain)) if domain else None
+            institution_id = canonical_id_by_raw_record.get(record_id) if record_id else None
+            updates.append(
+                {
+                    "_snap_id": snap_id,
+                    "_domain": domain,
+                    "_record_id": record_id,
+                    "_institution_id": institution_id,
+                }
+            )
+
         conn.execute(
             snapshots.update()
             .where(snapshots.c.id == sa.bindparam("_snap_id"))
@@ -193,6 +213,10 @@ def upgrade() -> None:
             ),
             updates,
         )
+
+        last_id = batch[-1].id
+        if len(batch) < _BACKFILL_BATCH_SIZE:
+            break
 
     op.alter_column(
         "raw_page_snapshots", "normalized_domain", existing_type=sa.String(255), nullable=False
