@@ -45,6 +45,19 @@ export const queryKeys = {
       status,
     ],
   },
+  operations: {
+    health: () => ["operations", "health"],
+    metrics: () => ["operations", "metrics"],
+    sourceRuns: (filters: any) => ["operations", "source-runs", filters],
+    sourceRunDetail: (id: string) => ["operations", "source-runs", id],
+    sourceHealth: () => ["operations", "source-health"],
+    strandedRecords: () => ["operations", "stranded-records"],
+    auditLog: (filters: any) => ["operations", "audit-log", filters],
+    config: () => ["operations", "config"],
+  },
+  outbox: {
+    list: (status?: string) => ["outbox", "list", status],
+  },
 };
 
 export const dashboardQueries = {
@@ -211,6 +224,97 @@ export const complianceQueries = {
       queryFn: () =>
         apiClient
           .GET("/api/v1/compliance/deletion-requests", {
+            params: { query: { status: status as any, limit } },
+          })
+          .then(handleApiResponse),
+    }),
+};
+
+export const operationsQueries = {
+  health: () =>
+    queryOptions({
+      queryKey: queryKeys.operations.health(),
+      queryFn: () =>
+        apiClient.GET("/api/v1/operations/health").then(handleApiResponse),
+    }),
+  metrics: () =>
+    queryOptions({
+      queryKey: queryKeys.operations.metrics(),
+      queryFn: () =>
+        apiClient.GET("/api/v1/operations/metrics").then(handleApiResponse),
+    }),
+  sourceRuns: (sourceType?: string, status?: string, limit = 50) =>
+    queryOptions({
+      queryKey: queryKeys.operations.sourceRuns({ sourceType, status, limit }),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/operations/source-runs", {
+            params: {
+              query: {
+                source_type: sourceType as any,
+                status: status as any,
+                limit,
+              },
+            },
+          })
+          .then(handleApiResponse),
+    }),
+  sourceRunDetail: (runId: string) =>
+    queryOptions({
+      queryKey: queryKeys.operations.sourceRunDetail(runId),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/operations/source-runs/{run_id}", {
+            params: { path: { run_id: runId } },
+          })
+          .then(handleApiResponse),
+      enabled: !!runId,
+    }),
+  sourceHealth: () =>
+    queryOptions({
+      queryKey: queryKeys.operations.sourceHealth(),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/operations/source-health")
+          .then(handleApiResponse),
+    }),
+  strandedRecords: (limit = 100) =>
+    queryOptions({
+      queryKey: queryKeys.operations.strandedRecords(),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/operations/stranded-records", {
+            params: { query: { limit } },
+          })
+          .then(handleApiResponse),
+    }),
+  auditLog: (entityType?: string, actor?: string, limit = 100) =>
+    queryOptions({
+      queryKey: queryKeys.operations.auditLog({ entityType, actor, limit }),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/operations/audit-log", {
+            params: {
+              query: { entity_type: entityType, actor, limit },
+            },
+          })
+          .then(handleApiResponse),
+    }),
+  config: () =>
+    queryOptions({
+      queryKey: queryKeys.operations.config(),
+      queryFn: () =>
+        apiClient.GET("/api/v1/operations/config").then(handleApiResponse),
+    }),
+};
+
+export const outboxQueries = {
+  list: (status?: string, limit = 100) =>
+    queryOptions({
+      queryKey: queryKeys.outbox.list(status),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/outbox", {
             params: { query: { status: status as any, limit } },
           })
           .then(handleApiResponse),
