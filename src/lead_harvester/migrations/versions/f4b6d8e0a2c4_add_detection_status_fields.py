@@ -44,19 +44,40 @@ def upgrade() -> None:
     evidence computed -- see the recompute-lead-profiles CLI command
     (added alongside migration e2a4c6f8b0d2) for how to replace this
     default with a real, evidence-backed value.
+
+    Staged nullable -> backfill -> not-null (AGENTS.md convention for any
+    new required column on a table that may already have rows), not
+    added NOT NULL directly.
     """
     _detection_status.create(op.get_bind(), checkfirst=True)
     op.add_column(
         "lead_profiles",
-        sa.Column(
-            "website_detection_status", _detection_status, nullable=False, server_default="UNKNOWN"
-        ),
+        sa.Column("website_detection_status", _detection_status, nullable=True),
     )
     op.add_column(
         "lead_profiles",
-        sa.Column(
-            "lms_detection_status", _detection_status, nullable=False, server_default="UNKNOWN"
-        ),
+        sa.Column("lms_detection_status", _detection_status, nullable=True),
+    )
+
+    lead_profiles = sa.table(
+        "lead_profiles",
+        sa.column("website_detection_status", _detection_status),
+        sa.column("lms_detection_status", _detection_status),
+    )
+    op.execute(
+        lead_profiles.update().values(
+            website_detection_status="UNKNOWN", lms_detection_status="UNKNOWN"
+        )
+    )
+
+    op.alter_column(
+        "lead_profiles",
+        "website_detection_status",
+        existing_type=_detection_status,
+        nullable=False,
+    )
+    op.alter_column(
+        "lead_profiles", "lms_detection_status", existing_type=_detection_status, nullable=False
     )
 
 

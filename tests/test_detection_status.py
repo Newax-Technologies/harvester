@@ -114,3 +114,25 @@ class TestLmsDetectionStatus:
                     compute_lms_detection_status(website, snapshots, [])
                     != DetectionStatus.ABSENT_CONFIRMED
                 )
+
+    def test_historical_snapshot_with_lms_html_but_no_signal_row_is_present(self):
+        # Correction: a snapshot crawled BEFORE Module 20's
+        # TECHNOLOGY_PRESENT signal detection existed has no Signal row
+        # even when its stored HTML plainly shows an LMS -- an empty
+        # signal list there means "this detection rule never ran," not
+        # "it ran and found nothing." Recomputation must re-derive
+        # PRESENT from the HTML itself, not mistake the missing Signal
+        # row for a genuine non-detection.
+        snapshot = _successful_snapshot(html="<html><body>Login to Moodle here</body></html>")
+        assert (
+            compute_lms_detection_status("https://x.edu", [snapshot], []) == DetectionStatus.PRESENT
+        )
+
+    def test_historical_snapshot_with_no_lms_html_stays_not_detected(self):
+        # The re-scan must not turn every historical crawl into PRESENT --
+        # only ones whose stored HTML actually contains LMS evidence.
+        snapshot = _successful_snapshot(html="<html><body>Welcome to our school</body></html>")
+        assert (
+            compute_lms_detection_status("https://x.edu", [snapshot], [])
+            == DetectionStatus.NOT_DETECTED
+        )

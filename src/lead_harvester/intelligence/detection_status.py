@@ -16,6 +16,8 @@ future source, not for the crawler path.
 
 from __future__ import annotations
 
+from lead_harvester.enrichment.technology_detector import detect_technology_signals
+from lead_harvester.extractors import visible_text
 from lead_harvester.models.profile import DetectionStatus
 from lead_harvester.models.signal import Signal, SignalType
 from lead_harvester.models.source import RawPageSnapshot
@@ -25,6 +27,31 @@ _LMS_KEYWORDS = ("learning management system", "parent portal", "student portal"
 
 def _successful_snapshots(snapshots: list[RawPageSnapshot]) -> list[RawPageSnapshot]:
     return [s for s in snapshots if not s.fetch_error and s.html]
+
+
+def _has_lms_evidence_in_snapshots(snapshots: list[RawPageSnapshot]) -> bool:
+    """
+    Re-scans each successfully-fetched snapshot's stored HTML for LMS
+    evidence using the same rule set the crawler itself applies at
+    ingestion time (enrichment/technology_detector.py, via
+    detect_technology_signals) -- not just the Signal rows already
+    persisted for this institution.
+
+    Correction: a Signal.TECHNOLOGY_PRESENT row only exists for a page
+    crawled AFTER that detection rule was introduced (Module 20).
+    A successful snapshot fetched BEFORE it existed has no such row even
+    when its stored HTML plainly contains "Moodle" or a parent-portal
+    link -- an empty signal list there means "this detection rule never
+    ran," not "it ran and found nothing." Relying on Signal-row absence
+    alone would mislabel that historical evidence NOT_DETECTED instead of
+    re-deriving the true answer from the HTML still sitting in
+    RawPageSnapshot.html.
+    """
+    for snapshot in _successful_snapshots(snapshots):
+        detected = detect_technology_signals(visible_text(snapshot.html or ""))
+        if any(item["signal_type"] == "technology_present" for item in detected):
+            return True
+    return False
 
 
 def compute_website_detection_status(
@@ -66,7 +93,7 @@ def compute_lms_detection_status(
         and any(keyword in s.signal_text.lower() for keyword in _LMS_KEYWORDS)
         for s in signals
     )
-    if has_lms_signal:
+    if has_lms_signal or _has_lms_evidence_in_snapshots(snapshots):
         return DetectionStatus.PRESENT
     if not website or not snapshots:
         # Nothing to crawl at all (no website on file) or a website on
