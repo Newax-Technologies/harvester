@@ -11,6 +11,7 @@ from urllib.robotparser import RobotFileParser
 import httpx
 
 from ..config import Settings
+from ..enrichment.decision_maker_discovery import discover_decision_maker
 from ..enrichment.technology_detector import detect_technology_signals
 from ..extractors import (
     best_evidence,
@@ -275,10 +276,22 @@ class WebCrawler:
         if not any([emails, phones, social_profiles, identity["organization"]]):
             return None, links
 
+        # JSON-LD Person (identity["name"]/["role"]) wins when present;
+        # otherwise fall back to a text-pattern decision-maker match (see
+        # enrichment/decision_maker_discovery.py) -- most small-business
+        # sites don't mark up their leadership with JSON-LD at all.
+        person_name = identity["name"]
+        person_role = identity["role"]
+        if not person_name:
+            decision_maker = discover_decision_maker(text)
+            if decision_maker:
+                person_name = decision_maker["name"]
+                person_role = decision_maker["role"]
+
         lead = Lead(
             source="website",
             source_url=url,
-            name=identity["name"],
+            name=person_name,
             organization=identity["organization"],
             title=identity["title"],
             email=emails[0] if emails else "",
@@ -289,6 +302,15 @@ class WebCrawler:
             evidence=best_evidence(text, matched_needles),
             raw={
                 "description": identity["description"],
+                "person_role": person_role,
+                # Structured address components (see
+                # enrichment/location_enricher.py) -- kept alongside the
+                # free-text `location` above, not instead of it, so
+                # canonical/merger.py can derive a real Branch city/
+                # country_code instead of always falling through to its
+                # UNKNOWN sentinel.
+                "address_locality": identity["address_locality"],
+                "address_country": identity["address_country"],
                 "all_emails": emails,
                 "all_phones": phones,
                 "pages": [url],
@@ -314,6 +336,15 @@ class WebCrawler:
         existing.location = existing.location or incoming.location
         existing.evidence = existing.evidence or incoming.evidence
         existing.social_profiles = sorted(set(existing.social_profiles + incoming.social_profiles))
+        existing.raw["person_role"] = existing.raw.get("person_role") or incoming.raw.get(
+            "person_role"
+        )
+        existing.raw["address_locality"] = existing.raw.get("address_locality") or incoming.raw.get(
+            "address_locality"
+        )
+        existing.raw["address_country"] = existing.raw.get("address_country") or incoming.raw.get(
+            "address_country"
+        )
         existing.raw["all_emails"] = sorted(
             set(existing.raw.get("all_emails", []) + incoming.raw.get("all_emails", []))
         )

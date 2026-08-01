@@ -132,7 +132,10 @@ def extract_page_identity(html: str, url: str) -> dict[str, str]:
     )
     organization = site_name
     name = ""
+    role = ""
     location = ""
+    address_locality = ""
+    address_country = ""
 
     for item in _json_ld_objects(soup):
         item_type = item.get("@type", "")
@@ -149,15 +152,18 @@ def extract_page_identity(html: str, url: str) -> dict[str, str]:
             organization = normalize_space(str(item.get("name", "")))
         if not name and "Person" in types:
             name = normalize_space(str(item.get("name", "")))
+            role = normalize_space(str(item.get("jobTitle", "")))
         if not location:
             address = item.get("address")
             if isinstance(address, dict):
+                address_locality = normalize_space(str(address.get("addressLocality", "")))
+                address_country = normalize_space(str(address.get("addressCountry", "")))
                 parts = [
-                    str(address.get("addressLocality", "")),
-                    str(address.get("addressRegion", "")),
-                    str(address.get("addressCountry", "")),
+                    address_locality,
+                    normalize_space(str(address.get("addressRegion", ""))),
+                    address_country,
                 ]
-                location = ", ".join(part for part in map(normalize_space, parts) if part)
+                location = ", ".join(part for part in parts if part)
 
     if not organization:
         organization = title.split("|")[0].split("-")[0].strip()
@@ -166,10 +172,13 @@ def extract_page_identity(html: str, url: str) -> dict[str, str]:
 
     return {
         "name": name,
+        "role": role,
         "organization": organization,
         "title": title,
         "description": description,
         "location": location,
+        "address_locality": address_locality,
+        "address_country": address_country,
     }
 
 

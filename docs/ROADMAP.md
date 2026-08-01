@@ -363,7 +363,7 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   blocking + scoring into `pipeline.py` (both Google Places and the web crawler), with a human
   review path for ambiguous (PENDING) matches via the `resolution-reviews` API. See tracked
   follow-up #2 above for the one documented v1 limitation (cross-run concurrency).
-- **Enrichment**: done for the pieces that map onto live data. `enrichment/technology_detector.py`
+- **Enrichment**: done. `enrichment/technology_detector.py`
   runs rule-based pain-point/buying-signal detection over each crawled page's visible text
   (`sources/web.py::_extract_lead`); `pipeline.py::_persist_detected_signals` materializes its
   output into real `models/signal.py` `Signal` rows once a page resolves to an institution,
@@ -374,8 +374,42 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   crawler rather than duplicated. The dead, synchronous `enrichment/website_analyzer.py` (a
   superseded Phase-1 fetch helper with zero live callers) was removed. Known v1 limitation:
   text-pattern matching only, no HTML/DOM inspection -- can't fingerprint a specific CMS or
-  booking widget by its markup. institution_classifier/location_enricher/
-  decision_maker_discovery remain unbuilt.
+  booking widget by its markup.
+
+  The three previously-unbuilt sub-concerns are now wired into `canonical/merger.py`'s WEBSITE
+  branch of `display_fields` (which, per its own former comment, always returned `""` for
+  `institution_type`/`city`/`country_code` and dropped any discovered person name entirely --
+  the only source_type with that gap):
+  - `enrichment/institution_classifier.py::classify_institution_type` -- rule-based
+    keyword-substring match (ordered specific-before-generic, e.g. `dental_clinic` before
+    `clinic`) over the crawled organization name + meta description, covering the concrete
+    `institution_type` values module 16's sector seed list uses across every seeded sector, not
+    just education. Returns `""` (not a guess) when nothing matches. Unblocks Sector
+    auto-classification (module 16) for web-crawled-only institutions, which previously could
+    never classify since that match is keyed on `institution_type`.
+  - `enrichment/location_enricher.py::enrich_location` -- `extractors.py::extract_page_identity`
+    now keeps a JSON-LD `PostalAddress`'s `addressLocality`/`addressCountry` as separate
+    structured fields (alongside, not instead of, the existing free-text `location` string used
+    for the address display field), and this normalizes `addressCountry` to ISO-2 via
+    `resolution/normalize.py::country_to_iso2` -- the same table `AUTHORIZED_IMPORT` rows
+    already go through. A web-crawled institution's `Branch` now gets a real `city`/
+    `country_code` instead of always falling through to `_build_branch`'s `UNKNOWN`/`XX`
+    sentinel.
+  - `enrichment/decision_maker_discovery.py::discover_decision_maker` -- `extract_page_identity`
+    also now captures a JSON-LD `Person`'s `jobTitle`; when a page has no JSON-LD `Person` at
+    all, this is a regex fallback matching `"<Role>: <Name>"` / `"<Name>, <Role>"` shapes over a
+    fixed role-keyword list (Principal, Director, Founder, Owner, CEO, ...) -- most
+    small-business sites don't mark up their leadership with JSON-LD. `sources/web.py::_extract_lead`
+    prefers JSON-LD, falls back to this. Whichever name/role either path finds is threaded onto
+    every phone/email/social `ContactPoint` `_add_contacts_and_provenance` creates from that
+    page (via `services/person_candidate_service.py`, same as it already does for
+    `AUTHORIZED_IMPORT`'s declared contacts) -- previously a page's discovered person name was
+    extracted into `Lead.name` but never reached a `ContactPoint` at all for the generic
+    phone/email path.
+
+  Known v1 limitation shared by all three: rule-based/regex only, matching this codebase's other
+  v1 detectors (`technology_detector.py`) -- no ML classification or NER, so an unusual page
+  shape can miss a real classification/location/decision-maker.
 - **Business Intelligence**: done for the pieces that map onto live data.
   `opportunity_signals`/`pain_detection`/`buying_signals` are covered by `models/signal.py`'s
   `Signal` table (module 1) fed from two sources: `intelligence/researcher.py`'s AI analysis

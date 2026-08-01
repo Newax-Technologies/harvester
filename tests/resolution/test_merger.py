@@ -244,6 +244,28 @@ async def test_display_fields_handles_website_shape(source_run):
 
 
 @pytest.mark.asyncio
+async def test_display_fields_classifies_institution_type_and_location_for_website_shape(
+    source_run,
+):
+    # enrichment/institution_classifier.py + enrichment/location_enricher.py
+    # -- previously this branch always returned "" for all three regardless
+    # of what the crawl actually found (see the module's own tests for
+    # unit-level coverage; this checks the wiring through display_fields).
+    record = website_record(
+        source_run.id,
+        name="Jane Doe",
+        organization="Beacon School",
+        website="beacon.edu",
+        address_locality="Karachi",
+        address_country="Pakistan",
+    )
+    fields = display_fields(record)
+    assert fields["institution_type"] == "school"
+    assert fields["city"] == "Karachi"
+    assert fields["country_code"] == "PK"
+
+
+@pytest.mark.asyncio
 async def test_display_fields_handles_manual_shape(source_run):
     from lead_harvester.models.source import RawSourceRecord, SourceType
     from lead_harvester.resolution.normalize import normalize_name
@@ -363,6 +385,39 @@ async def test_merge_records_creates_social_contact_points_from_website_lead(
     assert ("facebook", "https://facebook.com/BeaconSchoolOfficial") in social_contacts
     assert ("linkedin", "https://linkedin.com/company/beacon-school") in social_contacts
     assert len(social_contacts) == 2
+
+
+@pytest.mark.asyncio
+async def test_merge_records_attributes_website_contact_to_discovered_decision_maker(
+    db_session, source_run
+):
+    # enrichment/decision_maker_discovery.py (via sources/web.py) -- a
+    # decision-maker's name/role discovered on the same crawled page as an
+    # email/phone previously stayed stranded in the raw ledger, the same
+    # gap the social-profile test above documents for social links.
+    record = website_record(
+        source_run.id,
+        name="Jane Doe",
+        organization="Beacon School",
+        email="admissions@beacon.edu",
+        person_role="Principal",
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    institution = await merge_records(db_session, [record])
+    await db_session.flush()
+
+    contact = (
+        await db_session.execute(
+            select(ContactPoint).where(
+                ContactPoint.institution_id == institution.id, ContactPoint.contact_type == "email"
+            )
+        )
+    ).scalar_one()
+    assert contact.person_name == "Jane Doe"
+    assert contact.role == "Principal"
+    assert contact.person_candidate_id is not None
 
 
 @pytest.mark.asyncio
@@ -554,13 +609,18 @@ async def test_attach_record_to_institution_enriches_existing_branch(db_session,
 
 @pytest.mark.asyncio
 async def test_attach_record_to_institution_backfills_institution_type(db_session, source_run):
-    # A website-first institution has institution_type="" (WEBSITE's
-    # display_fields never supplies one). A later Google Places record
-    # confirmed to be the same institution DOES supply a primaryType, but
-    # that evidence previously stayed stranded in the raw ledger --
-    # institution.institution_type (and everything reading it downstream,
-    # including sync) stayed permanently blank even after this attach.
-    a = website_record(source_run.id, name="Riverside Academy", organization="Riverside Academy")
+    # A website-first institution starts with institution_type="" here
+    # because "Riverside Learning Group" doesn't match any
+    # enrichment/institution_classifier.py keyword (see that module's own
+    # tests for the cases where a WEBSITE record's name/description DOES
+    # classify) -- this test is about the separate backfill mechanism: a
+    # later Google Places record confirmed to be the same institution DOES
+    # supply a primaryType, and that evidence must not stay stranded in the
+    # raw ledger -- institution.institution_type (and everything reading it
+    # downstream, including sync) must pick it up on attach.
+    a = website_record(
+        source_run.id, name="Riverside Learning Group", organization="Riverside Learning Group"
+    )
     db_session.add(a)
     await db_session.flush()
     institution = await merge_records(db_session, [a])
@@ -1153,13 +1213,16 @@ async def test_merge_records_classifies_sector_from_institution_type(db_session,
 async def test_attach_record_to_institution_backfills_sector_when_institution_type_becomes_known(
     db_session, source_run
 ):
-    # A website-first institution has institution_type="" (WEBSITE's
-    # display_fields never supplies one), so it starts unclassified. A
-    # later Google Places record backfills institution_type -- sector
-    # classification must be re-attempted at that point too, not only at
-    # creation time.
+    # A website-first institution starts with institution_type="" here
+    # because "Riverside Learning Group" doesn't match any
+    # enrichment/institution_classifier.py keyword, so it starts
+    # unclassified. A later Google Places record backfills
+    # institution_type -- sector classification must be re-attempted at
+    # that point too, not only at creation time.
     education = await _seed_education_sector(db_session)
-    a = website_record(source_run.id, name="Riverside Academy", organization="Riverside Academy")
+    a = website_record(
+        source_run.id, name="Riverside Learning Group", organization="Riverside Learning Group"
+    )
     db_session.add(a)
     await db_session.flush()
     institution = await merge_records(db_session, [a])

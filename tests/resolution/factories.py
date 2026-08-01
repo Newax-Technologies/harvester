@@ -47,6 +47,10 @@ def website_record(
     location_text: str = "Lahore, Pakistan",
     social_profiles: list[str] | None = None,
     source_id: str | None = None,
+    description: str = "",
+    address_locality: str = "",
+    address_country: str = "",
+    person_role: str = "",
 ) -> RawSourceRecord:
     source_id = source_id or website or f"web:{uuid.uuid4().hex[:8]}"
     payload = {
@@ -61,7 +65,12 @@ def website_record(
         "location": location_text,
         "social_profiles": social_profiles or [],
         "evidence": "",
-        "raw": {},
+        "raw": {
+            "description": description,
+            "address_locality": address_locality,
+            "address_country": address_country,
+            "person_role": person_role,
+        },
     }
     return RawSourceRecord(
         source_run_id=run_id,
