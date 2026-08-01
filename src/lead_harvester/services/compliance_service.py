@@ -38,6 +38,7 @@ from lead_harvester.models.signal import Signal
 from lead_harvester.models.source import RawPageSnapshot, RawSourceRecord
 from lead_harvester.models.verification import DataQualityFlag
 from lead_harvester.resolution.normalize import normalize_phone
+from lead_harvester.services.outbox_service import enqueue_and_attempt_delivery
 
 
 def normalize_contact_value(value: str, *, default_region: str | None = None) -> str:
@@ -469,6 +470,48 @@ async def _erase_institution(
     }
 
 
+async def _resync_after_contact_erasure(session: AsyncSession, institution_id: uuid.UUID) -> bool:
+    """
+    Correction (docs/ROADMAP.md module 11): if this contact's institution
+    was already mirrored to core-newax, LeadSyncEmitter._build_payload's
+    upsert embedded this exact contact's name/value in that copy --
+    deleting only the local ContactPoint row leaves it there forever
+    unless something re-syncs. Re-enqueues a fresh "institution.upserted"
+    event through the same durable outbox path (services/outbox_service.py
+    ::enqueue_and_attempt_delivery) every ordinary institution update
+    already uses, built from this institution's branches/contacts as they
+    stand NOW -- read in the SAME transaction, after the delete, so the
+    erased contact is correctly absent from it. Deliberately not
+    resync_institution (integrations/lead_sync_resync.py): that helper
+    opens its own fresh session/transaction, which would read this
+    institution's contacts from BEFORE this call's still-uncommitted
+    delete, re-syncing the very data being erased.
+
+    Returns whether an event was actually enqueued, purely for the
+    manifest.
+    """
+    emitter = LeadSyncEmitter(app_settings)
+    if not emitter.settings.lead_sync_enabled or not emitter.settings.lead_sync_webhook_url:
+        return False
+    institution = await session.get(CanonicalInstitution, institution_id)
+    if institution is None or institution.lead_synced_at is None:
+        return False
+    branches = list(
+        (await session.scalars(select(Branch).where(Branch.institution_id == institution_id))).all()
+    )
+    contact_points = list(
+        (
+            await session.scalars(
+                select(ContactPoint).where(ContactPoint.institution_id == institution_id)
+            )
+        ).all()
+    )
+    row = await enqueue_and_attempt_delivery(
+        session, emitter, institution, branches, contact_points
+    )
+    return row is not None
+
+
 async def _erase_contact_point(
     session: AsyncSession, contact_point_id: uuid.UUID
 ) -> dict[str, Any]:
@@ -479,6 +522,9 @@ async def _erase_contact_point(
     DeletionRequest.manifest has one consistent contract regardless of
     subject_type.
     """
+    contact = await session.get(ContactPoint, contact_point_id)
+    institution_id = contact.institution_id if contact is not None else None
+
     await session.execute(
         delete(ContactPoint)
         .where(ContactPoint.id == contact_point_id)
@@ -487,11 +533,16 @@ async def _erase_contact_point(
     await session.flush()
     still_present = await _count_where(session, ContactPoint, ContactPoint.id, contact_point_id) > 0
 
+    downstream_resync_enqueued = False
+    if institution_id is not None and not still_present:
+        downstream_resync_enqueued = await _resync_after_contact_erasure(session, institution_id)
+
     return {
         "subject_type": DeletionSubjectType.CONTACT_POINT.value,
         "subject_id": str(contact_point_id),
         "deleted_counts": {"contact_points": 1},
         "retained": {"audit_logs": "retained_for_lawful_audit"},
+        "downstream_resync_enqueued": downstream_resync_enqueued,
         "verified": not still_present,
         "residual_counts": {} if not still_present else {"contact_points": 1},
     }
@@ -514,8 +565,20 @@ async def fulfill_deletion(
     partway through (there shouldn't be one, given the exclusive/shared
     raw-record partitioning above, but if the database ever rejects a
     statement) leaves nothing partially deleted.
+
+    Locks the DeletionRequest row itself (SELECT ... FOR UPDATE), not a
+    plain session.get -- two overlapping calls for the SAME request could
+    otherwise both read it as PENDING and both load the subject before
+    either commits; the second erasure would then delete zero rows (the
+    first already removed everything) without error, yet both would still
+    write status=COMPLETED and their own "successful" manifest/AuditLog,
+    with the second manifest claiming counts it never actually deleted.
+    The lock makes the second call block until the first's transaction
+    ends, then correctly re-read status as COMPLETED and raise below.
     """
-    request = await session.get(DeletionRequest, deletion_request_id)
+    request = await session.scalar(
+        select(DeletionRequest).where(DeletionRequest.id == deletion_request_id).with_for_update()
+    )
     if request is None:
         raise ResourceNotFoundError(str(deletion_request_id))
     if request.status != DeletionRequestStatus.PENDING:
@@ -612,13 +675,38 @@ async def purge_expired_raw_records(session: AsyncSession, *, retention_days: in
     v1's entire retention enforcement; a broader policy (e.g. expiring
     old-but-referenced records after re-verifying the institution some
     other way) is bigger, separate follow-up work.
+
+    Correction: also excludes a RawSourceRecord still referenced by a
+    ResolutionCandidate awaiting human review (review_outcome is null),
+    on either raw_record_id or target_raw_record_id. Now that
+    resolution_candidates' FKs to raw_source_records are ON DELETE
+    CASCADE (migration a5c7e9f1b3d5, added for
+    services/compliance_service.py::_erase_institution's own sake), this
+    purge would otherwise be able to silently cascade-delete a live
+    ResolutionCandidate + MatchAssessment still sitting in the
+    resolution-reviews queue -- previously that would have raised a loud
+    FK violation instead of quietly destroying a pending review. Mirrors
+    pipeline.py::_retry_stranded_records' own "stranded" query, which has
+    the identical pending-review exclusion for raw_record_id alone (it
+    never needed target_raw_record_id, a different concern).
     """
     cutoff = datetime.now(UTC) - timedelta(days=retention_days)
     referenced = select(FieldProvenance.raw_record_id).distinct()
+    pending_review = (
+        select(ResolutionCandidate.raw_record_id)
+        .where(ResolutionCandidate.review_outcome.is_(None))
+        .union(
+            select(ResolutionCandidate.target_raw_record_id).where(
+                ResolutionCandidate.review_outcome.is_(None),
+                ResolutionCandidate.target_raw_record_id.is_not(None),
+            )
+        )
+    )
     result = await session.execute(
         delete(RawSourceRecord)
         .where(RawSourceRecord.extracted_at < cutoff)
         .where(RawSourceRecord.id.not_in(referenced))
+        .where(RawSourceRecord.id.not_in(pending_review))
     )
     await session.flush()
     return result.rowcount or 0

@@ -20,7 +20,12 @@ from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.qualification import QualificationAssessment
 from lead_harvester.models.research import FindingType, JobStatus, ResearchFinding, ResearchJob
-from lead_harvester.models.resolution import MatchAssessment, MatchDecision, ResolutionCandidate
+from lead_harvester.models.resolution import (
+    MatchAssessment,
+    MatchDecision,
+    ResolutionCandidate,
+    ReviewOutcome,
+)
 from lead_harvester.models.signal import Signal, SignalType
 from lead_harvester.models.source import (
     RawPageSnapshot,
@@ -155,6 +160,7 @@ async def test_fulfill_deletion_deletes_a_single_contact_point(db_session):
         "subject_id": str(contact_id),
         "deleted_counts": {"contact_points": 1},
         "retained": {"audit_logs": "retained_for_lawful_audit"},
+        "downstream_resync_enqueued": False,
         "verified": True,
         "residual_counts": {},
     }
@@ -279,6 +285,56 @@ async def test_purge_expired_raw_records_deletes_only_old_unreferenced_rows(db_s
     assert await db_session.get(RawSourceRecord, old_unreferenced.id) is None
     assert await db_session.get(RawSourceRecord, old_referenced.id) is not None
     assert await db_session.get(RawSourceRecord, recent_unreferenced.id) is not None
+
+
+@pytest.mark.asyncio
+async def test_purge_expired_raw_records_excludes_pending_review_candidates(db_session):
+    # Correction: resolution_candidates' FKs to raw_source_records are now
+    # ON DELETE CASCADE (added for _erase_institution's sake) -- without
+    # this exclusion, purging an old, FieldProvenance-unreferenced raw
+    # record would silently cascade-delete a live ResolutionCandidate (and
+    # its MatchAssessment) still sitting in the resolution-reviews queue,
+    # destroying real pending work instead of the FK violation this would
+    # previously have raised.
+    old_raw_record_pending = await _seed_raw_record(
+        db_session, extracted_at=datetime.now(UTC) - timedelta(days=400), with_provenance=False
+    )
+    old_target_pending = await _seed_raw_record(
+        db_session, extracted_at=datetime.now(UTC) - timedelta(days=400), with_provenance=False
+    )
+    old_raw_record_decided = await _seed_raw_record(
+        db_session, extracted_at=datetime.now(UTC) - timedelta(days=400), with_provenance=False
+    )
+    other_record = await _seed_raw_record(
+        db_session, extracted_at=datetime.now(UTC), with_provenance=False
+    )
+
+    db_session.add_all(
+        [
+            # Pending on the raw_record_id side.
+            ResolutionCandidate(raw_record_id=old_raw_record_pending.id, blocking_strategy="phone"),
+            # Pending on the target_raw_record_id side.
+            ResolutionCandidate(
+                raw_record_id=other_record.id,
+                target_raw_record_id=old_target_pending.id,
+                blocking_strategy="phone",
+            ),
+            # Already decided -- no longer blocks the purge.
+            ResolutionCandidate(
+                raw_record_id=old_raw_record_decided.id,
+                blocking_strategy="phone",
+                review_outcome=ReviewOutcome.SEPARATED,
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    deleted_count = await purge_expired_raw_records(db_session, retention_days=365)
+
+    assert deleted_count == 1
+    assert await db_session.get(RawSourceRecord, old_raw_record_pending.id) is not None
+    assert await db_session.get(RawSourceRecord, old_target_pending.id) is not None
+    assert await db_session.get(RawSourceRecord, old_raw_record_decided.id) is None
 
 
 # Correction (docs/ROADMAP.md module 11): the deletion graph itself --
@@ -746,3 +802,78 @@ async def test_fulfill_deletion_skips_downstream_event_when_lead_sync_disabled(d
     fulfilled = await fulfill_deletion(db_session, request.id)
 
     assert fulfilled.manifest["downstream_deletion_event_enqueued"] is False
+
+
+@pytest.mark.asyncio
+async def test_fulfill_deletion_resyncs_institution_after_contact_erasure_when_synced(
+    db_session, monkeypatch
+):
+    from unittest.mock import AsyncMock, patch
+
+    import httpx
+
+    from lead_harvester.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "lead_sync_enabled", True)
+    monkeypatch.setattr(app_settings, "lead_sync_webhook_url", "https://core-newax.test/webhook")
+    monkeypatch.setattr(
+        app_settings, "lead_sync_webhook_secret", "test-secret-with-more-than-32-characters"
+    )
+
+    institution = CanonicalInstitution(
+        canonical_name="Synced Contact School", lead_synced_at=datetime.now(UTC)
+    )
+    db_session.add(institution)
+    await db_session.flush()
+    kept_contact = ContactPoint(
+        institution_id=institution.id, contact_type="phone", contact_value="+15550001111"
+    )
+    erased_contact = ContactPoint(
+        institution_id=institution.id, contact_type="email", contact_value="erase-me@example.com"
+    )
+    db_session.add_all([kept_contact, erased_contact])
+    await db_session.flush()
+    erased_contact_id = erased_contact.id
+
+    mock_response = httpx.Response(
+        200, request=httpx.Request("POST", "https://core-newax.test/webhook")
+    )
+    with patch.object(httpx.AsyncClient, "post", new=AsyncMock(return_value=mock_response)):
+        request = await request_deletion(
+            db_session, DeletionSubjectType.CONTACT_POINT, erased_contact_id
+        )
+        fulfilled = await fulfill_deletion(db_session, request.id)
+
+    assert fulfilled.manifest["downstream_resync_enqueued"] is True
+
+    outbox_rows = (
+        await db_session.scalars(
+            select(EventOutbox).where(EventOutbox.event_type == "institution.upserted")
+        )
+    ).all()
+    assert len(outbox_rows) == 1
+    contact_values = {c["contactValue"] for c in outbox_rows[0].payload["contactPoints"]}
+    # The erased contact must be absent from the re-synced payload, not
+    # just from our own local table -- otherwise the mirror still has it.
+    assert "erase-me@example.com" not in contact_values
+    assert "+15550001111" in contact_values
+    assert outbox_rows[0].status == OutboxStatus.DELIVERED
+
+
+@pytest.mark.asyncio
+async def test_fulfill_deletion_skips_resync_after_contact_erasure_when_never_synced(db_session):
+    institution = CanonicalInstitution(canonical_name="Never Synced Contact School")
+    db_session.add(institution)
+    await db_session.flush()
+    contact = ContactPoint(
+        institution_id=institution.id, contact_type="email", contact_value="a@b.com"
+    )
+    db_session.add(contact)
+    await db_session.flush()
+
+    request = await request_deletion(db_session, DeletionSubjectType.CONTACT_POINT, contact.id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
+
+    assert fulfilled.manifest["downstream_resync_enqueued"] is False
+    outbox_rows = (await db_session.scalars(select(EventOutbox))).all()
+    assert outbox_rows == []
