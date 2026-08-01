@@ -259,6 +259,36 @@ class LeadPipeline:
                                 session, run, institution, page_snapshots=record_snapshots
                             )
 
+                    # Correction: a domain this crawl actually fetched
+                    # pages for, but that never entered `leads` at all
+                    # (_extract_lead found no identity/contact data, or
+                    # every fetch for it failed) gets no RawSourceRecord,
+                    # and so never gets a chance at the snapshot-linking
+                    # loop above -- institution_id stays permanently null
+                    # for a real, genuinely attempted crawl, reporting a
+                    # misleading NOT_CRAWLED instead of CRAWL_FAILED/
+                    # NOT_DETECTED for any institution whose domain
+                    # happens to already be known (e.g. resolved via
+                    # Google Places, not this crawl). Link those snapshots
+                    # directly by domain match against an already-resolved
+                    # institution -- there is no RawSourceRecord to link
+                    # them through, since none was ever created.
+                    leadless_domains = {domain for domain in snapshots_by_domain if domain} - {
+                        normalize_domain(lead.website) for lead in leads if lead.website
+                    }
+                    if leadless_domains:
+                        matched_institutions = (
+                            await session.scalars(
+                                select(CanonicalInstitution).where(
+                                    CanonicalInstitution.domain.in_(leadless_domains)
+                                )
+                            )
+                        ).all()
+                        for matched_institution in matched_institutions:
+                            for page_snapshot in snapshots_by_domain[matched_institution.domain]:
+                                page_snapshot.institution_id = matched_institution.id
+                            await refresh_lead_profile(session, matched_institution.id)
+
                     run.status = RunStatus.COMPLETED
                     run.completed_at = datetime.datetime.now(datetime.UTC)
                 except Exception as e:

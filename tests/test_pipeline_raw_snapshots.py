@@ -350,20 +350,20 @@ async def test_web_crawler_ingestion_writes_only_one_lead_score_snapshot(db_sess
     # Only the final, fully-evidenced refresh should record history.
     from lead_harvester.models.profile import LeadScoreSnapshot
 
-    pipeline = LeadPipeline(Settings(job_config={"seeds": ["https://gamma.example.edu"]}))
+    pipeline = LeadPipeline(Settings(job_config={"seeds": ["https://eta.example.edu"]}))
 
     async def _fake_crawl_one_domain(self, seeds):
         self.snapshots.append(
             PageSnapshot(
-                url="https://gamma.example.edu/",
-                final_url="https://gamma.example.edu/",
+                url="https://eta.example.edu/",
+                final_url="https://eta.example.edu/",
                 status_code=200,
                 content_type="text/html",
                 html="<html>hi</html>",
                 fetch_error="",
             )
         )
-        return [_fake_lead(organization="Gamma Academy", website="https://gamma.example.edu")]
+        return [_fake_lead(organization="Eta Academy", website="https://eta.example.edu")]
 
     with (
         patch(
@@ -380,9 +380,7 @@ async def test_web_crawler_ingestion_writes_only_one_lead_score_snapshot(db_sess
 
     institution = (
         await db_session.scalars(
-            select(CanonicalInstitution).where(
-                CanonicalInstitution.canonical_name == "Gamma Academy"
-            )
+            select(CanonicalInstitution).where(CanonicalInstitution.canonical_name == "Eta Academy")
         )
     ).one()
     snapshots = (
@@ -454,3 +452,98 @@ async def test_retry_stranded_snapshot_links_backfills_a_canonicalized_records_u
 
     await db_session.refresh(snapshot)
     assert snapshot.institution_id == institution.id
+
+
+@pytest.mark.asyncio
+async def test_snapshots_for_a_leadless_domain_link_to_an_already_known_institution(db_session):
+    # Correction: a domain the crawl actually fetched pages for, but that
+    # produced no lead (extraction found no identity/contact data, or
+    # every fetch for it failed) never gets a RawSourceRecord -- without
+    # the domain-match fallback, its snapshots would stay permanently
+    # unlinked even for an institution already known from another source
+    # (e.g. Google Places), misreporting a real crawl attempt as
+    # NOT_CRAWLED forever.
+    existing_institution = CanonicalInstitution(
+        canonical_name="Gamma School", domain="gamma.example.edu"
+    )
+    db_session.add(existing_institution)
+    await db_session.flush()
+    institution_id = existing_institution.id
+
+    async def _fake_crawl_no_lead(self, seeds):
+        self.snapshots.append(
+            PageSnapshot(
+                url="https://gamma.example.edu/",
+                final_url="https://gamma.example.edu/",
+                status_code=200,
+                content_type="text/html",
+                html="<html>hi</html>",
+                fetch_error="",
+            )
+        )
+        return []  # no lead extracted for this domain
+
+    pipeline = LeadPipeline(Settings(job_config={"seeds": ["https://gamma.example.edu"]}))
+
+    with (
+        patch(
+            "lead_harvester.pipeline.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch(
+            "lead_harvester.sources.web.WebCrawler.crawl",
+            new=_fake_crawl_no_lead,
+        ),
+        patch.object(LeadPipeline, "_emit_resync_events", new=AsyncMock()),
+    ):
+        await pipeline._run_web_crawler()
+
+    snapshot = (
+        await db_session.scalars(
+            select(RawPageSnapshot).where(RawPageSnapshot.normalized_domain == "gamma.example.edu")
+        )
+    ).one()
+    assert snapshot.raw_source_record_id is None
+    assert snapshot.institution_id == institution_id
+
+
+@pytest.mark.asyncio
+async def test_snapshots_for_a_leadless_unknown_domain_stay_unlinked(db_session):
+    # No CanonicalInstitution has this domain at all -- correctly stays
+    # unlinked (institution_id null means "not yet linked", never guessed
+    # into scope, per RawPageSnapshot's own docstring).
+    async def _fake_crawl_no_lead_unknown(self, seeds):
+        self.snapshots.append(
+            PageSnapshot(
+                url="https://delta.example.edu/",
+                final_url="https://delta.example.edu/",
+                status_code=200,
+                content_type="text/html",
+                html="<html>hi</html>",
+                fetch_error="",
+            )
+        )
+        return []
+
+    pipeline = LeadPipeline(Settings(job_config={"seeds": ["https://delta.example.edu"]}))
+
+    with (
+        patch(
+            "lead_harvester.pipeline.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch(
+            "lead_harvester.sources.web.WebCrawler.crawl",
+            new=_fake_crawl_no_lead_unknown,
+        ),
+        patch.object(LeadPipeline, "_emit_resync_events", new=AsyncMock()),
+    ):
+        await pipeline._run_web_crawler()
+
+    snapshot = (
+        await db_session.scalars(
+            select(RawPageSnapshot).where(RawPageSnapshot.normalized_domain == "delta.example.edu")
+        )
+    ).one()
+    assert snapshot.raw_source_record_id is None
+    assert snapshot.institution_id is None
