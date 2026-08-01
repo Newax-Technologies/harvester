@@ -203,13 +203,16 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
     `OperatingStatus.CLOSED_PERMANENTLY`); `has_website` is now recorded as an informational,
     non-disqualifying fact in the assessment's checklist/rationale instead.
 
-    Decided detection policy (simpler than an earlier draft of this plan): **absence means
+    ~~Decided detection policy (simpler than an earlier draft of this plan): **absence means
     unavailable, full stop** — no website found means no website, no LMS signal detected means no
-    LMS, for both website and LMS. This is a deliberate accepted tradeoff, not an oversight: an
-    institution the crawler never actually reached looks identical to one confirmed to lack a
-    website/LMS. Module 3's `RawPageSnapshot`/`SourceRun` data makes "was this actually crawled"
-    answerable later if that tradeoff turns out to matter in practice, without changing the
-    decision now.
+    LMS, for both website and LMS.~~ **Superseded by the correction below** (migration
+    `f4b6d8e0a2c4`): a static crawler cannot establish the absence of every website technology,
+    especially one behind authentication or rendered client-side by JavaScript — collapsing "the
+    crawler never reached this institution" and "confirmed to genuinely lack a website/LMS" into
+    the same maximum-confidence bucket was exactly the tradeoff this doc's own next paragraph
+    flagged as worth revisiting once `RawPageSnapshot`/`SourceRun` data could answer "was this
+    actually crawled." It now can (module 3, and the institution-linkage correction just above) —
+    see `intelligence/detection_status.py`.
 
     Built:
     - LMS-detection rules in `enrichment/technology_detector.py::_LMS_SIGNAL_RULES` (Moodle,
@@ -254,15 +257,43 @@ decomposed into four modules so each lands (and is reviewed) as its own unit, in
     - `service_gap_score` (`intelligence/service_gap.py::compute_service_gap_score`, stored on
       `LeadProfile.service_gap_score`). Implements `missing_product_count * size_multiplier`: a
       small single-branch institution missing every product still scores lower than a multi-branch
-      institution missing the same things. `missing_product_count` sums the website gap
-      (`WebsiteQualityTier` → `0`/`0.5`/`1.0`: `NONE` fully missing, `POOR`/`ADEQUATE` a partial
-      gap, `GOOD`/`EXCEPTIONAL` no gap) and the LMS gap (`1.0` unless a `TECHNOLOGY_PRESENT` signal
-      mentions an LMS/portal, `0.0` otherwise). `size_multiplier` comes from
+      institution missing the same things. `size_multiplier` comes from
       `intelligence/size_estimation.py::estimate_size_tier`'s `SizeTier` via `UNKNOWN`/`SMALL` →
-      `1.0`, `MEDIUM` → `1.5`, `LARGE` → `2.0`. Both new fields are computed and persisted inside
-      the same `services/lead_profile_service.py::refresh_lead_profile` call as everything else,
-      not a second, competing scoring path. Invokable via the existing `GET /api/v1/lead-profiles*`
-      read API (`LeadProfileResponse`/`LeadProfileListItem` in `schemas/profiles.py`).
+      `1.0`, `MEDIUM` → `1.5`, `LARGE` → `2.0`. Computed and persisted inside the same
+      `services/lead_profile_service.py::refresh_lead_profile` call as everything else, not a
+      second, competing scoring path. Invokable via the existing `GET /api/v1/lead-profiles*` read
+      API (`LeadProfileResponse`/`LeadProfileListItem` in `schemas/profiles.py`).
+
+      **Correction (migration `f4b6d8e0a2c4`):** `missing_product_count` originally summed a
+      binary website gap (`WebsiteQualityTier.NONE` → `1.0`, i.e. no website on file always scored
+      as a fully-confirmed-missing product) and a binary LMS gap (`1.0` unless a
+      `TECHNOLOGY_PRESENT` signal mentioned an LMS/portal). Both treated "we found no evidence" as
+      equivalent to "we confirmed it's genuinely absent" — indistinguishable from an institution
+      the crawler never actually reached, or one whose real LMS sits behind a login wall or is
+      rendered by client-side JavaScript a static crawler can't see. **Required model**, a new
+      `DetectionStatus` enum (`models/profile.py`) — `PRESENT` / `ABSENT_CONFIRMED` /
+      `NOT_DETECTED` / `NOT_CRAWLED` / `CRAWL_FAILED` / `UNKNOWN` — computed per product by
+      `intelligence/detection_status.py::compute_website_detection_status`/
+      `compute_lms_detection_status` from the now-correctly-institution-scoped `RawPageSnapshot`
+      evidence (see the migration `e2a4c6f8b0d2` correction just above — this one depends on it).
+      **[Certain]**, enforced by `service_gap.py::_DETECTION_GAP_WEIGHT`: only `ABSENT_CONFIRMED`
+      contributes a full (`1.0`) missing-product score; `NOT_DETECTED`/`UNKNOWN` contribute a
+      reduced amount (`0.3`/`0.15` — real but incomplete evidence, never a full opportunity);
+      `NOT_CRAWLED`/`CRAWL_FAILED` contribute `0.0` (no evidence gathered at all is no basis to
+      call something missing). Neither `compute_website_detection_status` nor
+      `compute_lms_detection_status` can themselves ever return `ABSENT_CONFIRMED` — a static
+      crawler's negative result is real evidence but never proof of absence, so that state is
+      reserved for a stronger evidence source (e.g. an explicit manual/authorized-import
+      assertion) that doesn't exist yet in this codebase. The website gap still uses the
+      quality-based `0`/`0.5`/`1.0` split (`WebsiteQualityTier` → `NONE`/`POOR`&`ADEQUATE`/
+      `GOOD`&`EXCEPTIONAL`) once `DetectionStatus` confirms the site is actually `PRESENT`; when
+      it isn't, `_DETECTION_GAP_WEIGHT` applies instead. Both statuses are also stored directly on
+      `LeadProfile` (`website_detection_status`/`lms_detection_status`) and exposed via
+      `GET /api/v1/lead-profiles*`, so a consumer can distinguish "we believe this is a real gap"
+      from "we just don't know" instead of only ever seeing the already-discounted score. Every
+      `service_gap_score` computed before this migration should be treated as untrusted for the
+      same reason module `e2a4c6f8b0d2`'s scores were — `recompute-lead-profiles` covers both
+      corrections in the same pass.
 
 ## Explicitly not part of Harvester
 

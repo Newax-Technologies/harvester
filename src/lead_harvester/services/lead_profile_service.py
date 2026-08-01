@@ -142,7 +142,9 @@ async def refresh_lead_profile(
     # own docstring for why this is institution_id, not source_run_id.
     website_snapshots = await _get_website_snapshots(session, institution_id)
     website_quality_tier = compute_website_quality_tier(institution.website, website_snapshots)
-    service_gap_score = compute_service_gap_score(website_quality_tier, signals, size_tier)
+    service_gap_result = compute_service_gap_score(
+        institution.website, website_snapshots, website_quality_tier, signals, size_tier
+    )
 
     profile = (
         await session.scalars(
@@ -163,7 +165,9 @@ async def refresh_lead_profile(
     profile.operational_maturity_score = operational_maturity_score
     profile.icp_match_score = icp_match_score
     profile.website_quality_tier = website_quality_tier
-    profile.service_gap_score = service_gap_score
+    profile.service_gap_score = service_gap_result.score
+    profile.website_detection_status = service_gap_result.website_status
+    profile.lms_detection_status = service_gap_result.lms_status
     profile.organization_summary = organization_summary
     profile.evidence_count = result.evidence_count
     profile.computed_at = datetime.now(UTC)
@@ -429,6 +433,8 @@ async def list_lead_profiles(
             icp_match_score=profile.icp_match_score,
             website_quality_tier=profile.website_quality_tier,
             service_gap_score=profile.service_gap_score,
+            website_detection_status=profile.website_detection_status,
+            lms_detection_status=profile.lms_detection_status,
             computed_at=profile.computed_at,
             canonical_name=canonical_name,
         )

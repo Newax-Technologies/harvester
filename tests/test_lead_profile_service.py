@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.profile import (
+    DetectionStatus,
     LeadProfile,
     LeadScoreSnapshot,
     SizeTier,
@@ -103,8 +104,13 @@ async def test_refresh_website_quality_none_when_no_website(db_session):
     profile = await refresh_lead_profile(db_session, institution.id)
 
     assert profile.website_quality_tier == WebsiteQualityTier.NONE
-    # Fully missing website (1.0) + no LMS signal (1.0), SMALL size multiplier.
-    assert profile.service_gap_score == 2.0
+    # Correction: no website on file is DetectionStatus.UNKNOWN, not a
+    # confirmed absence -- reduced-confidence contribution (0.15), not
+    # the full 1.0 a genuinely confirmed-absent product would score. LMS
+    # is NOT_CRAWLED (nothing to crawl at all), contributing 0.
+    assert profile.website_detection_status == DetectionStatus.UNKNOWN
+    assert profile.lms_detection_status == DetectionStatus.NOT_CRAWLED
+    assert profile.service_gap_score == 0.15
 
 
 @pytest.mark.asyncio

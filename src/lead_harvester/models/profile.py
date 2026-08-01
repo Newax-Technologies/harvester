@@ -40,6 +40,36 @@ class WebsiteQualityTier(str, enum.Enum):
     EXCEPTIONAL = "exceptional"
 
 
+class DetectionStatus(str, enum.Enum):
+    """
+    See docs/ROADMAP.md module 20's "Correction" note --
+    intelligence/detection_status.py computes one of these per product
+    (website, LMS) from crawl evidence, replacing the earlier v1 policy
+    that collapsed every non-detection into a single "absent" bucket.
+
+    A static crawler can positively detect a technology (PRESENT) or fail
+    to find one (NOT_DETECTED), but it can virtually never *confirm*
+    absence on its own -- it cannot see content behind an authentication
+    wall or rendered client-side by JavaScript. ABSENT_CONFIRMED is
+    therefore reserved for a stronger evidence source than crawler
+    silence (e.g. an explicit manual/authorized-import assertion) --
+    intelligence/detection_status.py's crawler-only functions document,
+    per product, that they never return it themselves.
+
+    NOT_CRAWLED and CRAWL_FAILED are pure data gaps (no attempt was made,
+    or the attempt produced no usable content) -- distinct from
+    NOT_DETECTED (a real attempt WAS made and found nothing), since they
+    carry even less evidentiary weight for "this is a missing product."
+    """
+
+    PRESENT = "present"
+    ABSENT_CONFIRMED = "absent_confirmed"
+    NOT_DETECTED = "not_detected"
+    NOT_CRAWLED = "not_crawled"
+    CRAWL_FAILED = "crawl_failed"
+    UNKNOWN = "unknown"
+
+
 class LeadProfile(Base):
     """
     The current, denormalized view of a CanonicalInstitution as a lead --
@@ -105,6 +135,22 @@ class LeadProfile(Base):
         nullable=False,
     )
     service_gap_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+
+    # Correction (docs/ROADMAP.md module 20): the evidence backing each
+    # half of service_gap_score, stored so a consumer can distinguish "we
+    # believe this is a real gap" from "we just don't know" instead of
+    # only ever seeing the already-discounted number -- see
+    # intelligence/detection_status.py.
+    website_detection_status: Mapped[DetectionStatus] = mapped_column(
+        Enum(DetectionStatus, name="detectionstatus"),
+        default=DetectionStatus.UNKNOWN,
+        nullable=False,
+    )
+    lms_detection_status: Mapped[DetectionStatus] = mapped_column(
+        Enum(DetectionStatus, name="detectionstatus"),
+        default=DetectionStatus.UNKNOWN,
+        nullable=False,
+    )
 
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
