@@ -4,9 +4,16 @@ import pytest
 from sqlalchemy import select
 
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
-from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot, SizeTier
+from lead_harvester.models.profile import (
+    LeadProfile,
+    LeadScoreSnapshot,
+    SizeTier,
+    WebsiteQualityTier,
+)
+from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.qualification import QualificationAssessment, QualificationStatus
 from lead_harvester.models.signal import Signal, SignalType
+from lead_harvester.models.source import RawPageSnapshot, RawSourceRecord, SourceRun, SourceType
 from lead_harvester.services.lead_profile_service import (
     get_lead_profile,
     get_lead_score_history,
@@ -86,6 +93,62 @@ async def test_refresh_computes_operational_maturity_from_signals(db_session):
 
     # baseline 50, no website bonus, one pain point penalty (-15) = 35
     assert profile.operational_maturity_score == 35
+
+
+@pytest.mark.asyncio
+async def test_refresh_website_quality_none_when_no_website(db_session):
+    institution = await _seed_institution(db_session, website=None)
+
+    profile = await refresh_lead_profile(db_session, institution.id)
+
+    assert profile.website_quality_tier == WebsiteQualityTier.NONE
+    # Fully missing website (1.0) + no LMS signal (1.0), SMALL size multiplier.
+    assert profile.service_gap_score == 2.0
+
+
+@pytest.mark.asyncio
+async def test_refresh_computes_website_quality_from_own_crawled_snapshots(db_session):
+    institution = await _seed_institution(db_session)
+
+    run = SourceRun(source_type=SourceType.WEBSITE)
+    db_session.add(run)
+    await db_session.flush()
+
+    full_html = (
+        '<html><head><meta name="viewport" content="width=device-width"></head>'
+        "<body><form action='/contact'></form></body></html>"
+    )
+    for _ in range(6):
+        db_session.add(
+            RawPageSnapshot(
+                source_run_id=run.id,
+                url="https://riverside.edu",
+                final_url="https://riverside.edu",
+                html=full_html,
+            )
+        )
+    record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.WEBSITE,
+        source_id="https://riverside.edu",
+        raw_payload={},
+        normalized_domain="riverside.edu",
+    )
+    db_session.add(record)
+    await db_session.flush()
+    db_session.add(
+        FieldProvenance(
+            canonical_id=institution.id,
+            raw_record_id=record.id,
+            field_name="website",
+            asserted_value="https://riverside.edu",
+        )
+    )
+    await db_session.flush()
+
+    profile = await refresh_lead_profile(db_session, institution.id)
+
+    assert profile.website_quality_tier == WebsiteQualityTier.EXCEPTIONAL
 
 
 @pytest.mark.asyncio

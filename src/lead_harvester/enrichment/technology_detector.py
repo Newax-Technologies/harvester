@@ -50,6 +50,23 @@ _BUYING_SIGNAL_RULES: list[tuple[str, str]] = [
     ("grand opening", "Recently opened or announced a new campus/location."),
 ]
 
+# docs/ROADMAP.md module 20: known LMS/portal names and phrases. A positive
+# detection ("has an LMS") -- a fact, not a pain point or buying signal --
+# so it's emitted as SignalType.TECHNOLOGY_PRESENT rather than either of the
+# rule lists above. Per the module's decided absence-means-unavailable
+# policy, the caller (service_gap.py) treats "no match" as "no LMS", not
+# "unknown".
+_LMS_SIGNAL_RULES: list[tuple[str, str]] = [
+    ("moodle", "Uses Moodle as its learning management system."),
+    ("google classroom", "Uses Google Classroom as its learning management system."),
+    ("canvas lms", "Uses Canvas as its learning management system."),
+    ("blackboard", "Uses Blackboard as its learning management system."),
+    ("schoology", "Uses Schoology as its learning management system."),
+    ("powerschool", "Uses PowerSchool as its learning management system."),
+    ("parent portal", "Has a parent portal."),
+    ("student portal", "Has a student portal."),
+]
+
 
 def detect_technology_signals(text: str) -> list[dict[str, str]]:
     """
@@ -83,5 +100,9 @@ def detect_technology_signals(text: str) -> list[dict[str, str]]:
     for trigger, message in _BUYING_SIGNAL_RULES:
         if trigger in lowered:
             _add("buying_signal", message)
+
+    for trigger, message in _LMS_SIGNAL_RULES:
+        if trigger in lowered:
+            _add("technology_present", message)
 
     return signals
