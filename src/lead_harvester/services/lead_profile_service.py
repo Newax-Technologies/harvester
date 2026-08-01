@@ -167,6 +167,12 @@ async def refresh_lead_profile(
     profile.organization_summary = organization_summary
     profile.evidence_count = result.evidence_count
     profile.computed_at = datetime.now(UTC)
+    # Clear any stale failed-attempt marker: recompute_all_lead_profiles'
+    # COALESCE(last_recompute_attempted_at, computed_at) cursor would
+    # otherwise keep pointing at an old failure timestamp forever, since a
+    # non-null last_recompute_attempted_at always wins the COALESCE even
+    # after this fresh, newer computed_at succeeds it.
+    profile.last_recompute_attempted_at = None
 
     if record_history:
         session.add(
@@ -328,17 +334,20 @@ async def recompute_all_lead_profiles(session: AsyncSession, *, limit: int = 500
     the batch or the ones already recomputed in it. Returns the number
     successfully recomputed.
 
-    Correction: ordered by computed_at ascending (oldest first), not left
-    unordered, so repeated bounded calls actually make progress across
-    every profile instead of reprocessing the same first `limit` rows
-    forever. refresh_lead_profile sets computed_at to "now" as its last
-    step, so a just-recomputed profile naturally sinks to the back of
-    this ordering -- the next call picks up the next oldest/never-
-    recomputed batch with no separate offset or cursor to track.
+    Correction: ordered by COALESCE(last_recompute_attempted_at,
+    computed_at) ascending (oldest first), not left unordered, so repeated
+    bounded calls actually make progress across every profile instead of
+    reprocessing the same first `limit` rows forever. A successful
+    refresh_lead_profile sets computed_at to "now" as its last step, and a
+    failed one bumps last_recompute_attempted_at instead (see below) --
+    either way the profile naturally sinks to the back of this ordering,
+    so the next call picks up the next oldest/never-attempted batch with
+    no separate offset or cursor to track.
     """
+    cursor = func.coalesce(LeadProfile.last_recompute_attempted_at, LeadProfile.computed_at)
     institution_ids = (
         await session.scalars(
-            select(LeadProfile.institution_id).order_by(LeadProfile.computed_at.asc()).limit(limit)
+            select(LeadProfile.institution_id).order_by(cursor.asc()).limit(limit)
         )
     ).all()
 
@@ -352,22 +361,24 @@ async def recompute_all_lead_profiles(session: AsyncSession, *, limit: int = 500
             print(f"[LeadProfile] recompute failed for institution {institution_id}: {e}")
             # Correction: without this, a profile whose refresh keeps
             # failing (a genuinely bad row) stays at the front of the
-            # computed_at-ascending ordering forever -- every subsequent
-            # bounded call re-selects the same failing profile(s) and
-            # never reaches later untrusted-but-healthy profiles behind
-            # it. Bump computed_at alone (in a fresh savepoint, since the
-            # failed one above already rolled back) so the cursor
-            # advances past it; every OTHER field is deliberately left
-            # untouched -- still whatever it was before this call, still
-            # as untrusted as this function's own remediation note
-            # describes, just no longer blocking the queue for every
-            # other profile.
+            # cursor ordering forever -- every subsequent bounded call
+            # re-selects the same failing profile(s) and never reaches
+            # later untrusted-but-healthy profiles behind it. Bump
+            # last_recompute_attempted_at alone (in a fresh savepoint,
+            # since the failed one above already rolled back) so the
+            # cursor advances past it; computed_at and every other field
+            # are deliberately left untouched -- computed_at still means
+            # "last successfully computed", so a consumer never sees a
+            # failed, still-untrusted profile reported as freshly
+            # computed, and it stays as untrusted as this function's own
+            # remediation note describes, just no longer blocking the
+            # queue for every other profile.
             try:
                 async with session.begin_nested():
                     await session.execute(
                         update(LeadProfile)
                         .where(LeadProfile.institution_id == institution_id)
-                        .values(computed_at=datetime.now(UTC))
+                        .values(last_recompute_attempted_at=datetime.now(UTC))
                     )
             except Exception as advance_error:
                 print(

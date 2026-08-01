@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select
@@ -596,17 +597,20 @@ async def test_recompute_all_lead_profiles_advances_past_a_persistently_failing_
     db_session, monkeypatch
 ):
     # Correction regression test: a profile whose refresh keeps failing
-    # must not stay at the front of the computed_at-ascending ordering
+    # must not stay at the front of the remediation cursor's ordering
     # forever -- otherwise every subsequent bounded call re-selects the
     # same failure and never reaches a later untrusted-but-healthy
-    # profile behind it. computed_at should advance even on failure (the
-    # score fields themselves stay untouched).
+    # profile behind it. last_recompute_attempted_at should advance even
+    # on failure; computed_at (the API-exposed freshness/trust signal)
+    # must NOT change, since the refresh genuinely didn't succeed.
     bad_one = await _seed_institution(db_session, canonical_name="Persistently Bad School")
     await refresh_lead_profile(db_session, bad_one.id)
     healthy_two = await _seed_institution(db_session, canonical_name="Healthy School Two")
     await refresh_lead_profile(db_session, healthy_two.id)
 
-    original_computed_at = (await get_lead_profile(db_session, bad_one.id)).computed_at
+    original_profile = await get_lead_profile(db_session, bad_one.id)
+    original_computed_at = original_profile.computed_at
+    assert original_profile.last_recompute_attempted_at is None
 
     from lead_harvester.services import lead_profile_service as service_module
 
@@ -629,4 +633,28 @@ async def test_recompute_all_lead_profiles_advances_past_a_persistently_failing_
     assert second_call_count == 1
 
     bad_profile = await get_lead_profile(db_session, bad_one.id)
-    assert bad_profile.computed_at > original_computed_at
+    assert bad_profile.computed_at == original_computed_at
+    assert bad_profile.last_recompute_attempted_at is not None
+    assert bad_profile.last_recompute_attempted_at > original_computed_at
+
+
+@pytest.mark.asyncio
+async def test_refresh_lead_profile_clears_stale_failed_attempt_marker(db_session):
+    # Regression test: once a profile that previously failed a recompute
+    # attempt goes on to succeed, last_recompute_attempted_at must reset
+    # to None. Otherwise recompute_all_lead_profiles' COALESCE(
+    # last_recompute_attempted_at, computed_at) cursor keeps returning the
+    # stale failure timestamp forever (a non-null value always wins the
+    # COALESCE), so a healthy, freshly-recomputed profile would wrongly
+    # stay stuck at the front of the remediation queue.
+    institution = await _seed_institution(db_session, canonical_name="Recovered School")
+    await refresh_lead_profile(db_session, institution.id)
+
+    profile = await get_lead_profile(db_session, institution.id)
+    profile.last_recompute_attempted_at = datetime.now(UTC)
+    await db_session.flush()
+
+    await refresh_lead_profile(db_session, institution.id)
+
+    recomputed = await get_lead_profile(db_session, institution.id)
+    assert recomputed.last_recompute_attempted_at is None
