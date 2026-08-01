@@ -40,7 +40,7 @@ class AccountBrief(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     institution_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("canonical_institutions.id"), nullable=False, index=True
+        ForeignKey("canonical_institutions.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     status: Mapped[BriefStatus] = mapped_column(
@@ -81,7 +81,7 @@ class OutreachDraft(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     brief_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("account_briefs.id"), nullable=False, index=True
+        ForeignKey("account_briefs.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     status: Mapped[DraftStatus] = mapped_column(
@@ -129,7 +129,7 @@ class OutreachOutcome(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     draft_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("outreach_drafts.id"), nullable=False, index=True
+        ForeignKey("outreach_drafts.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     opened: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from lead_harvester.models.compliance import (
@@ -37,6 +38,7 @@ class DeletionRequestResponse(BaseSchema):
     rejection_reason: str
     requested_at: datetime
     fulfilled_at: datetime | None = None
+    manifest: dict[str, Any] = {}
 
 
 class CreateDeletionRequestRequest(BaseSchema):

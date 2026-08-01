@@ -2,16 +2,34 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import func, select
 
 from lead_harvester.api.errors import ResourceNotFoundError
-from lead_harvester.models.canonical import CanonicalInstitution, ContactPoint
+from lead_harvester.models.allocation import LeadReservation
+from lead_harvester.models.audit import AuditLog
+from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.compliance import (
     DeletionRequestStatus,
     DeletionSubjectType,
     SuppressionReason,
 )
+from lead_harvester.models.outbox import EventOutbox, OutboxStatus
+from lead_harvester.models.outreach import AccountBrief, DraftStatus, OutreachDraft, OutreachOutcome
+from lead_harvester.models.person import PersonCandidate
+from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot
 from lead_harvester.models.provenance import FieldProvenance
-from lead_harvester.models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
+from lead_harvester.models.qualification import QualificationAssessment
+from lead_harvester.models.research import FindingType, JobStatus, ResearchFinding, ResearchJob
+from lead_harvester.models.resolution import MatchAssessment, MatchDecision, ResolutionCandidate
+from lead_harvester.models.signal import Signal, SignalType
+from lead_harvester.models.source import (
+    RawPageSnapshot,
+    RawSourceRecord,
+    RunStatus,
+    SourceRun,
+    SourceType,
+)
+from lead_harvester.models.verification import DataQualityFlag, FlagType
 from lead_harvester.services.compliance_service import (
     add_suppression,
     find_applicable_suppression,
@@ -125,13 +143,21 @@ async def test_fulfill_deletion_deletes_a_single_contact_point(db_session):
     contact_id = contact.id
 
     request = await request_deletion(db_session, DeletionSubjectType.CONTACT_POINT, contact_id)
-    await fulfill_deletion(db_session, request.id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
 
     remaining_contact = await db_session.get(ContactPoint, contact_id)
     assert remaining_contact is None
     # The institution itself is untouched -- only the one contact was deleted.
     remaining_institution = await db_session.get(CanonicalInstitution, institution.id)
     assert remaining_institution is not None
+    assert fulfilled.manifest == {
+        "subject_type": "contact_point",
+        "subject_id": str(contact_id),
+        "deleted_counts": {"contact_points": 1},
+        "retained": {"audit_logs": "retained_for_lawful_audit"},
+        "verified": True,
+        "residual_counts": {},
+    }
 
 
 @pytest.mark.asyncio
@@ -253,3 +279,325 @@ async def test_purge_expired_raw_records_deletes_only_old_unreferenced_rows(db_s
     assert await db_session.get(RawSourceRecord, old_unreferenced.id) is None
     assert await db_session.get(RawSourceRecord, old_referenced.id) is not None
     assert await db_session.get(RawSourceRecord, recent_unreferenced.id) is not None
+
+
+# Correction (docs/ROADMAP.md module 11): the deletion graph itself --
+# fulfill_deletion must erase every dependent record type in one
+# transaction, retain what's meant to be retained (AuditLog for lawful
+# audit, SuppressionEntry as unrelated to institution lifecycle, a shared
+# RawSourceRecord still evidencing another institution), and produce a
+# manifest + verification result that actually reflects what happened.
+
+_DEPENDENT_MODELS = (
+    Branch,
+    ContactPoint,
+    AccountBrief,
+    OutreachDraft,
+    OutreachOutcome,
+    ResolutionCandidate,
+    MatchAssessment,
+    FieldProvenance,
+    QualificationAssessment,
+    ResearchJob,
+    ResearchFinding,
+    PersonCandidate,
+    Signal,
+    DataQualityFlag,
+    LeadReservation,
+    LeadProfile,
+    LeadScoreSnapshot,
+    EventOutbox,
+    RawPageSnapshot,
+)
+
+
+async def _seed_institution_with_every_dependent(db_session, *, name: str = "Full Graph School"):
+    institution = CanonicalInstitution(canonical_name=name)
+    db_session.add(institution)
+    await db_session.flush()
+
+    run = SourceRun(source_type=SourceType.WEBSITE, run_metadata={}, status=RunStatus.COMPLETED)
+    db_session.add(run)
+    await db_session.flush()
+
+    raw_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.WEBSITE,
+        source_id=f"web:{uuid.uuid4().hex[:8]}",
+        raw_payload={"phone": "+1 555 0100"},
+    )
+    db_session.add(raw_record)
+    await db_session.flush()
+
+    db_session.add(
+        FieldProvenance(
+            canonical_id=institution.id,
+            raw_record_id=raw_record.id,
+            field_name="canonical_name",
+            asserted_value=name,
+        )
+    )
+
+    db_session.add(
+        Branch(
+            institution_id=institution.id,
+            branch_name="Main",
+            address="1 Main St",
+            city="Testville",
+            country_code="US",
+        )
+    )
+
+    person = PersonCandidate(
+        institution_id=institution.id, display_name="Jane Doe", normalized_name="jane doe"
+    )
+    db_session.add(person)
+    await db_session.flush()
+
+    db_session.add(
+        ContactPoint(
+            institution_id=institution.id,
+            contact_type="email",
+            contact_value="jane@example.com",
+            person_candidate_id=person.id,
+        )
+    )
+
+    brief = AccountBrief(institution_id=institution.id)
+    db_session.add(brief)
+    await db_session.flush()
+
+    draft = OutreachDraft(
+        brief_id=brief.id,
+        target_name="Jane Doe",
+        target_role="Principal",
+        target_contact_value="jane@example.com",
+        status=DraftStatus.SENT,
+    )
+    db_session.add(draft)
+    await db_session.flush()
+
+    db_session.add(OutreachOutcome(draft_id=draft.id, opened=True))
+
+    candidate = ResolutionCandidate(
+        raw_record_id=raw_record.id,
+        target_canonical_id=institution.id,
+        blocking_strategy="blocking_domain",
+    )
+    db_session.add(candidate)
+    await db_session.flush()
+
+    db_session.add(
+        MatchAssessment(candidate_id=candidate.id, decision=MatchDecision.MERGE, total_score=95.0)
+    )
+
+    db_session.add(
+        QualificationAssessment(
+            institution_id=institution.id, is_qualified=True, rationale="Good fit"
+        )
+    )
+
+    job = ResearchJob(institution_id=institution.id, status=JobStatus.COMPLETED)
+    db_session.add(job)
+    await db_session.flush()
+
+    db_session.add(
+        ResearchFinding(
+            institution_id=institution.id,
+            job_id=job.id,
+            finding_type=FindingType.FACT,
+            finding_key="decision_maker_email",
+            finding_value="jane@example.com",
+        )
+    )
+
+    db_session.add(
+        Signal(
+            institution_id=institution.id,
+            signal_type=SignalType.BUYING_SIGNAL,
+            signal_text="Hiring a new IT director",
+        )
+    )
+
+    db_session.add(
+        DataQualityFlag(institution_id=institution.id, flag_type=FlagType.STALE_EVIDENCE)
+    )
+
+    db_session.add(
+        LeadReservation(
+            institution_id=institution.id,
+            score_at_reservation=80,
+            batch_label="2026-08-01",
+            expires_at=datetime.now(UTC) + timedelta(days=1),
+        )
+    )
+
+    db_session.add(LeadProfile(institution_id=institution.id, overall_score=80))
+    db_session.add(LeadScoreSnapshot(institution_id=institution.id, overall_score=80))
+
+    db_session.add(
+        EventOutbox(
+            institution_id=institution.id,
+            event_type="institution.upserted",
+            payload={"institution": {"id": str(institution.id)}},
+            status=OutboxStatus.DELIVERED,
+        )
+    )
+
+    db_session.add(
+        RawPageSnapshot(
+            source_run_id=run.id,
+            url="https://example.com",
+            final_url="https://example.com",
+            normalized_domain="example.com",
+            raw_source_record_id=raw_record.id,
+            institution_id=institution.id,
+            status_code=200,
+        )
+    )
+
+    # Retained-for-lawful-audit: an AuditLog row about this institution
+    # must survive the erasure untouched -- see models/audit.py.
+    db_session.add(
+        AuditLog(
+            action="institution.created",
+            actor="system",
+            entity_type="CanonicalInstitution",
+            entity_id=institution.id,
+        )
+    )
+
+    # Retained-as-unrelated-to-institution-lifecycle: a suppression keyed
+    # by this institution's contact's email must also survive.
+    await add_suppression(db_session, "jane@example.com", SuppressionReason.OPT_OUT)
+
+    await db_session.flush()
+    return institution, raw_record
+
+
+@pytest.mark.asyncio
+async def test_fulfill_deletion_erases_every_dependent_record_type_in_one_transaction(db_session):
+    institution, raw_record = await _seed_institution_with_every_dependent(db_session)
+    institution_id = institution.id
+    raw_record_id = raw_record.id
+
+    request = await request_deletion(
+        db_session, DeletionSubjectType.INSTITUTION, institution_id, "GDPR request"
+    )
+    fulfilled = await fulfill_deletion(db_session, request.id)
+
+    assert fulfilled.status == DeletionRequestStatus.COMPLETED
+    manifest = fulfilled.manifest
+    assert manifest["verified"] is True
+    assert manifest["residual_counts"] == {}
+    assert manifest["deleted_counts"] == {
+        "branches": 1,
+        "contact_points": 1,
+        "account_briefs": 1,
+        "outreach_drafts": 1,
+        "outreach_outcomes": 1,
+        "resolution_candidates": 1,
+        "match_assessments": 1,
+        "field_provenance": 1,
+        "qualification_assessments": 1,
+        "research_jobs": 1,
+        "research_findings": 1,
+        "person_candidates": 1,
+        "signals": 1,
+        "data_quality_flags": 1,
+        "lead_reservations": 1,
+        "lead_profiles": 1,
+        "lead_score_history": 1,
+        "event_outbox": 1,
+        "raw_page_snapshots": 1,
+        "raw_source_records": 1,
+    }
+    assert manifest["retained"]["shared_raw_source_records"] == []
+
+    assert await db_session.get(CanonicalInstitution, institution_id) is None
+    # A fresh query, not db_session.get() -- the exclusive RawSourceRecord
+    # purge runs as a Core DELETE (see _erase_institution), which never
+    # updates this session's identity map for objects it didn't load
+    # itself, so only a real SELECT reliably reflects the database here.
+    remaining_raw_records = await db_session.scalar(
+        select(func.count()).select_from(RawSourceRecord).where(RawSourceRecord.id == raw_record_id)
+    )
+    assert remaining_raw_records == 0
+    for model in _DEPENDENT_MODELS:
+        count = await db_session.scalar(select(func.count()).select_from(model))
+        assert count == 0, f"{model.__name__} rows survived erasure"
+
+    # Retained for lawful audit: the pre-existing AuditLog row about this
+    # institution, plus the new one fulfill_deletion itself writes.
+    audit_rows = (await db_session.scalars(select(AuditLog))).all()
+    assert any(row.entity_id == institution_id for row in audit_rows)
+    fulfillment_rows = [row for row in audit_rows if row.action == "deletion_request.fulfilled"]
+    assert len(fulfillment_rows) == 1
+    assert fulfillment_rows[0].entity_id == request.id
+    assert fulfillment_rows[0].new_state == manifest
+
+    # Retained as unrelated to institution lifecycle: the suppression entry.
+    suppressed = await find_applicable_suppression(db_session, "jane@example.com", channel="email")
+    assert suppressed is not None
+
+
+@pytest.mark.asyncio
+async def test_fulfill_deletion_retains_a_raw_source_record_shared_with_another_institution(
+    db_session,
+):
+    institution_a = CanonicalInstitution(canonical_name="Institution A")
+    institution_b = CanonicalInstitution(canonical_name="Institution B")
+    db_session.add_all([institution_a, institution_b])
+    await db_session.flush()
+
+    run = SourceRun(
+        source_type=SourceType.GOOGLE_PLACES, run_metadata={}, status=RunStatus.COMPLETED
+    )
+    db_session.add(run)
+    await db_session.flush()
+
+    shared_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.GOOGLE_PLACES,
+        source_id=f"gp:{uuid.uuid4().hex[:8]}",
+        raw_payload={},
+    )
+    db_session.add(shared_record)
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            FieldProvenance(
+                canonical_id=institution_a.id,
+                raw_record_id=shared_record.id,
+                field_name="canonical_name",
+                asserted_value="Institution A",
+            ),
+            FieldProvenance(
+                canonical_id=institution_b.id,
+                raw_record_id=shared_record.id,
+                field_name="canonical_name",
+                asserted_value="Institution B",
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    request = await request_deletion(db_session, DeletionSubjectType.INSTITUTION, institution_a.id)
+    fulfilled = await fulfill_deletion(db_session, request.id)
+
+    manifest = fulfilled.manifest
+    assert manifest["verified"] is True
+    assert manifest["deleted_counts"]["raw_source_records"] == 0
+    assert manifest["retained"]["shared_raw_source_records"] == [str(shared_record.id)]
+
+    assert await db_session.get(CanonicalInstitution, institution_a.id) is None
+    assert await db_session.get(CanonicalInstitution, institution_b.id) is not None
+    assert await db_session.get(RawSourceRecord, shared_record.id) is not None
+    remaining_provenance = (
+        await db_session.scalars(
+            select(FieldProvenance).where(FieldProvenance.raw_record_id == shared_record.id)
+        )
+    ).all()
+    assert len(remaining_provenance) == 1
+    assert remaining_provenance[0].canonical_id == institution_b.id

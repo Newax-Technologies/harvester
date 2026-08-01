@@ -87,7 +87,10 @@ class LeadProfile(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     institution_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("canonical_institutions.id"), nullable=False, unique=True, index=True
+        ForeignKey("canonical_institutions.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
     )
 
     overall_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -192,7 +195,7 @@ class LeadScoreSnapshot(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     institution_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("canonical_institutions.id"), nullable=False, index=True
+        ForeignKey("canonical_institutions.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     overall_score: Mapped[int] = mapped_column(Integer, nullable=False)
