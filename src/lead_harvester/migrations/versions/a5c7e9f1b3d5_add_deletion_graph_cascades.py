@@ -192,6 +192,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Correction: a surviving "institution.deleted" tombstone row (see this
+    # migration's own upgrade() comment) has institution_id=NULL by design
+    # once this feature has been used -- SET NOT NULL below would otherwise
+    # be rejected by Postgres while any such row exists, making downgrade
+    # unusable after normal feature usage. A tombstone has no institution
+    # left to attribute it to (the whole point is that the institution is
+    # gone), so it cannot be repaired into a valid pre-migration row; drop
+    # it rather than block the downgrade indefinitely.
+    op.execute("DELETE FROM event_outbox WHERE institution_id IS NULL")
+
     op.alter_column(
         "event_outbox",
         "institution_id",
