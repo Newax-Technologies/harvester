@@ -12,6 +12,7 @@ import {
   Sparkles,
   ShieldAlert,
   ShieldCheck,
+  Download,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { dashboardQueries } from "./api/queries";
@@ -25,6 +26,7 @@ import { LeadProfiles } from "./pages/LeadProfiles";
 import { DailyQueue } from "./pages/DailyQueue";
 import { DataQuality } from "./pages/DataQuality";
 import { Compliance } from "./pages/Compliance";
+import { Exports } from "./pages/Exports";
 import { ManualLeadDrawer } from "./components/ManualLeadDrawer";
 
 // Sidebar nav is grouped into sections (Pipeline/Review/Governance/Admin)
@@ -118,6 +120,9 @@ function Layout() {
           <NavSection label="Governance">
             <NavLink to="/compliance" icon={<ShieldCheck size={18} />}>
               Compliance
+            </NavLink>
+            <NavLink to="/exports" icon={<Download size={18} />}>
+              Exports
             </NavLink>
           </NavSection>
         </nav>
@@ -262,6 +267,7 @@ function App() {
           <Route path="readiness/:id" element={<ReadinessGateDetail />} />
           <Route path="data-quality" element={<DataQuality />} />
           <Route path="compliance" element={<Compliance />} />
+          <Route path="exports" element={<Exports />} />
         </Route>
       </Routes>
     </BrowserRouter>
