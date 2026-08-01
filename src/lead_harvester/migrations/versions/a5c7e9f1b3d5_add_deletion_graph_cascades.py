@@ -1,7 +1,7 @@
 """Add deletion graph cascades and deletion_requests.manifest
 
 Revision ID: a5c7e9f1b3d5
-Revises: f4b6d8e0a2c4
+Revises: 99bebd9953d7
 Create Date: 2026-08-01 00:00:00.000000
 
 """
@@ -14,7 +14,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "a5c7e9f1b3d5"
-down_revision: str | Sequence[str] | None = "f4b6d8e0a2c4"
+down_revision: str | Sequence[str] | None = "99bebd9953d7"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
