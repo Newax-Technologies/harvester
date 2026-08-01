@@ -980,14 +980,16 @@ class LeadPipeline:
         raw_record_id: uuid.UUID | None = None,
     ) -> None:
         """
-        Correction: this used to run directly inline after _resolve_or_log,
-        outside that method's own begin_nested() boundary -- a failure here
-        (e.g. a transient error inside refresh_lead_profile's scoring
-        queries) left the surrounding Postgres transaction aborted the same
-        way an unguarded resolution failure would, aborting the whole run
-        and losing every later record. Same isolation reasoning as
-        _resolve_or_log below, applied to the linkage+refresh step that
-        follows it.
+        Correction: linkage and refresh used to share ONE savepoint -- when
+        refresh_lead_profile raised, the whole savepoint rolled back and
+        took the institution_id linkage down with it too, even though the
+        record itself was already committed/canonicalized outside this
+        savepoint's scope. Since _retry_stranded_records excludes
+        already-canonicalized records, that linkage would then never be
+        retried, permanently hiding those snapshots from website-quality
+        scoring. Persist the linkage in its own successful savepoint FIRST,
+        then attempt the refresh in a SEPARATE savepoint that can fail on
+        its own without undoing it.
         """
         try:
             async with session.begin_nested():
@@ -996,14 +998,24 @@ class LeadPipeline:
                         page_snapshot.institution_id = institution.id
                 if raw_record_id is not None:
                     await link_page_snapshots_to_institution(session, raw_record_id, institution.id)
+        except Exception as e:
+            self._record_post_link_refresh_failure(run, institution, e, stage="link")
+            return
+
+        try:
+            async with session.begin_nested():
                 await refresh_lead_profile(session, institution.id)
         except Exception as e:
-            failed = list(run.run_metadata.get("post_link_refresh_failures", []))
-            failed.append({"institution_id": str(institution.id), "error": str(e)})
-            run.run_metadata = {**run.run_metadata, "post_link_refresh_failures": failed}
-            print(
-                f"Post-resolution snapshot link/refresh failed for institution {institution.id}: {e}"
-            )
+            self._record_post_link_refresh_failure(run, institution, e, stage="refresh")
+
+    @staticmethod
+    def _record_post_link_refresh_failure(
+        run: SourceRun, institution: CanonicalInstitution, error: Exception, *, stage: str
+    ) -> None:
+        failed = list(run.run_metadata.get("post_link_refresh_failures", []))
+        failed.append({"institution_id": str(institution.id), "error": str(error), "stage": stage})
+        run.run_metadata = {**run.run_metadata, "post_link_refresh_failures": failed}
+        print(f"Post-resolution snapshot {stage} failed for institution {institution.id}: {error}")
 
     async def _resolve_or_log(
         self,

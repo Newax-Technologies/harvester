@@ -264,7 +264,10 @@ async def test_post_link_refresh_failure_does_not_abort_the_run(db_session):
     # refresh failure lost every later lead in the same crawl. It must now
     # be isolated in its own savepoint: the run completes, beta's
     # institution is still linked and scored, and the failure is recorded
-    # instead of silently swallowed or fatal.
+    # instead of silently swallowed or fatal. Alpha's own snapshot linkage
+    # must ALSO survive its refresh failure -- linkage and refresh run in
+    # separate savepoints specifically so a refresh failure can't roll back
+    # the (already independently successful) linkage alongside it.
     from lead_harvester.models.source import RunStatus, SourceRun
 
     real_refresh_lead_profile = None
@@ -301,6 +304,25 @@ async def test_post_link_refresh_failure_does_not_abort_the_run(db_session):
     run = (await db_session.scalars(select(SourceRun))).one()
     assert run.status == RunStatus.COMPLETED
     assert len(run.run_metadata["post_link_refresh_failures"]) == 1
+    assert run.run_metadata["post_link_refresh_failures"][0]["stage"] == "refresh"
+
+    alpha_institution = (
+        await db_session.scalars(
+            select(CanonicalInstitution).where(
+                CanonicalInstitution.canonical_name == "Alpha Academy"
+            )
+        )
+    ).one()
+    alpha_snapshot = (
+        await db_session.scalars(
+            select(RawPageSnapshot).where(RawPageSnapshot.normalized_domain == "alpha.example.edu")
+        )
+    ).one()
+    # Alpha's refresh failed, but its linkage ran in its own separate,
+    # already-succeeded savepoint -- must NOT be rolled back by the later
+    # refresh failure, or these snapshots would be permanently unreachable
+    # (_retry_stranded_records skips already-canonicalized records).
+    assert alpha_snapshot.institution_id == alpha_institution.id
 
     beta_institution = (
         await db_session.scalars(
