@@ -2097,3 +2097,135 @@ The database-management capability is not complete until:
 10. Controlled data transfer enforces direction, classification, redaction, approval, and audit.
 11. Backup integrity and restore procedures are tested.
 12. Plaintext database credentials never return to the frontend or enter logs, telemetry, analytics, screenshots, or audit payloads.
+
+---
+
+# 31. Automatic NEWAX Core Synchronization
+
+Status: **Planned**.
+
+Harvester publishes two independent automatic streams to NEWAX Core:
+
+```text
+Raw Observation Stream
+Every accepted source observation is queued immediately after durable local storage.
+
+Canonical Entity Stream
+Every new or materially changed resolved entity is queued after Harvester resolution and validation.
+```
+
+Lead qualification does not control publication. An organization, person, location, contact method, domain, website, or relationship may exist in NEWAX Core without being a lead. Lead status is a later commercial classification, not an admission gate for entity existence.
+
+## 31.1 Raw observation stream
+
+Every accepted raw observation is stored and queued atomically:
+
+```text
+BEGIN
+Persist RawSourceRecord, RawPageSnapshot, or another approved raw observation
+Create RAW_OBSERVATION EventOutbox row with exact source-native payload
+COMMIT
+```
+
+Raw observations use `observation.recorded` with a subject hint such as organization, person, location, contact method, domain, website, relationship, document, social profile, or unknown.
+
+Exact duplicates use stable source identity and payload hashes. A changed source payload creates a new immutable observation version. Different sources remain separate evidence even when later linked to one canonical entity.
+
+## 31.2 Canonical entity stream
+
+After normalization, deduplication, identity resolution, evidence consolidation, and validation:
+
+```text
+BEGIN
+Create or update canonical entity
+Increase canonical revision
+Build source-native Core projection
+Calculate deterministic projection hash
+Create CANONICAL_ENTITY event when materially changed
+COMMIT
+```
+
+Canonical events cover organizations, people, locations, and relationships. They reference supporting raw observation IDs where available. Unchanged projections do not create duplicate events.
+
+## 31.3 Common source-native envelope
+
+The outer integration envelope contains event identity, source system, connector, source schema, timestamps, tenant reference, source-record reference, canonical entity reference, subject hint, correlation ID, canonical revision, payload checksum, and source-native payload.
+
+Harvester does not map every source into Core’s internal Prisma or Registry fields. NEWAX Core owns final normalization, identity resolution, field ownership, merge policy, and canonical Registry writes.
+
+## 31.4 Multi-stream outbox
+
+The existing `EventOutbox` is evolved rather than replaced. Planned stream types are:
+
+```text
+RAW_OBSERVATION
+CANONICAL_ENTITY
+RECONCILIATION
+BACKFILL
+```
+
+Every retry reuses the same event ID and exact serialized payload. A genuinely changed observation version or new canonical revision receives a new event ID.
+
+Delivery priority is:
+
+```text
+1. Live canonical changes
+2. Recent live raw observations
+3. Reconciliation and repair
+4. Historical backfill
+```
+
+The worker provides concurrency-safe claims, ordering, bounded coalescing, retries, dead letter, circuit breaker, backpressure, permanent Core links, reconciliation, and operational metrics.
+
+## 31.5 Dedicated page
+
+Route:
+
+```text
+/integrations/newax-core
+```
+
+Navigation:
+
+```text
+Operations
+└── NEWAX Core Sync
+```
+
+Tabs:
+
+```text
+Overview
+Raw Observations
+Canonical Entities
+Delivery Queue
+Dead Letter
+Entity Links
+Reconciliation
+Settings
+```
+
+Raw and canonical streams can be enabled, paused, or disabled independently. Pausing stops delivery claims but never stops local harvesting, raw persistence, canonical resolution, or outbox creation.
+
+## 31.6 Frontend sequence update
+
+This section supersedes the F13–F16 numbering in sections 18 and 30:
+
+```text
+F13  Database Connections & Sync
+F14  NEWAX Core Sync
+F15  Export and Communicator
+F16  Operations
+F17  End-to-end and rollout verification
+```
+
+F14 delivers the dedicated page, independent stream controls, live queue, event detail, Core response, permanent links, dead-letter recovery, backfill, reconciliation, permission gates, outage states, and no-secret-leak verification.
+
+## 31.7 Core prerequisites
+
+Automatic production delivery remains disabled until NEWAX Core provides durable event-ID inbox replay protection, payload-hash conflict detection, source schema registry, raw and canonical Harvester adapters, normalization, entity candidates, identity resolution, provenance, field ownership, merge policy, and a safe transaction or resumable canonical-application boundary.
+
+The complete Harvester design, APIs, permissions, delivery behavior, and acceptance criteria are defined in:
+
+- [`docs/architecture/newax-core-automatic-sync.md`](docs/architecture/newax-core-automatic-sync.md)
+- [`docs/ROADMAP-CORE-SYNC.md`](docs/ROADMAP-CORE-SYNC.md)
