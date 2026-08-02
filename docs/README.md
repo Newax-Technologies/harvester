@@ -35,6 +35,11 @@ Source-specific models define how one external source is planned, queried, extra
   - Defines geographic coverage, Text Search, Nearby Search, Place Details, reviews, photos, posts, performance metrics, website handoff, scoring boundaries, cost, security, retention, attribution, and compliance gates
   - Explicitly prohibits Google Maps website scraping and prevents non-detection from becoming confirmed absence
 
+- [Yandex Maps API Source and Extraction Model](sources/yandex-maps-api-source-model.md)
+  - Normative planned Yandex Places public-discovery and customer-authorized Yandex Business export architecture
+  - Defines strict geographic search, pagination, saturation, documented-field extraction, independent verification, scoring boundaries, cost, security, temporary caching, attribution, deletion, and contract gates
+  - Marks the current connector restricted for production persistence until the intended Harvester workflow is covered by approved Yandex terms
+
 Previous versions remain available through Git history and pull-request history rather than duplicate archive documents inside the active repository.
 
 ## Locked product boundaries
