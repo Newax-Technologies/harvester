@@ -16,10 +16,14 @@ When documents overlap, use this order:
    - Normative operating, evidence, data, decision, confidence, learning, economics, and authority model
    - Strengthens the existing 64 modules without creating a second roadmap
 
-3. [Standalone Product and Integration Framework](architecture/standalone-product-and-integration-framework.md)
+3. [NEWAX Harvester Opportunity Scoring Model v3](architecture/opportunity-scoring-model-v3.md)
+   - Normative planned opportunity-value, pursuit-readiness, infrastructure-gap, coverage, confidence, risk, and recommendation model
+   - Prioritizes confirmed absence and severe weakness of relevant business infrastructure while keeping eligibility and evidence authority separate from points
+
+4. [Standalone Product and Integration Framework](architecture/standalone-product-and-integration-framework.md)
    - Product boundaries, connector framework, credentials, mappings, synchronization, destinations, tenancy, and recovery
 
-4. [Optional NEWAX Core Synchronization](architecture/newax-core-automatic-sync.md)
+5. [Optional NEWAX Core Synchronization](architecture/newax-core-automatic-sync.md)
    - Optional Harvester-to-Core streams, application identity, credentials, delivery, links, reconciliation, and failure behavior
 
 Previous versions remain available through Git history and pull-request history rather than duplicate archive documents inside the active repository.
@@ -50,6 +54,7 @@ No product shares private database tables, database-owner credentials, migration
 
 - Product delivery changes belong in `ROADMAP.md`.
 - Operating-model and decision-invariant changes belong in the intelligence operating model.
+- Opportunity weights, rubrics, infrastructure-gap rules, coverage, confidence, risk, and recommendation changes belong in the Opportunity Scoring Model and require a new approved model version when behavior changes.
 - Integration-boundary changes belong in the integration framework or the relevant adapter document.
 - Superseded versions remain in Git history rather than duplicate active documentation.
-- Do not create parallel roadmaps, duplicate module counts, or hidden product dependencies.
+- Do not create parallel roadmaps, duplicate module counts, hidden product dependencies, or competing opportunity-score definitions.
