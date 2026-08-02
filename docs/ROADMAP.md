@@ -1521,3 +1521,313 @@ The Harvest Job orchestrator must not be built on unreliable identity, evidence,
 - Historical descriptions are not rewritten to make past work appear different.
 - Only the next six to ten modules are active implementation issues.
 - No module is complete while tests, migrations, security checks, accessibility, runtime verification, or exact-commit CI remain unresolved.
+
+---
+
+# 16. Database Connections & Synchronization addendum
+
+This addendum extends the existing 64-module roadmap without increasing the top-level module count. Database work is delivered through bounded submodules inside the existing security, runtime, operations, and frontend milestones.
+
+## 16.1 Architectural boundary
+
+PostgreSQL is provisioned outside the Harvester frontend on a server, container platform, or managed database service. The product connects to and operates an existing PostgreSQL deployment. It does not install PostgreSQL from a browser page.
+
+Each environment has an independent connection profile:
+
+```text
+Development
+Testing
+Staging
+Production
+```
+
+Non-production databases may initially share one PostgreSQL instance. Production should use a dedicated instance or managed service when operational risk, capacity, or availability requires it.
+
+## 16.2 Module 9C: Database connection and environment control
+
+Module 9 is expanded into:
+
+```text
+9A  Service authentication and frontend sessions
+9B  Secret provider, metadata APIs, permissions, audit, and validation contract
+9C  Database connection profiles, validation, credential rotation, and environment control
+```
+
+Module 9C delivers:
+
+- `DatabaseConnectionProfile`
+- Environment-specific connection metadata
+- Encrypted database credential references
+- Write-only password, URL, certificate, and token submission
+- Candidate credential versions
+- Network, TLS, authentication, extension, permission, and health validation
+- Database and environment identity markers
+- Atomic activation with previous-connection preservation on failure
+- Separate runtime, migration, read-only, and backup PostgreSQL roles
+- Connection disablement and rollback
+- Immutable database-connection audit events
+- Metadata-only APIs
+- Reauthentication and dual approval for production activation or credential replacement
+
+Acceptance:
+
+- Plaintext database credentials are never returned after submission.
+- A failed candidate does not replace the working connection.
+- The expected environment must match the database identity marker.
+- Runtime credentials do not possess migration authority.
+- Production changes are permission protected, reauthenticated, and approved.
+
+## 16.3 Module 12B: Database schema and migration verification
+
+Module 12 remains the migration-driven test foundation and gains a bounded schema-management slice:
+
+```text
+12A  Migration-driven test infrastructure
+12B  Environment schema snapshots, drift comparison, and migration preflight
+```
+
+Module 12B delivers:
+
+- Current Alembic revision inspection
+- Required application revision comparison
+- Table, column, type, constraint, index, and extension snapshots
+- Missing and unexpected object reporting
+- Migration-chain validation
+- Upgrade and downgrade rehearsal against disposable databases
+- Production migration preflight contract
+- Backup requirement before approved production migration
+- Post-migration application and schema verification
+
+The system produces drift reports and approved migration plans. It must not generate and execute uncontrolled SQL to make one environment resemble another.
+
+## 16.4 Module 33B: Database operation and synchronization jobs
+
+Module 33 is expanded into:
+
+```text
+33A  Live Harvest Job event streaming
+33B  Database validation, migration, backup, restore, and synchronization jobs
+```
+
+Module 33B delivers durable operations for:
+
+### Schema synchronization
+
+Compare the application-required Alembic revision with the target database, preview pending migrations, require approved backup, execute through the migration role, and verify afterward.
+
+### Reference-data synchronization
+
+Synchronize approved versioned non-sensitive datasets such as sectors, source taxonomies, qualification-policy templates, and lookup records using stable IDs, dry runs, conflict review, checksums, and audit.
+
+### Controlled business-data transfer
+
+Transfer explicitly selected datasets only after classification, direction checks, redaction or anonymization, preview, approval, backup, execution, and verification. Development-to-production movement is denied by default. Credentials, sessions, unrestricted audit identity, and sensitive personal data are never copied casually.
+
+### Backup and restore
+
+Record backup type, retention, encryption, storage reference, integrity, and restore-test result. Production restore requires reauthentication, separate approval, target confirmation, maintenance state, integrity verification, and rollback plan.
+
+Suggested job statuses:
+
+```text
+DRAFT
+VALIDATING
+AWAITING_APPROVAL
+BACKING_UP
+RUNNING
+VERIFYING
+COMPLETED
+COMPLETED_WITH_WARNINGS
+FAILED
+CANCELLED
+ROLLED_BACK
+```
+
+Suggested models:
+
+```text
+DatabaseValidationRun
+DatabaseSchemaSnapshot
+DatabaseMigrationRun
+DatabaseBackupRecord
+DatabaseSyncJob
+DatabaseSyncDataset
+DatabaseSyncConflict
+DatabaseOperationApproval
+```
+
+## 16.5 Planned database APIs
+
+```http
+GET    /api/v1/database-connections
+GET    /api/v1/database-connections/{connection_id}
+POST   /api/v1/database-connections
+POST   /api/v1/database-connections/{connection_id}/replace-credentials
+POST   /api/v1/database-connections/{connection_id}/validate
+POST   /api/v1/database-connections/{connection_id}/activate
+POST   /api/v1/database-connections/{connection_id}/disable
+
+GET    /api/v1/database-connections/{connection_id}/schema
+POST   /api/v1/database-connections/{connection_id}/schema/compare
+GET    /api/v1/database-connections/{connection_id}/migrations
+POST   /api/v1/database-connections/{connection_id}/migrations/apply
+
+GET    /api/v1/database-connections/{connection_id}/backups
+POST   /api/v1/database-connections/{connection_id}/backups
+POST   /api/v1/database-connections/{connection_id}/restore
+
+POST   /api/v1/database-sync-jobs
+GET    /api/v1/database-sync-jobs
+GET    /api/v1/database-sync-jobs/{job_id}
+POST   /api/v1/database-sync-jobs/{job_id}/validate
+POST   /api/v1/database-sync-jobs/{job_id}/approve
+POST   /api/v1/database-sync-jobs/{job_id}/execute
+POST   /api/v1/database-sync-jobs/{job_id}/cancel
+```
+
+Responses expose connection and operation metadata only.
+
+## 16.6 Database permissions
+
+```text
+databases.read_metadata
+databases.create_connection
+databases.update_connection
+databases.validate_connection
+databases.activate_connection
+databases.disable_connection
+databases.view_schema
+databases.run_migration
+databases.create_backup
+databases.restore_backup
+databases.sync_reference_data
+databases.transfer_data
+databases.view_audit
+```
+
+Production activation, credential replacement, migration, restore, and business-data transfer require reauthentication and a second approver.
+
+## 16.7 Module 64 frontend expansion
+
+The frontend milestone now contains **16 submodules, F1–F16**. This supersedes the F13–F15 numbering above:
+
+```text
+F1   Design tokens and foundations
+F2   Application shell
+F3   Shared data components
+F4   Authentication and runtime configuration
+F5   Generate Leads
+F6   Harvest Runs and live Harvest Run
+F7   Source-specific metric displays
+F8   Generated Leads
+F9   Master Leads
+F10  Lead Dossier
+F11  Qualification and governance
+F12  Secrets & Integrations
+F13  Database Connections & Sync
+F14  Export and Communicator
+F15  Operations
+F16  End-to-end and rollout verification
+```
+
+### F13: Database Connections & Sync
+
+Deliver:
+
+- `/settings/databases`
+- Connections, Schema & Migrations, Synchronization, Backups, and Audit tabs
+- Environment cards for development, testing, staging, and production
+- Safe connection metadata display
+- Write-only database credential replacement
+- Temporary show/hide only while entering a candidate value
+- Candidate validation and atomic activation
+- Environment identity mismatch blocking
+- PostgreSQL role and permission status
+- Schema and Alembic revision comparison
+- Drift report
+- Pending migration review
+- Backup requirement and approval display
+- Database operation job creation and live progress
+- Reference-data sync preview and conflicts
+- Controlled data-transfer classification, redaction, and approval
+- Backup history and restore-test metadata
+- Database operation audit history
+- Tests proving credentials are never rendered, persisted in the browser, logged, or returned
+
+Dependencies:
+
+- Module 8 authorization matrix
+- Modules 9B and 9C
+- Modules 12A and 12B
+- Module 33B
+- F2 application shell
+- F3 shared data components
+- F4 authentication and reauthentication
+- F12 Secrets & Integrations
+
+## 16.8 Updated dependency order
+
+```text
+Modules 1–16, including 9C and 12B
+Authentication, secret and database foundations, migration safety, data integrity, and resolution
+        ↓
+Modules 17–37, including 33B
+Harvest contracts, APIs, runtime, connector framework, and durable database operations
+        ↓
+Modules 38–63
+Sources, resolution, qualification, lead workspaces, exports, and Communicator
+        ↓
+Module 64 / F1–F16
+Complete frontend, Database Connections & Sync, operations, E2E, and rollout
+```
+
+F13 integration must not begin until 9C, 12B, and 33B provide verified backend contracts.
+
+## 16.9 Updated milestone outcomes
+
+Milestone A additionally requires:
+
+- Environment-specific database profiles
+- Database credential and identity-validation contract
+- Separate runtime and migration roles
+- Schema and migration preflight foundation
+
+Milestone B additionally requires:
+
+- Durable database validation, migration, backup, restore, and synchronization jobs
+- Approval and audit workflow for sensitive operations
+
+Milestone F additionally requires:
+
+- Administrator-only Database Connections page
+- Schema, migration, backup, and synchronization interface
+- No-secret-leak verification
+- Production-operation confirmation and approval UX
+
+## 16.10 Additional acceptance criteria
+
+The roadmap is also incomplete until:
+
+1. Every environment has an explicit independent database profile.
+2. The browser page never attempts to install PostgreSQL.
+3. Candidate database credentials are validated before activation.
+4. Failed activation preserves the current working connection.
+5. The database identity marker matches the selected environment.
+6. Runtime, migration, read-only, and backup roles are separated.
+7. Plaintext database credentials are never returned or displayed.
+8. Schema comparison reports drift without executing uncontrolled SQL.
+9. Production migration requires a verified backup and approval.
+10. Migration post-checks verify both schema revision and application behavior.
+11. Reference-data synchronization supports dry run, conflicts, checksums, and audit.
+12. Controlled business-data transfer enforces direction, classification, redaction, approval, backup, and verification.
+13. Production restore requires integrity validation, maintenance confirmation, approval, and rollback planning.
+14. Database jobs are durable, observable, retry-safe where appropriate, and historically auditable.
+15. F13 passes accessibility, permission, reauthentication, no-secret-leak, failure-state, and live-backend E2E tests.
+
+## 16.11 Governance update
+
+- Database connection metadata and database credentials remain separate concerns.
+- “Sync database” must always resolve to a named operation type: schema, reference data, controlled business data, backup, or restore.
+- Production credentials, migrations, restores, and data transfers require explicit authorization and audit.
+- Database operations may be split into additional PRs when migration, provider, or security risk exceeds module limits.
+- The top-level roadmap remains 64 modules; 9C, 12B, and 33B are bounded submodules, and Module 64 contains F1–F16.
