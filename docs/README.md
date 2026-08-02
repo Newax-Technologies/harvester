@@ -1,6 +1,6 @@
 # Harvester Documentation Map
 
-This directory contains the authoritative product, architecture, and delivery documentation for NEWAX Harvester.
+This directory contains the authoritative product, architecture, source, and delivery documentation for NEWAX Harvester.
 
 Harvester is standalone lead-intelligence infrastructure. It converts a governed market definition into evidence-backed, reviewable, and operationally usable opportunities while preserving customer ownership and control.
 
@@ -25,6 +25,15 @@ When documents overlap, use this order:
 
 5. [Optional NEWAX Core Synchronization](architecture/newax-core-automatic-sync.md)
    - Optional Harvester-to-Core streams, application identity, credentials, delivery, links, reconciliation, and failure behavior
+
+## Source-specific models
+
+Source-specific models define how one external source is planned, queried, extracted, governed, retained, and connected to Harvester evidence. They remain subordinate to the roadmap, operating model, scoring model, and integration framework.
+
+- [Google API Source and Extraction Model](sources/google-api-source-model.md)
+  - Normative planned Google Places public-discovery and Google Business Profile authorized-data architecture
+  - Defines geographic coverage, Text Search, Nearby Search, Place Details, reviews, photos, posts, performance metrics, website handoff, scoring boundaries, cost, security, retention, attribution, and compliance gates
+  - Explicitly prohibits Google Maps website scraping and prevents non-detection from becoming confirmed absence
 
 Previous versions remain available through Git history and pull-request history rather than duplicate archive documents inside the active repository.
 
@@ -55,6 +64,8 @@ No product shares private database tables, database-owner credentials, migration
 - Product delivery changes belong in `ROADMAP.md`.
 - Operating-model and decision-invariant changes belong in the intelligence operating model.
 - Opportunity weights, rubrics, infrastructure-gap rules, coverage, confidence, risk, and recommendation changes belong in the Opportunity Scoring Model and require a new approved model version when behavior changes.
+- Source query, extraction, field-mask, coverage, retention, attribution, failure, cost, and source-specific compliance changes belong in the relevant source model.
+- Source-specific models cannot override product boundaries, evidence invariants, scoring separation, security requirements, or current provider terms.
 - Integration-boundary changes belong in the integration framework or the relevant adapter document.
 - Superseded versions remain in Git history rather than duplicate active documentation.
-- Do not create parallel roadmaps, duplicate module counts, hidden product dependencies, or competing opportunity-score definitions.
+- Do not create parallel roadmaps, duplicate module counts, hidden product dependencies, competing opportunity-score definitions, or undocumented source behavior.
