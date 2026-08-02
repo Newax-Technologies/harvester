@@ -997,13 +997,25 @@ class LeadPipeline:
         redundant scoring work. Same claim pattern as the stranded-
         resolution query above and every other "atomically grab pending
         work" query in this codebase.
+
+        Correction: restricted to snapshots whose raw record already has
+        a FieldProvenance row (i.e. actually canonicalized) before
+        locking -- a WEBSITE record still awaiting human review also has
+        institution_id IS NULL snapshots at this point, but this method
+        has nothing to link them to yet (no FieldProvenance means no
+        canonical_id) and can't repair them. Locking those anyway held
+        them for the rest of this transaction for no reason, needlessly
+        blocking a concurrent review decision's own
+        link_page_snapshots_to_institution update on the same rows.
         """
+        canonicalized_raw_record_ids = select(FieldProvenance.raw_record_id).distinct()
         candidate_rows = list(
             (
                 await session.execute(
                     select(RawPageSnapshot.id, RawPageSnapshot.raw_source_record_id)
                     .where(RawPageSnapshot.institution_id.is_(None))
                     .where(RawPageSnapshot.raw_source_record_id.is_not(None))
+                    .where(RawPageSnapshot.raw_source_record_id.in_(canonicalized_raw_record_ids))
                     .with_for_update(skip_locked=True)
                 )
             ).all()

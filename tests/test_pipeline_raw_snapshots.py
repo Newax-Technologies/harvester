@@ -454,3 +454,50 @@ async def test_retry_stranded_snapshot_links_backfills_a_canonicalized_records_u
 
     await db_session.refresh(snapshot)
     assert snapshot.institution_id == institution.id
+
+
+@pytest.mark.asyncio
+async def test_retry_stranded_snapshot_links_ignores_a_record_still_pending_review(db_session):
+    # Correction regression test: a WEBSITE record still awaiting human
+    # review also has institution_id IS NULL snapshots (raw_source_
+    # record_id set, no FieldProvenance yet) -- this method has nothing
+    # to link them to and must leave them alone, not lock them for the
+    # rest of this transaction for no reason.
+    from lead_harvester.models.source import RunStatus, SourceRun
+
+    run = SourceRun(source_type=SourceType.WEBSITE, run_metadata={}, status=RunStatus.COMPLETED)
+    db_session.add(run)
+    await db_session.flush()
+
+    record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.WEBSITE,
+        source_id="web:pending-review",
+        raw_payload={},
+        normalized_domain="pending.example.edu",
+    )
+    db_session.add(record)
+    await db_session.flush()
+
+    # No FieldProvenance for this record -- it's still unresolved/pending
+    # human review, unlike the canonicalized-record case above.
+    snapshot = RawPageSnapshot(
+        source_run_id=run.id,
+        url="https://pending.example.edu/",
+        final_url="https://pending.example.edu/",
+        status_code=200,
+        content_type="text/html",
+        html="<html>hi</html>",
+        fetch_error="",
+        normalized_domain="pending.example.edu",
+        raw_source_record_id=record.id,
+        institution_id=None,
+    )
+    db_session.add(snapshot)
+    await db_session.flush()
+
+    pipeline = LeadPipeline(Settings(job_config={}))
+    await pipeline._retry_stranded_snapshot_links(db_session, run)
+
+    await db_session.refresh(snapshot)
+    assert snapshot.institution_id is None

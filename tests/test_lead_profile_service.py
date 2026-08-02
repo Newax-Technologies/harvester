@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.profile import (
@@ -636,6 +637,108 @@ async def test_recompute_all_lead_profiles_advances_past_a_persistently_failing_
     assert bad_profile.computed_at == original_computed_at
     assert bad_profile.last_recompute_attempted_at is not None
     assert bad_profile.last_recompute_attempted_at > original_computed_at
+
+
+@pytest.mark.asyncio
+async def test_recompute_all_lead_profiles_claim_query_never_double_claims_across_connections(
+    async_engine,
+):
+    # Correction regression test: two overlapping `recompute-lead-profiles`
+    # invocations could both select the same oldest LeadProfile rows
+    # before either commits, each recompute them, and each append its own
+    # LeadScoreSnapshot -- with_for_update(skip_locked=True) claims rows
+    # as part of the SELECT itself, so this proves two real, concurrent
+    # connections running the claim query against the same candidate set
+    # never claim the same row. Verified via a DB-truth assertion (exact
+    # LeadScoreSnapshot count per institution) rather than by monkeypatching
+    # refresh_lead_profile -- that function is a shared module-level
+    # global, and patching it from two genuinely-concurrent coroutines
+    # racing on the same attribute is itself unsafe/order-dependent, an
+    # artifact of the test technique rather than of the claim query itself.
+    import asyncio
+
+    from sqlalchemy import delete, func
+
+    from lead_harvester.models.canonical import CanonicalInstitution
+
+    setup_conn = await async_engine.connect()
+    setup_session = AsyncSession(bind=setup_conn, expire_on_commit=False)
+    institutions = [CanonicalInstitution(canonical_name=f"Claim Test School {i}") for i in range(6)]
+    setup_session.add_all(institutions)
+    await setup_session.flush()
+    for institution in institutions:
+        # Baseline: one LeadScoreSnapshot per institution before either
+        # concurrent recompute call below runs.
+        await refresh_lead_profile(setup_session, institution.id)
+    await setup_session.commit()
+    institution_ids = {i.id for i in institutions}
+    await setup_session.close()
+    await setup_conn.close()
+
+    first_claimed_event = asyncio.Event()
+    second_selected_event = asyncio.Event()
+
+    async def claim(*, first: bool) -> int:
+        conn = await async_engine.connect()
+        session = AsyncSession(bind=conn, expire_on_commit=False)
+        try:
+            if not first:
+                await first_claimed_event.wait()
+            async with session.begin():
+                count = await recompute_all_lead_profiles(session, limit=3)
+                if first:
+                    first_claimed_event.set()
+                    await second_selected_event.wait()
+                else:
+                    second_selected_event.set()
+            return count
+        finally:
+            await session.close()
+            await conn.close()
+
+    counts = await asyncio.gather(claim(first=True), claim(first=False))
+
+    try:
+        assert sum(counts) == 6
+        verify_conn = await async_engine.connect()
+        verify_session = AsyncSession(bind=verify_conn, expire_on_commit=False)
+        try:
+            rows = (
+                await verify_session.execute(
+                    select(LeadScoreSnapshot.institution_id, func.count(LeadScoreSnapshot.id))
+                    .where(LeadScoreSnapshot.institution_id.in_(institution_ids))
+                    .group_by(LeadScoreSnapshot.institution_id)
+                )
+            ).all()
+            # Exactly 2 per institution (1 baseline + 1 from being claimed
+            # and recomputed by exactly ONE of the two concurrent calls) --
+            # a double-claim would show 3 for whichever institution both
+            # connections processed.
+            assert {institution_id: count for institution_id, count in rows} == {
+                institution_id: 2 for institution_id in institution_ids
+            }
+        finally:
+            await verify_session.close()
+            await verify_conn.close()
+    finally:
+        cleanup_conn = await async_engine.connect()
+        cleanup_session = AsyncSession(bind=cleanup_conn, expire_on_commit=False)
+        try:
+            await cleanup_session.execute(
+                delete(LeadScoreSnapshot).where(
+                    LeadScoreSnapshot.institution_id.in_(institution_ids)
+                )
+            )
+            await cleanup_session.execute(
+                delete(LeadProfile).where(LeadProfile.institution_id.in_(institution_ids))
+            )
+            await cleanup_session.execute(
+                delete(CanonicalInstitution).where(CanonicalInstitution.id.in_(institution_ids))
+            )
+            await cleanup_session.commit()
+        finally:
+            await cleanup_session.close()
+            await cleanup_conn.close()
 
 
 @pytest.mark.asyncio
