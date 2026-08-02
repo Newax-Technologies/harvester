@@ -235,7 +235,8 @@ Database changes must validate the full Alembic migration chain against PostgreS
 - [Harvester Intelligence Operating Model](docs/architecture/harvester-intelligence-operating-model.md)
 - [Standalone Product and Integration Framework](docs/architecture/standalone-product-and-integration-framework.md)
 - [Automatic NEWAX Core Synchronization](docs/architecture/newax-core-automatic-sync.md)
-- [Detailed Historical Product and Architecture Specification](docs/archive/README-detailed-product-specification.md)
+
+Previous versions remain available through Git history and pull-request history instead of duplicate archive documents.
 
 ## Status language
 
