@@ -1804,3 +1804,296 @@ A change is complete only after the latest exact commit passes relevant local ch
 12. Secrets are write-only, encrypted, permission-protected, and auditable.
 13. Soft-white surfaces and soft-black actions define the frontend hierarchy.
 14. The system should do the work; the operator should remain in control.
+
+---
+
+# 30. Database Connections & Synchronization
+
+Status: **Planned**.
+
+Route:
+
+```text
+/settings/databases
+```
+
+Navigation:
+
+```text
+Operations
+└── Database Connections
+```
+
+## 30.1 Boundary
+
+PostgreSQL is provisioned separately on a server, container platform, or managed database service. The Harvester page does **not** install PostgreSQL. It connects the application to an already provisioned database, validates that connection, reports schema state, manages approved credential replacement, applies controlled migrations, coordinates backups, and runs explicit synchronization jobs.
+
+Supported deployment patterns include:
+
+```text
+Development server
+├── Harvester
+└── Development PostgreSQL
+```
+
+```text
+Application server
+└── Harvester
+
+Dedicated database server or managed service
+└── Production PostgreSQL
+```
+
+Development, testing, staging, and production must use separate databases. Several non-production databases may share one PostgreSQL instance initially, but production should use a dedicated instance or managed service when reliability and scale justify it.
+
+## 30.2 Environment profiles
+
+Required environments:
+
+```text
+Development
+Testing
+Staging
+Production
+```
+
+Optional future profiles:
+
+```text
+Preview
+Training
+Disaster Recovery
+```
+
+Each `DatabaseConnectionProfile` stores metadata such as environment, engine, host, port, database name, SSL mode, pool settings, secret reference, schema revision, state, validation time, and backup state.
+
+Passwords, complete connection URLs, client keys, and tokens remain encrypted and write-only. After storage, the UI shows only metadata and a short credential fingerprint.
+
+## 30.3 Database roles
+
+Use separate PostgreSQL roles:
+
+```text
+harvester_runtime
+Application read/write permissions only
+
+harvester_migration
+DDL and Alembic migration permissions
+
+harvester_readonly
+Health, diagnostics, and reporting
+
+harvester_backup
+Backup and restore permissions where supported
+```
+
+The normal runtime application must not possess migration or unrestricted administrative authority.
+
+## 30.4 Connection validation and activation
+
+```text
+Enter candidate connection details
+→ Reauthenticate
+→ Store candidate credentials securely
+→ Resolve host and test network access
+→ Verify TLS
+→ Authenticate
+→ Confirm expected server and database identity
+→ Verify environment identity marker
+→ Check required extensions and permissions
+→ Read current Alembic revision
+→ Run a safe health query
+→ Activate candidate atomically
+→ Retire previous credential version
+→ Record audit event
+```
+
+A failed candidate leaves the currently active connection unchanged.
+
+Each database must expose an environment marker such as:
+
+```text
+application = newax-harvester
+environment = production
+```
+
+The backend must reject activation when the expected environment does not match the database marker.
+
+## 30.5 Separate synchronization operations
+
+“Sync database” is not one undifferentiated operation.
+
+### Schema synchronization
+
+Compares application and database Alembic revisions, shows pending migrations, performs preflight checks, creates or confirms a backup, applies approved migrations, and runs post-migration verification.
+
+### Reference-data synchronization
+
+Moves approved non-sensitive versioned datasets such as sector definitions, source taxonomies, qualification-policy templates, and lookup records between environments using stable identifiers, dry-run comparison, conflict reporting, approval, and checksum verification.
+
+### Controlled business-data transfer
+
+Moves explicitly selected and governed datasets only. Production-to-non-production transfers require anonymization or redaction. Development-to-production transfer is denied by default. Credentials, sessions, sensitive personal data, and unrestricted audit history are not copied casually between environments.
+
+## 30.6 Schema comparison
+
+The page may compare:
+
+```text
+Alembic revision
+Tables
+Columns
+Data types
+Constraints
+Indexes
+Extensions
+Unexpected objects
+Missing objects
+```
+
+Schema drift produces a report and migration review. The frontend must not generate and execute uncontrolled “make target match source” SQL.
+
+## 30.7 Backups and restore
+
+Connection metadata includes last backup, backup age, type, retention, encryption state, storage reference, integrity result, and last restore test.
+
+Production restore requires reauthentication, separate approval, explicit target confirmation, maintenance-state confirmation, backup-integrity validation, and rollback planning.
+
+## 30.8 Database operation jobs
+
+Use durable jobs such as:
+
+```text
+DatabaseValidationRun
+DatabaseMigrationRun
+DatabaseBackupRecord
+DatabaseSyncJob
+DatabaseOperationApproval
+```
+
+Sync-job statuses:
+
+```text
+DRAFT
+VALIDATING
+AWAITING_APPROVAL
+BACKING_UP
+RUNNING
+VERIFYING
+COMPLETED
+COMPLETED_WITH_WARNINGS
+FAILED
+CANCELLED
+ROLLED_BACK
+```
+
+Every job records source and target environment, operation type, actor, approver, selected datasets, revisions, backup reference, row counts, conflicts, validation, timing, failures, and rollback result.
+
+## 30.9 Permissions
+
+```text
+databases.read_metadata
+databases.create_connection
+databases.update_connection
+databases.validate_connection
+databases.activate_connection
+databases.disable_connection
+databases.view_schema
+databases.run_migration
+databases.create_backup
+databases.restore_backup
+databases.sync_reference_data
+databases.transfer_data
+databases.view_audit
+```
+
+Production connection activation, credential replacement, migration, restore, and business-data transfer require reauthentication and a second approval.
+
+## 30.10 Planned APIs
+
+```http
+GET    /api/v1/database-connections
+GET    /api/v1/database-connections/{connection_id}
+POST   /api/v1/database-connections
+POST   /api/v1/database-connections/{connection_id}/replace-credentials
+POST   /api/v1/database-connections/{connection_id}/validate
+POST   /api/v1/database-connections/{connection_id}/activate
+POST   /api/v1/database-connections/{connection_id}/disable
+
+GET    /api/v1/database-connections/{connection_id}/schema
+POST   /api/v1/database-connections/{connection_id}/schema/compare
+GET    /api/v1/database-connections/{connection_id}/migrations
+POST   /api/v1/database-connections/{connection_id}/migrations/apply
+
+GET    /api/v1/database-connections/{connection_id}/backups
+POST   /api/v1/database-connections/{connection_id}/backups
+POST   /api/v1/database-connections/{connection_id}/restore
+
+POST   /api/v1/database-sync-jobs
+GET    /api/v1/database-sync-jobs
+GET    /api/v1/database-sync-jobs/{job_id}
+POST   /api/v1/database-sync-jobs/{job_id}/validate
+POST   /api/v1/database-sync-jobs/{job_id}/approve
+POST   /api/v1/database-sync-jobs/{job_id}/execute
+POST   /api/v1/database-sync-jobs/{job_id}/cancel
+```
+
+Responses expose metadata and status only, never plaintext database credentials.
+
+## 30.11 Frontend page
+
+Tabs:
+
+```text
+Connections
+Schema & Migrations
+Synchronization
+Backups
+Audit
+```
+
+The page follows the locked soft-white and soft-black system. Environment cards show connection state, engine, safe host metadata, database name, schema revision, application revision, last validation, and last backup.
+
+Primary actions include Test and Save, Apply Migration, Start Sync, and Create Backup. Secondary actions include Compare Schema, View History, and Export Report.
+
+## 30.12 Frontend module update
+
+This section supersedes the F13–F15 numbering in section 18:
+
+```text
+F13  Database Connections & Sync
+F14  Export and Communicator
+F15  Operations
+F16  End-to-end and rollout verification
+```
+
+F13 delivers environment cards, connection editing, write-only credential replacement, validation, schema comparison, migration review, synchronization jobs, conflict reports, backup metadata, approval workflows, audit history, and no-secret-leak tests.
+
+Dependencies:
+
+- Authorization matrix
+- Authentication and reauthentication
+- Secret-provider abstraction
+- Migration-driven test infrastructure
+- Approved backup provider
+- F2 application shell
+- F3 shared components
+- F4 authentication
+- F12 Secrets & Integrations
+
+## 30.13 Additional acceptance criteria
+
+The database-management capability is not complete until:
+
+1. Each environment uses an explicit independent database profile.
+2. PostgreSQL installation remains outside the frontend boundary.
+3. Candidate credentials are validated before atomic activation.
+4. Failed activation preserves the previous working connection.
+5. The database identity marker matches the selected environment.
+6. Runtime and migration roles are separate.
+7. Schema drift is reported without uncontrolled SQL execution.
+8. Production migrations require backup and approval.
+9. Reference-data synchronization supports dry run, conflict review, and verification.
+10. Controlled data transfer enforces direction, classification, redaction, approval, and audit.
+11. Backup integrity and restore procedures are tested.
+12. Plaintext database credentials never return to the frontend or enter logs, telemetry, analytics, screenshots, or audit payloads.
