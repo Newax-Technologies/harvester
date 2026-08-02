@@ -21,7 +21,6 @@ Read first:
 
 - [Authoritative Harvester Roadmap](../ROADMAP.md)
 - [Standalone Product and Integration Framework](standalone-product-and-integration-framework.md)
-- [Detailed historical Core-sync specification](../archive/newax-core-automatic-sync-detailed.md)
 
 ## 2. Three independently controlled streams
 
