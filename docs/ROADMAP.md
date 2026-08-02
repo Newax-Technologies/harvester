@@ -1831,3 +1831,396 @@ The roadmap is also incomplete until:
 - Production credentials, migrations, restores, and data transfers require explicit authorization and audit.
 - Database operations may be split into additional PRs when migration, provider, or security risk exceeds module limits.
 - The top-level roadmap remains 64 modules; 9C, 12B, and 33B are bounded submodules, and Module 64 contains F1–F16.
+
+---
+
+# 17. Automatic NEWAX Core synchronization addendum
+
+This addendum integrates Harvester's two-stream automatic publication architecture into the 64-module delivery plan. It does not increase the top-level module count.
+
+## 17.1 Product boundary
+
+Harvester publishes two independent streams:
+
+```text
+Raw Observation Stream
+Every accepted source observation is queued immediately after durable local storage.
+
+Canonical Entity Stream
+Every new or materially changed resolved entity is queued after Harvester resolution and validation.
+```
+
+Lead qualification does not determine publication. An organization, person, location, contact method, domain, website, or relationship may exist in NEWAX Core without becoming a lead. Lead status is a later commercial interpretation.
+
+## 17.2 Module 9D: Core integration identity and configuration
+
+Module 9 expands to:
+
+```text
+9A  Service authentication and frontend sessions
+9B  Secret provider and metadata-only secret management
+9C  Database connection and environment control
+9D  NEWAX Core integration identity, endpoint, contracts, and permissions
+```
+
+Module 9D delivers:
+
+- Core environment profile
+- Service-account identity metadata
+- Core endpoint reference
+- Signing-secret reference managed through Secrets & Integrations
+- Raw and canonical stream controls
+- Active source-schema compatibility
+- Connection validation
+- Delivery-rate, concurrency, retry, circuit-breaker, and backlog configuration
+- Permissions, reauthentication, approval, and audit
+- No-secret logging or frontend exposure
+
+## 17.3 Module 19B: Source-native integration contracts
+
+Module 19 gains:
+
+```text
+19B  Common source-native envelope, raw-observation contract, and canonical-entity contract
+```
+
+Deliver:
+
+- Stable event ID
+- Source system, connector, and schema identity
+- Event and receipt timestamps
+- Tenant reference
+- Source-record reference
+- Entity reference
+- Subject hint
+- Correlation ID
+- Canonical revision
+- Payload checksum
+- Source-native payload
+- Supporting observation IDs on canonical events
+- Compatibility and contract tests
+
+Raw observations use `observation.recorded` with subject hints for organizations, people, locations, contact methods, domains, websites, relationships, documents, social profiles, and unknown subjects.
+
+Canonical contracts cover organization, person, location, and relationship create, update, and retirement events.
+
+## 17.4 Module 23B: Canonical revisions, projections, and Core links
+
+Module 23 gains:
+
+```text
+23B  Canonical revision records, CoreSyncProjection, projection hashing, and CoreSyncLink
+```
+
+Deliver:
+
+- Canonical revision per entity
+- Source-native Core projection
+- Deterministic serialization
+- SHA-256 projection hash
+- Material changed-field summary
+- Supporting observation links
+- Permanent Harvester-to-Core entity link
+- Latest applied event, revision, and hash
+- Sync and reconciliation state
+
+An unchanged projection creates no event. A material change receives a new event ID and higher canonical revision.
+
+## 17.5 Module 33C: Automatic Core delivery and reconciliation jobs
+
+Module 33 expands to:
+
+```text
+33A  Live Harvest Job event streaming
+33B  Database operation jobs
+33C  Automatic Core delivery, retry, circuit breaker, backpressure, backfill, and reconciliation
+```
+
+Module 33C delivers:
+
+- Automatic delivery worker
+- Concurrency-safe claims
+- Per-aggregate ordering
+- Exact-payload retry
+- HMAC signing over transmitted bytes
+- Transient and permanent failure classification
+- Backoff with bounded jitter
+- Circuit breaker
+- Backpressure thresholds
+- Priority scheduling
+- Dead-letter recovery
+- Core response and entity-ID persistence
+- Reconciliation runs
+- Historical backfill jobs
+- Operational metrics and audit
+
+Priority:
+
+```text
+1. Live canonical changes
+2. Recent live raw observations
+3. Reconciliation and repair
+4. Historical backfill
+```
+
+## 17.6 Module 36B: Transactional raw-observation publishing
+
+Module 36 gains:
+
+```text
+36B  Transactional raw-observation outbox publication from every approved source-storage boundary
+```
+
+Deliver:
+
+- One shared `RawObservationPublisher`
+- Atomic raw-record and outbox insertion
+- Stable source-record identity
+- Payload hashing
+- Exact duplicate suppression
+- Immutable changed-source versions
+- Source-native payload preservation
+- Coverage for Google, Yandex, Apple Maps, websites, imports, Telegram, manual, research, and approved restricted sources
+- Failure tests proving raw persistence cannot commit without the required outbox event when publication is enabled
+
+## 17.7 Module 52B: Supporting-observation graph and merge-policy context
+
+Module 52 gains:
+
+```text
+52B  Supporting-observation graph and Core merge-policy context
+```
+
+Deliver:
+
+- Canonical events linked to supporting observations
+- Source and field provenance
+- Confidence and verification times
+- Harvester-owned versus Core-owned field context
+- Proposed changes rather than blind replacement of protected Core values
+- Evidence references for organization, person, location, contact, domain, website, and relationship facts
+
+Harvester supplies source-native facts and provenance. Core owns final normalization and merge decisions.
+
+## 17.8 Module 63B: NEWAX Core Sync backend APIs
+
+Module 63 gains:
+
+```text
+63B  Core Sync overview, configuration, queue, dead letter, links, backfill, and reconciliation APIs
+```
+
+Planned APIs include:
+
+```http
+GET    /api/v1/core-sync/overview
+GET    /api/v1/core-sync/configuration
+PUT    /api/v1/core-sync/configuration
+POST   /api/v1/core-sync/connection/validate
+
+GET    /api/v1/core-sync/events
+GET    /api/v1/core-sync/events/{event_id}
+POST   /api/v1/core-sync/events/{event_id}/retry
+POST   /api/v1/core-sync/events/{event_id}/cancel
+
+GET    /api/v1/core-sync/links
+GET    /api/v1/core-sync/dead-letter
+POST   /api/v1/core-sync/dead-letter/{event_id}/requeue
+
+POST   /api/v1/core-sync/backfills/preview
+POST   /api/v1/core-sync/backfills
+GET    /api/v1/core-sync/backfills/{backfill_id}
+POST   /api/v1/core-sync/backfills/{backfill_id}/pause
+POST   /api/v1/core-sync/backfills/{backfill_id}/resume
+
+POST   /api/v1/core-sync/reconciliation-runs
+GET    /api/v1/core-sync/reconciliation-runs
+GET    /api/v1/core-sync/reconciliation-runs/{run_id}
+```
+
+## 17.9 Outbox evolution
+
+The existing `EventOutbox` evolves into one multi-stream delivery ledger rather than being replaced.
+
+Planned stream types:
+
+```text
+RAW_OBSERVATION
+CANONICAL_ENTITY
+RECONCILIATION
+BACKFILL
+```
+
+Suggested fields include stream type, event type, aggregate type and ID, aggregate revision, source-record reference, payload, payload hash, priority, status, attempt count, next attempt, error, creation time, and delivery time.
+
+Every retry preserves the exact event identity and payload. A changed source observation or new canonical revision creates a new event.
+
+## 17.10 Transaction boundaries
+
+Raw observations:
+
+```text
+BEGIN
+Persist approved raw observation
+Create RAW_OBSERVATION outbox event
+COMMIT
+```
+
+Canonical entities:
+
+```text
+BEGIN
+Create or update canonical entity
+Increase canonical revision
+Build Core projection
+Compare projection hash
+Create CANONICAL_ENTITY event when materially changed
+COMMIT
+```
+
+Source connectors never construct Core-specific Registry payloads independently.
+
+## 17.11 Module 64 frontend expansion
+
+The frontend milestone now contains **17 submodules, F1–F17**. This supersedes the F1–F16 numbering in Section 16:
+
+```text
+F1   Design tokens and foundations
+F2   Application shell
+F3   Shared data components
+F4   Authentication and runtime configuration
+F5   Generate Leads
+F6   Harvest Runs and live Harvest Run
+F7   Source-specific metric displays
+F8   Generated Leads
+F9   Master Leads
+F10  Lead Dossier
+F11  Qualification and governance
+F12  Secrets & Integrations
+F13  Database Connections & Sync
+F14  NEWAX Core Sync
+F15  Export and Communicator
+F16  Operations
+F17  End-to-end and rollout verification
+```
+
+### F14: NEWAX Core Sync
+
+Planned route:
+
+```text
+/integrations/newax-core
+```
+
+Tabs:
+
+```text
+Overview
+Raw Observations
+Canonical Entities
+Delivery Queue
+Dead Letter
+Entity Links
+Reconciliation
+Settings
+```
+
+F14 delivers raw and canonical stream state, independent stream controls, worker and Core health, queue and delay metrics, live activity, event details, Core responses, permanent links, retry and dead-letter recovery, backfill, reconciliation, configuration, permissions, reauthentication, outage states, accessibility, and no-secret-leak tests.
+
+Dependencies:
+
+- Modules 8, 9B, and 9D
+- Modules 19B, 23B, 33C, 36B, 52B, and 63B
+- F2 application shell
+- F3 shared data components
+- F4 authentication
+- F12 Secrets & Integrations
+
+## 17.12 Updated dependency order
+
+```text
+Modules 1–16, including 9D
+Security, identity, secret, database, and integration foundations
+        ↓
+Modules 17–37, including 19B, 23B, 33C, and 36B
+Contracts, persistence, workers, and automatic raw/canonical scheduling
+        ↓
+Modules 38–54, including 52B
+Source workflows, resolution, provenance, and canonical publication
+        ↓
+Modules 55–63, including 63B
+Qualification, workspaces, Core Sync APIs, exports, and Communicator
+        ↓
+Module 64 / F1–F17
+Complete operating interface and rollout
+```
+
+## 17.13 Milestone updates
+
+Milestone A additionally requires Core service identity, signing-secret references, source-native envelope contracts, and no-secret-leak controls.
+
+Milestone B additionally requires transactional raw and canonical event scheduling, the delivery worker, retry, dead letter, circuit breaker, backpressure, canonical revisions, and permanent Core links.
+
+Milestone C additionally requires every approved connector to publish raw observations through the shared publisher. Connector-specific Core event construction is prohibited.
+
+Milestone D additionally requires canonical organization, person, location, and relationship changes to publish automatically with supporting observations. Lead qualification remains independent from entity publication.
+
+Milestone F additionally requires the dedicated Core Sync page, separate raw and canonical queues, independent stream controls, backfill, dead-letter, links, reconciliation, outage, and recovery workflows.
+
+## 17.14 Core prerequisites
+
+Harvester uses at-least-once delivery. Production automatic synchronization remains disabled until NEWAX Core provides:
+
+- Durable inbound inbox keyed by event ID
+- Payload-hash conflict detection
+- Idempotent result replay
+- Source schema registry
+- Raw-observation and canonical-entity adapters
+- Common normalization engine
+- Entity candidates
+- Identity resolution
+- Provenance linking
+- Field ownership and merge policy
+- Safe transaction or resumable canonical application
+- Applied source-revision tracking
+
+## 17.15 Additional acceptance criteria
+
+The roadmap is incomplete until:
+
+1. Every accepted raw observation creates an outbox event atomically.
+2. Raw publication is independent from lead qualification.
+3. Exact duplicate source observations are idempotent.
+4. Changed source records create immutable new versions.
+5. Observations from different sources remain independently traceable.
+6. Every canonical entity creation publishes automatically.
+7. Every material canonical change publishes a higher revision.
+8. Unchanged canonical projections produce no event.
+9. Supporting observation IDs are included where available.
+10. Source connectors use shared publishers rather than Core-specific code.
+11. Retries preserve event ID and exact payload.
+12. New revisions receive new event IDs.
+13. Ordering, supersession, and coalescing are deterministic.
+14. Core downtime never blocks local source or canonical persistence.
+15. Circuit breaking and backpressure are tested.
+16. Raw and canonical streams can be paused independently without data loss.
+17. Live work is prioritized over historical backfill.
+18. Permanent Core entity links are stored and reconciled.
+19. Dead-letter events remain visible and recoverable.
+20. Organizations and people may exist without lead profiles.
+21. Lead qualification remains a separate commercial classification.
+22. Core provides durable inbox idempotency and safe application boundaries.
+23. F14 passes permission, reauthentication, accessibility, outage, backlog, recovery, and no-secret-leak tests.
+24. Exact-head runtime, integration, migration, security, and CI checks pass.
+
+## 17.16 Governance update
+
+- The top-level roadmap remains 64 modules.
+- Modules 9D, 19B, 23B, 33C, 36B, 52B, and 63B are bounded submodules.
+- Module 64 contains F1–F17.
+- Raw observations and canonical entities are separate streams with separate controls and metrics.
+- “Not a lead” never means “not an entity.”
+- Harvester owns source-native publication and provenance; Core owns canonical formatting and merge policy.
+- Production automation remains gated by verified Core inbox and canonical-application controls.
+
+The complete implementation detail remains in [`docs/ROADMAP-CORE-SYNC.md`](ROADMAP-CORE-SYNC.md), with the full architecture in [`docs/architecture/newax-core-automatic-sync.md`](architecture/newax-core-automatic-sync.md).
