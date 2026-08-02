@@ -1,6 +1,6 @@
 # Harvester Documentation Map
 
-This directory contains the authoritative product, architecture, delivery, and historical documentation for NEWAX Harvester.
+This directory contains the authoritative product, architecture, and delivery documentation for NEWAX Harvester.
 
 Harvester is standalone lead-intelligence infrastructure. It converts a governed market definition into evidence-backed, reviewable, and operationally usable opportunities while preserving customer ownership and control.
 
@@ -22,9 +22,7 @@ When documents overlap, use this order:
 4. [Optional NEWAX Core Synchronization](architecture/newax-core-automatic-sync.md)
    - Optional Harvester-to-Core streams, application identity, credentials, delivery, links, reconciliation, and failure behavior
 
-5. Historical specifications in [`archive/`](archive/)
-   - Preserved for context and traceability
-   - Not authoritative when they conflict with current documents
+Previous versions remain available through Git history and pull-request history rather than duplicate archive documents inside the active repository.
 
 ## Locked product boundaries
 
@@ -53,5 +51,5 @@ No product shares private database tables, database-owner credentials, migration
 - Product delivery changes belong in `ROADMAP.md`.
 - Operating-model and decision-invariant changes belong in the intelligence operating model.
 - Integration-boundary changes belong in the integration framework or the relevant adapter document.
-- Historical documents remain archived rather than silently rewritten into apparent current authority.
+- Superseded versions remain in Git history rather than duplicate active documentation.
 - Do not create parallel roadmaps, duplicate module counts, or hidden product dependencies.
