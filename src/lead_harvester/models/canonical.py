@@ -92,7 +92,7 @@ class Branch(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     institution_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("canonical_institutions.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("canonical_institutions.id"), nullable=False
     )
 
     branch_name: Mapped[str] = mapped_column(String(255), default="", nullable=False)
@@ -124,7 +124,7 @@ class ContactPoint(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     institution_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("canonical_institutions.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("canonical_institutions.id"), nullable=False
     )
 
     contact_type: Mapped[str] = mapped_column(
@@ -142,12 +142,8 @@ class ContactPoint(Base):
     # whenever a contact with a non-blank person_name is written. Null for
     # contacts with no person_name (a bare office phone/email) or for rows
     # written before this column existed.
-    # SET NULL, not CASCADE: this is a soft classification link (which
-    # PersonCandidate this contact's person_name resolves to), not
-    # ownership -- a ContactPoint should survive its PersonCandidate being
-    # removed, not be deleted along with it.
     person_candidate_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("person_candidates.id", ondelete="SET NULL"), nullable=True, index=True
+        ForeignKey("person_candidates.id"), nullable=True, index=True
     )
 
     institution: Mapped["CanonicalInstitution"] = relationship(

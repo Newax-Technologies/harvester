@@ -33,7 +33,7 @@ class PersonCandidate(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     institution_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("canonical_institutions.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("canonical_institutions.id"), nullable=False, index=True
     )
 
     # The name as most recently seen -- kept in its original casing/spacing

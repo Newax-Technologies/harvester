@@ -1,16 +1,7 @@
-import uuid
-
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lead_harvester.api.dependencies import (
-    User,
-    get_current_user,
-    get_db_session,
-    get_lead_sync_emitter,
-)
-from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
-from lead_harvester.integrations.lead_sync_resync import resync_institution
+from lead_harvester.api.dependencies import User, get_current_user, get_db_session
 from lead_harvester.models.compliance import DeletionRequestStatus
 from lead_harvester.schemas.compliance import (
     AddSuppressionRequest,
@@ -98,11 +89,9 @@ async def create_deletion_request(
 
 @router.post("/deletion-requests/{request_id}/fulfill", response_model=DeletionRequestResponse)
 async def fulfill_deletion_request(
-    background_tasks: BackgroundTasks,
     request_id: str = Path(...),
     session: AsyncSession = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
-    lead_sync_emitter: LeadSyncEmitter = Depends(get_lead_sync_emitter),
 ):
     """Actually deletes the requested subject. Irreversible."""
     try:
@@ -110,16 +99,6 @@ async def fulfill_deletion_request(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     await session.commit()
-    # Scheduled only after the transaction above has committed -- see
-    # compliance_service.py::_resync_institution_id_if_eligible for why a
-    # contact erasure's downstream resync must not be attempted inside
-    # that still-open transaction. Uses the same resync_institution
-    # helper/pattern as services/resolution_service.py::make_decision.
-    resync_institution_id = request.manifest.get("downstream_resync_institution_id")
-    if resync_institution_id:
-        background_tasks.add_task(
-            resync_institution, lead_sync_emitter, uuid.UUID(resync_institution_id)
-        )
     return DeletionRequestResponse.model_validate(request)
 
 

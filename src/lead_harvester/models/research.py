@@ -31,7 +31,7 @@ class ResearchJob(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     institution_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("canonical_institutions.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("canonical_institutions.id"), nullable=False, index=True
     )
 
     status: Mapped[JobStatus] = mapped_column(
@@ -64,10 +64,10 @@ class ResearchFinding(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     institution_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("canonical_institutions.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("canonical_institutions.id"), nullable=False, index=True
     )
     job_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("research_jobs.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("research_jobs.id"), nullable=False, index=True
     )
 
     finding_type: Mapped[FindingType] = mapped_column(Enum(FindingType), nullable=False)

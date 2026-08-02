@@ -41,17 +41,17 @@ class ResolutionCandidate(Base):
 
     # The new incoming record we are trying to resolve
     raw_record_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("raw_source_records.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("raw_source_records.id"), nullable=False, index=True
     )
 
     # The existing canonical institution we think it might match
     target_canonical_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("canonical_institutions.id", ondelete="CASCADE"), nullable=True, index=True
+        ForeignKey("canonical_institutions.id"), nullable=True, index=True
     )
 
     # Or, matching against another raw record if no canonical exists yet
     target_raw_record_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("raw_source_records.id", ondelete="CASCADE"), nullable=True, index=True
+        ForeignKey("raw_source_records.id"), nullable=True, index=True
     )
 
     # The mechanism that found this candidate (e.g. "blocking_geographic", "blocking_domain")
@@ -83,7 +83,7 @@ class MatchAssessment(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     candidate_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("resolution_candidates.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("resolution_candidates.id"), nullable=False
     )
 
     # Granular scoring

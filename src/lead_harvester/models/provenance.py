@@ -19,10 +19,10 @@ class FieldProvenance(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     canonical_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("canonical_institutions.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("canonical_institutions.id"), nullable=False, index=True
     )
     raw_record_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("raw_source_records.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("raw_source_records.id"), nullable=False, index=True
     )
 
     # The name of the field on the canonical entity (e.g. "domain", "primary_phone", "canonical_name")
