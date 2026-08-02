@@ -8,6 +8,8 @@ It connects approved public, authorized, customer-owned, and partner sources, pr
 
 The [Harvester Intelligence Operating Model](docs/architecture/harvester-intelligence-operating-model.md) defines the strengthened domain objects, evidence graph, decision contracts, confidence model, bounded automation, learning loop, operational economics, and architectural tests used across the existing 64-module roadmap.
 
+The [NEWAX Harvester Opportunity Scoring Model v3](docs/architecture/opportunity-scoring-model-v3.md) defines how confirmed infrastructure absence, severe weakness, strategic fit, account value, buying timing, pursuit readiness, evidence quality, identity confidence, coverage, and risk must combine into an explainable opportunity decision.
+
 ## Product boundary
 
 Harvester is designed as a separate, resellable application with its own:
@@ -177,7 +179,7 @@ The repository currently provides substantial backend foundations, including:
 - Account briefs, outreach drafts, and outcomes
 - FastAPI routes and CLI workflows
 
-The complete market-definition engine, multi-source Harvest Job orchestration, evidence graph, decision-contract model, generic connection framework, governed learning loop, resale foundation, and optional-product integration architecture remain planned until implemented and verified.
+The complete market-definition engine, multi-source Harvest Job orchestration, evidence graph, decision-contract model, Opportunity Scoring Model v3 runtime, generic connection framework, governed learning loop, resale foundation, and optional-product integration architecture remain planned until implemented and verified.
 
 ## Automatic publication
 
@@ -233,6 +235,7 @@ Database changes must validate the full Alembic migration chain against PostgreS
 - [Documentation Authority Map](docs/README.md)
 - [Authoritative Roadmap](docs/ROADMAP.md)
 - [Harvester Intelligence Operating Model](docs/architecture/harvester-intelligence-operating-model.md)
+- [NEWAX Harvester Opportunity Scoring Model v3](docs/architecture/opportunity-scoring-model-v3.md)
 - [Standalone Product and Integration Framework](docs/architecture/standalone-product-and-integration-framework.md)
 - [Automatic NEWAX Core Synchronization](docs/architecture/newax-core-automatic-sync.md)
 
