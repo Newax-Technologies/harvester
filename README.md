@@ -33,10 +33,14 @@ Harvester + Communicator
 Harvester publishing rule → direct adapter → Communicator mapping and normalization
 
 Harvester + NEWAX Core
-Optional raw-observation and canonical-entity streams → Core ingestion and identity governance
+Optional raw-observation, resolved-entity, and approved lead-context streams
+→ Core ingestion, canonical identity, provenance, and governance
 
 Full NEWAX deployment
-Harvester + optional Core identity and governance + optional Communicator activation
+Harvester
+├── optional direct Communicator adapter
+├── optional NEWAX Core adapter
+└── optional customer or partner destinations
 ```
 
 ## Independent formatting
@@ -154,9 +158,9 @@ When optional destinations are configured, Harvester may publish through durable
 
 Every accepted source observation may be queued after durable local storage.
 
-### Canonical entities
+### Resolved entities
 
-Every new or materially changed resolved entity may be queued after Harvester resolution and validation.
+Every new or materially changed Harvester-resolved entity may be queued after local resolution and validation.
 
 ### Lead context
 
