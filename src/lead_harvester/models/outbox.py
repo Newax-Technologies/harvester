@@ -48,8 +48,16 @@ class EventOutbox(Base):
     __tablename__ = "event_outbox"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    institution_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("canonical_institutions.id"), nullable=False, index=True
+    # Nullable: every ordinary event is about a live institution, but
+    # services/compliance_service.py::_erase_institution's own
+    # "institution.deleted" tombstone event deliberately leaves this NULL
+    # -- that institution is being deleted in the same transaction this
+    # row is written in, and this FK's CASCADE (see migration
+    # a5c7e9f1b3d5) would otherwise delete the tombstone right along with
+    # it, before it can ever be delivered. The institution's id still
+    # travels inside `payload` itself, which is all delivery needs.
+    institution_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("canonical_institutions.id", ondelete="CASCADE"), nullable=True, index=True
     )
 
     # E.g. "institution.upserted" -- mirrors lead_sync_emitter.py's payload

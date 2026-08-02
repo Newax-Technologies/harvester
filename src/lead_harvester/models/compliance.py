@@ -1,9 +1,10 @@
 import enum
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import DateTime, Enum, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from lead_harvester.database import Base
@@ -91,3 +92,12 @@ class DeletionRequest(Base):
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     fulfilled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Correction (docs/ROADMAP.md module 11): the deletion graph's own
+    # record of what it did -- per-table deleted counts, which raw
+    # evidence records were retained because another institution still
+    # depends on them, and the post-delete verification result -- set by
+    # services/compliance_service.py::fulfill_deletion. Empty for a
+    # PENDING or REJECTED request; only ever populated once, at the same
+    # time status flips to COMPLETED.
+    manifest: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)

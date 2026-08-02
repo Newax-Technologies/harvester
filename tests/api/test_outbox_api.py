@@ -97,6 +97,39 @@ async def test_list_outbox_entries_returns_seeded_rows(client_a, db_session):
 
 
 @pytest.mark.asyncio
+async def test_list_outbox_entries_includes_deletion_tombstone_rows(client_a, db_session):
+    # Correction regression test: services/compliance_service.py::
+    # _enqueue_deletion_event's "institution.deleted" tombstone row
+    # deliberately has institution_id=None (see models/outbox.py's comment)
+    # so it survives the erased institution's own CASCADE -- the response
+    # schema must accept that null instead of failing validation for the
+    # whole listing the moment one tombstone exists.
+    tombstone = EventOutbox(
+        institution_id=None,
+        event_type="institution.deleted",
+        payload={
+            "schemaVersion": 1,
+            "eventId": str(uuid.uuid4()),
+            "eventType": "institution.deleted",
+            "occurredAt": datetime.now(UTC).isoformat(),
+            "institution": {"id": str(uuid.uuid4())},
+        },
+        status=OutboxStatus.PENDING,
+        next_attempt_at=datetime.now(UTC) - timedelta(seconds=1),
+    )
+    db_session.add(tombstone)
+    await db_session.commit()
+
+    response = await client_a.get("/api/v1/outbox")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [e["id"] for e in body] == [str(tombstone.id)]
+    assert body[0]["institution_id"] is None
+    assert body[0]["event_type"] == "institution.deleted"
+
+
+@pytest.mark.asyncio
 async def test_list_outbox_entries_filters_by_status(client_a, db_session):
     await _seed_pending_row(db_session)
     await db_session.commit()

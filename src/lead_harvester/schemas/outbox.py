@@ -8,7 +8,12 @@ from lead_harvester.schemas.common import BaseSchema
 
 class EventOutboxResponse(BaseSchema):
     id: UUID
-    institution_id: UUID
+    # Nullable: the "institution.deleted" tombstone EventOutbox row
+    # (services/compliance_service.py::_enqueue_deletion_event) deliberately
+    # leaves this unset so it survives the institution's own CASCADE -- see
+    # models/outbox.py's institution_id comment. The institution's id still
+    # travels inside payload for that row.
+    institution_id: UUID | None
     event_type: str
     payload: dict[str, Any]
     status: OutboxStatus

@@ -508,6 +508,36 @@ Roughly mapped against what exists in `src/lead_harvester/` today:
   to not widen `OutreachDraft`'s already carefully-claimed `SENDING`/`SENT` state machine for this
   fix; `consent_evidence` reuses the existing `ContactPoint.is_publicly_listed` flag rather than a
   new tracked field, since that's already the closest signal this codebase records.
+  - **Correction (migration `a5c7e9f1b3d5`)**: `fulfill_deletion` previously did a naive
+    `session.delete(subject)` -- against a `CanonicalInstitution`, that either raised
+    `ForeignKeyViolation` (most dependent tables carried no `ON DELETE` behavior at all) or, for
+    the handful of tables with an ORM-level `cascade="all, delete-orphan"` relationship
+    (`Branch`, `ContactPoint`), silently removed only part of the subject's data -- neither
+    outcome satisfies an erasure workflow. `fulfill_deletion` now runs an explicit deletion graph
+    (`services/compliance_service.py::_erase_institution`/`_erase_contact_point`), backed by
+    `ON DELETE CASCADE` added to every FK reachable from `canonical_institutions.id` or
+    `raw_source_records.id` (`Branch`, `ContactPoint`, `AccountBrief`+`OutreachDraft`+
+    `OutreachOutcome`, `ResolutionCandidate`+`MatchAssessment`, `FieldProvenance`,
+    `QualificationAssessment`, `ResearchJob`+`ResearchFinding`, `PersonCandidate`, `Signal`,
+    `DataQualityFlag`, `LeadReservation`, `LeadProfile`, `LeadScoreSnapshot`, `EventOutbox`,
+    `RawPageSnapshot`) plus `ON DELETE SET NULL` on `ContactPoint.person_candidate_id` (a soft
+    classification link, not ownership). A single `DELETE` against the institution row now
+    removes its entire owned subtree in one database round trip within one transaction, instead
+    of an application-level ordered delete per table. `RawSourceRecord` -- the one piece of a
+    subject's data with no direct `institution_id` column, reachable only indirectly through the
+    `FieldProvenance` rows it backs -- is partitioned into exclusive (this institution's alone;
+    erased) versus shared (also evidencing a different institution; retained and reported,
+    rather than destroying that other institution's evidence trail) before anything is deleted.
+    `AuditLog` (whose `entity_id` was deliberately never a real FK, see `models/audit.py`) and
+    `SuppressionEntry` (keyed by contact value, not institution lifecycle) are retained
+    untouched -- the "retained for lawful audit" and "retained as unrelated" halves of the
+    decision, as opposed to "deleted". `fulfill_deletion` now writes the resulting deletion
+    manifest (per-table deleted counts, retained/shared raw records, a post-delete verification
+    result confirming zero residual rows) onto `DeletionRequest.manifest`, and records the
+    fulfillment itself as an `AuditLog` row. See
+    `tests/test_compliance_service.py::test_fulfill_deletion_erases_every_dependent_record_type_in_one_transaction`
+    (seeds one institution with every dependent record type and asserts full, transaction-safe
+    erasure) and `test_fulfill_deletion_retains_a_raw_source_record_shared_with_another_institution`.
 - **Verification and Data Quality**: done for v1 scope. `verification/checks.py` states three
   checks as pure functions over already-loaded data: `check_confidence_drift` (does
   `CanonicalInstitution.confidence_score` still match what `verification/confidence.py`'s
