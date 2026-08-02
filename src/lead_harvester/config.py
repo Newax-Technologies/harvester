@@ -1,5 +1,13 @@
+from dotenv import load_dotenv
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Local development keeps ordinary configuration in .env and credentials in
+# .env.secrets. Load the secrets file first so it wins over duplicate values
+# in .env, while real process/deployment environment variables still keep the
+# highest priority because override=False never replaces an existing value.
+load_dotenv(".env.secrets", override=False)
+load_dotenv(".env", override=False)
 
 MIN_LEAD_SYNC_WEBHOOK_SECRET_LENGTH = 32
 
@@ -55,7 +63,11 @@ class Settings(BaseSettings):
     icp_target_institution_types: list[str] = []
     icp_min_branch_count: int = 0
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=(".env", ".env.secrets"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     @model_validator(mode="after")
     def _require_strong_webhook_secret_when_enabled(self) -> "Settings":
