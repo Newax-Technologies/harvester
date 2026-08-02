@@ -198,11 +198,9 @@ Database changes must validate the full Alembic migration chain against PostgreS
 ## Documentation
 
 - [Detailed Product and Architecture Specification](docs/archive/README-detailed-product-specification.md)
-- [Main Roadmap](docs/ROADMAP.md)
+- [Authoritative Roadmap](docs/ROADMAP.md)
 - [Standalone Product and Integration Framework](docs/architecture/standalone-product-and-integration-framework.md)
-- [Standalone Product Roadmap](docs/ROADMAP-STANDALONE-PRODUCT.md)
 - [Automatic NEWAX Core Synchronization](docs/architecture/newax-core-automatic-sync.md)
-- [Core Synchronization Roadmap](docs/ROADMAP-CORE-SYNC.md)
 
 ## Status language
 
