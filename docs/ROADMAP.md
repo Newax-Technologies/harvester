@@ -2,24 +2,25 @@
 
 ## Document purpose
 
-This roadmap is the delivery plan for evolving the existing NEWAX Lead Harvester into a controlled, source-aware lead-discovery and qualification system.
+This roadmap is the delivery plan for evolving the existing NEWAX Lead Harvester into a controlled, source-aware lead-discovery and qualification system with a complete enterprise operating interface.
 
-The roadmap has four responsibilities:
+The roadmap has five responsibilities:
 
-1. Preserve the capabilities that already exist and avoid rebuilding them under new names.
+1. Preserve capabilities that already exist and avoid rebuilding them under new names.
 2. Correct security, data-integrity, evidence, and operational weaknesses before adding orchestration.
 3. Define the next-generation Harvest Job workflow, source-specific processing model, adaptive source UI, sector-specific qualification policies, result workspaces, exports, and Communicator handoff.
-4. Divide the work into small but meaningful delivery modules that can be implemented, reviewed, tested, and merged safely.
+4. Lock the frontend visual system, navigation, product pages, secure Secrets & Integrations experience, and frontend implementation sequence.
+5. Divide the work into small but meaningful delivery modules that can be implemented, reviewed, tested, and merged safely.
 
 The roadmap describes required work. A detailed item is not proof that it has already been implemented.
 
 ### Status vocabulary
 
-- **Current**: available in the repository today.
-- **Correction pending**: implemented in an open correction branch or PR but not yet integrated into `master`.
-- **Planned**: required future work.
-- **Restricted**: must remain disabled until the access, security, compliance, and operating model is approved.
-- **Deferred**: intentionally outside the active delivery sequence.
+- **Current:** available in the repository today.
+- **Correction pending:** implemented in an open correction branch or PR but not yet integrated into `master`.
+- **Planned:** required future work.
+- **Restricted:** must remain disabled until the access, security, compliance, and operating model is approved.
+- **Deferred:** intentionally outside the active delivery sequence.
 
 ---
 
@@ -71,6 +72,7 @@ The current repository already contains valuable foundations. The next architect
 - NEWAX Core lead-sync integration
 - Account briefs, outreach drafts, approval states, and outreach outcomes
 - Operations, health, metrics, and audit APIs
+- A React frontend covering a limited subset of backend capabilities
 
 ## Current architectural limitations
 
@@ -89,6 +91,8 @@ The current repository already contains valuable foundations. The next architect
 - Daily selection is not connected to a full Communicator campaign model.
 - Selected-ID exports and frozen campaign audiences do not exist.
 - Professional-network research is not safely integrated into organization and person resolution.
+- Frontend runtime configuration and authentication remain development-oriented.
+- There is no production-safe UI for credential metadata, replacement, provider validation, or rotation.
 
 ## Open correction sequence
 
@@ -107,7 +111,7 @@ UNKNOWN
 ```
 
 3. Complete deletion graph, deletion manifest, and residual-data verification.
-4. Recalculation of affected historical lead profiles after the evidence corrections.
+4. Recalculation of affected historical lead profiles after evidence corrections.
 
 No-detection, no-crawl, and crawl-failure states must not be treated as confirmed absence.
 
@@ -115,7 +119,9 @@ No-detection, no-crawl, and crawl-failure states must not be treated as confirme
 
 # 3. Delivery model
 
-This roadmap contains **64 delivery modules**.
+This roadmap contains **64 top-level delivery modules**.
+
+The frontend milestone is further decomposed into **15 frontend submodules, F1–F15**. These submodules do not change the top-level count; they make Module 64 executable instead of leaving “build the frontend” as one enormous and faintly threatening sentence.
 
 A module is a bounded implementation outcome, usually delivered through one pull request. A module may contain related models, services, routes, migrations, frontend work, and tests when splitting them would create unusable half-features.
 
@@ -163,41 +169,13 @@ Inspect live state
 
 Every source works differently. Google Places, Yandex Maps, Apple Maps, websites, imports, Telegram, and professional-network data have different access methods, evidence, pagination, rate limits, failure modes, entity types, and upgrade cycles.
 
-The architecture must therefore use:
+The architecture must use:
 
 > **One stable Harvest Job orchestration standard with an independently upgradable workflow for each source.**
 
-The parent orchestration layer owns:
+The parent orchestration layer owns the user request, market, objective, source mix, target, quality rules, overall state, aggregate progress, audit history, and frozen result set.
 
-- User request
-- Sector and objective
-- Organization type
-- Geography
-- Source mix
-- Target accepted lead count
-- Candidate budget
-- Quality mode
-- Required data
-- Exclusions
-- Overall status
-- Pause, resume, retry, and cancellation
-- Aggregate progress
-- Audit history
-- Frozen results
-
-Each connector owns:
-
-- Credential and capability validation
-- Source-specific planning
-- Source queries or crawl plan
-- Pagination or traversal
-- Rate limits and quotas
-- Source-specific retries
-- Source-specific evidence extraction
-- Source-specific checkpoints
-- Source metrics
-- Connector and workflow versions
-- Source API compatibility
+Each connector owns credential and capability validation, planning, queries or crawl traversal, pagination, rate limits, retries, evidence extraction, checkpoints, metrics, and connector compatibility.
 
 All connectors eventually emit common normalized evidence into shared resolution, enrichment, qualification, and scoring services.
 
@@ -238,11 +216,9 @@ Entity resolution
 Finalization
 ```
 
-The UI uses a generic stage renderer but displays separate source cards, metrics, warnings, and details for each connector.
+The UI uses a generic stage renderer while displaying separate source cards, metrics, warnings, and detail panels for each connector.
 
 ## 4.3 Common statuses
-
-Jobs, source runs, and stages use a compatible vocabulary:
 
 ```text
 PENDING
@@ -260,9 +236,9 @@ CANCELLING
 CANCELLED
 ```
 
-Source-specific conditions are represented through machine-readable error codes, warning codes, and metrics, not incompatible status values.
+Source-specific conditions are represented through machine-readable error codes, warning codes, and metrics.
 
-## 4.4 Version every execution
+## 4.4 Execution versioning
 
 Every source run records:
 
@@ -275,7 +251,7 @@ Every source run records:
 - Configuration snapshot
 - Capability snapshot
 
-A running job remains pinned to the versions selected when it starts.
+A running job remains pinned to its starting versions.
 
 ## 4.5 Target product workflow
 
@@ -305,27 +281,13 @@ Generate Leads
 
 # 5. Sourcing strategy
 
-## 5.1 Source selection principles
+## 5.1 Source-selection principles
 
-The user chooses sources according to the market, evidence required, cost, access rights, and expected contribution.
+A source is selected because it contributes useful evidence for the requested market, not merely because a connector exists.
 
-A source must declare capabilities such as:
+Every connector declares capabilities such as organization discovery, person discovery, phone, email, website, geographic coverage, branch discovery, incremental results, pause/resume, and cost estimation.
 
-- Organization discovery
-- Person discovery
-- Phone discovery
-- Email discovery
-- Website discovery
-- Geographic search
-- Branch discovery
-- Technology detection
-- Incremental results
-- Pause and resume
-- Cost estimation
-
-The Generate Leads page should explain what each source can and cannot contribute.
-
-A source is not selected merely because it exists. It is selected because it contributes useful evidence for the requested sector, organization type, geography, and objective.
+The Generate Leads page explains what each selected source can and cannot contribute.
 
 ## 5.2 Google Places sourcing plan
 
@@ -336,12 +298,10 @@ Purpose:
 - Public phone and website discovery
 - Provider ID and operating-status evidence
 
-Planned workflow:
-
 ```text
 Validate Google access
 → Resolve quota and cost limits
-→ Translate sector and organization types into categories and search queries
+→ Translate sector and organization types into categories and queries
 → Build geographic coverage
 → Execute text and nearby searches
 → Follow pagination tokens
@@ -352,23 +312,7 @@ Validate Google access
 → Report coverage, quota, cost, and failures
 ```
 
-Required metrics:
-
-- Areas planned and completed
-- Queries planned and completed
-- Requests made
-- Pages processed
-- Places returned
-- Unique provider IDs
-- Duplicate provider results removed
-- Records normalized
-- Institutions created
-- Institutions enriched
-- Ambiguous matches
-- Quota consumed
-- Estimated cost
-- Rate-limit retries
-- Failed requests
+Required metrics include areas, queries, requests, pages, places, unique IDs, provider duplicates, normalized records, resolution outcomes, quota, estimated cost, rate-limit retries, and failures.
 
 ## 5.3 Yandex Maps sourcing plan
 
@@ -378,23 +322,20 @@ Purpose:
 - Cross-source corroboration
 - Region-specific map evidence
 
-Planned workflow:
-
 ```text
 Validate Yandex access
 → Translate sector taxonomy
 → Build geographic search areas
 → Execute organization searches
 → Parse GeoJSON features
-→ Process names, categories, phones, URLs, addresses, coordinates, and provider identifiers
+→ Process identity, contact, address, coordinate, and provider evidence
 → Handle pagination and rate limits
-→ Normalize evidence
-→ Persist raw Yandex records
+→ Normalize and persist evidence
 → Resolve institutions and branches
 → Report coverage and failures
 ```
 
-Yandex maintains its own taxonomy mapping and response parser while emitting the shared normalized-evidence contract.
+Yandex maintains its own taxonomy and parser while emitting the common evidence contract.
 
 ## 5.4 Apple Maps sourcing plan
 
@@ -403,8 +344,6 @@ Purpose:
 - Alternative map coverage
 - Cross-source identity and location corroboration
 
-Planned workflow:
-
 ```text
 Validate MapKit signing configuration
 → Create or refresh token
@@ -412,26 +351,20 @@ Validate MapKit signing configuration
 → Build geographic search plan
 → Execute searches
 → Derive stable versioned source identifiers when required
-→ Normalize evidence
-→ Persist source records
+→ Normalize and persist evidence
 → Resolve institutions and branches
-→ Report token, quota, coverage, and failure metrics
+→ Report token, quota, coverage, and failures
 ```
-
-Any derived source-ID algorithm must be versioned.
 
 ## 5.5 Website sourcing plan
 
 Purpose:
 
 - Organization enrichment
-- Email and phone extraction
+- Contact extraction
 - Decision-maker evidence
 - Technology and operational-signal detection
-- Website-quality evidence
-- Service-gap evidence
-
-Planned workflow:
+- Website-quality and service-gap evidence
 
 ```text
 Receive or discover seed domains
@@ -444,61 +377,22 @@ Receive or discover seed domains
 → Extract organization identity
 → Extract all usable phones and emails
 → Extract social profiles and contact forms
-→ Extract person and role candidates with evidence
+→ Extract people and roles with evidence
 → Detect technologies and operational signals
 → Aggregate evidence by domain and organization
 → Resolve organizations, branches, people, and contacts
 → Compute evidence-aware detection states
-→ Report coverage and failure reasons
+→ Report coverage and failures
 ```
-
-Priority pages may include:
-
-- Homepage
-- Contact
-- About
-- Team
-- Leadership
-- Services
-- Admissions
-- Locations
-- Portal
-- Careers
-- Privacy and legal pages when needed for identity evidence
-
-Required metrics:
-
-- Seeds supplied and discovered
-- Domains accepted and rejected
-- Domains crawled
-- Pages planned and fetched
-- Successful pages
-- Robots-disallowed pages
-- HTTP failures
-- Non-HTML pages
-- Oversized responses
-- Decode failures
-- Contacts extracted
-- Person candidates extracted
-- Signals detected
-- Institutions resolved
 
 Required evidence rules:
 
-- A static crawler cannot prove universal technology absence.
 - `NOT_DETECTED` is not `ABSENT_CONFIRMED`.
 - `NOT_CRAWLED` and `CRAWL_FAILED` contribute no confirmed absence evidence.
-- Website snapshots used for scoring must be linked to the correct institution or domain.
-- Contact-to-person attribution requires supporting evidence.
+- Website snapshots used for scoring are institution/domain scoped.
+- Contact-to-person attribution requires evidence.
 
-## 5.6 Authorized import sourcing plan
-
-Purpose:
-
-- Licensed, partner, customer-provided, or otherwise authorized structured data
-- Controlled bulk intake
-
-Planned workflow:
+## 5.6 Authorized-import sourcing plan
 
 ```text
 Validate source authority
@@ -509,56 +403,28 @@ Validate source authority
 → Reject invalid rows with explicit reasons
 → Detect unchanged reimports
 → Detect new evidence in known rows
-→ Persist append-only raw import evidence
+→ Persist append-only raw evidence
 → Resolve organizations and people
 → Produce import and rejection reports
 ```
 
-Required metrics:
-
-- Rows read
-- Rows valid
-- Rows rejected
-- Unchanged rows skipped
-- New institutions created
-- Existing institutions enriched
-- Contacts added
-- Ambiguous matches
-
 ## 5.7 Telegram sourcing plan
 
-Purpose:
-
-- Public-channel organization and contact evidence where permitted
-- Secondary corroboration
-
-Planned workflow:
-
 ```text
-Validate configured channels and source policy
+Validate channels and source policy
 → Fetch permitted public metadata and content
 → Extract organization identity and public contacts
-→ Normalize evidence
-→ Persist source records
+→ Normalize and persist evidence
 → Resolve organizations
 → Record coverage and failures
 ```
 
-Telegram evidence should not automatically become high-confidence identity evidence without corroboration.
+Telegram evidence does not automatically become high-confidence identity evidence without corroboration.
 
 ## 5.8 Manual sourcing plan
 
-Purpose:
-
-- Referrals
-- Field research
-- Existing business knowledge
-- Controlled operator entry
-
-Planned workflow:
-
 ```text
-Validate authorized user input
+Validate authorized input
 → Create manual source run
 → Preserve original input
 → Normalize identity and contacts
@@ -570,15 +436,11 @@ Validate authorized user input
 → Attempt durable Core synchronization when enabled
 ```
 
-Manual entry must not bypass duplicate resolution through unconditional canonical creation.
+Manual entry must not bypass duplicate resolution.
 
 ## 5.9 Professional-network sourcing plan
 
 Status: **Restricted**.
-
-The source remains disabled until an approved platform-access method, source-policy basis, credential model, security controls, and operating procedure are documented and implemented.
-
-The future workflow is person-aware:
 
 ```text
 Validate approved access method
@@ -586,16 +448,16 @@ Validate approved access method
 → Collect permitted evidence
 → Identify person and role
 → Identify organization reference
-→ Resolve organization against canonical institutions
+→ Resolve organization
 → Resolve or create PersonCandidate
-→ Attach contact evidence only when attribution is supported
+→ Attach contacts only when attribution is supported
 → Run structured research with prompt-injection controls
 → Separate facts from inferences
 → Persist findings, signals, and account brief
-→ Refresh organization and person readiness
+→ Refresh readiness
 ```
 
-A person must not be created as though the person were the organization.
+A person must not be created as the organization.
 
 ---
 
@@ -603,25 +465,11 @@ A person must not be created as though the person were the organization.
 
 ## 6.1 Qualification and opportunity scoring are separate
 
-Qualification answers:
+Qualification asks whether an organization enters the usable pool for a specific objective. Opportunity scoring ranks value, relevance, and timing.
 
-```text
-Should this organization enter the usable lead pool for this objective?
-```
-
-Opportunity scoring answers:
-
-```text
-How valuable, relevant, and timely does the opportunity appear?
-```
-
-A lead may qualify but have a modest opportunity score because its infrastructure is already mature.
-
-A lead may show a large service gap but still be disqualified because it is unreachable, prohibited, permanently closed, suppressed, or based on insufficient evidence.
+A qualified organization may have a modest opportunity score. A large service gap does not override suppression, closure, ethical exclusions, unreachable status, or inadequate evidence.
 
 ## 6.2 Policy identity
-
-Qualification is selected using:
 
 ```text
 Sector
@@ -635,321 +483,465 @@ Assessment or campaign objective
 Policy version
 ```
 
-Example:
-
-```text
-education / new_business / private_school / admissions_automation / version_3
-```
-
 ## 6.3 Universal eligibility safeguards
 
-Every sector policy operates after common safeguards:
-
-- Canonical organization identity exists.
-- Identity conflicts are below the allowed threshold.
+- Canonical identity exists.
+- Identity conflicts are below threshold.
 - Operating status is acceptable.
-- Required contactability exists for the objective.
-- Intended contact channel is not suppressed.
-- Data confidence reaches the minimum threshold.
+- Required contactability exists.
+- Intended channel is not suppressed.
+- Confidence reaches threshold.
 - Required evidence is recent enough.
-- Organization is not excluded by NEWAX ethical policy.
-- Organization is not already in an incompatible campaign.
-- Existing customers are excluded when the job requests new business only.
-- Missing evidence is not converted into a positive fact.
+- NEWAX ethical restrictions pass.
+- No incompatible campaign conflict exists.
+- Existing customers are excluded when requested.
+- Missing evidence is not converted into a fact.
 
-## 6.4 Qualification rule types
-
-Policies may define:
+## 6.4 Rule types
 
 - Required rules
 - Weighted rules
 - Disqualifying rules
-- Review-trigger rules
+- Review triggers
 - Evidence requirements
 - Staleness rules
-- Allowed organization types
-- Excluded organization types
-- Minimum qualification score
-- Source requirements for specific claims
-- Objective-specific overrides
+- Allowed and excluded organization types
+- Source requirements
+- Minimum score
+- Objective overrides
 
-Arbitrary executable Python or SQL expressions must not be stored as policy rules.
+Arbitrary executable Python or SQL must not be stored as policy rules.
 
-## 6.5 Qualification outcomes
+## 6.5 Outcomes
 
-### Qualified
+```text
+Qualified
+Disqualified
+Needs Review
+```
 
-All mandatory rules pass and the qualification score reaches the threshold.
-
-### Disqualified
-
-A hard exclusion or mandatory requirement fails.
-
-### Needs review
-
-Evidence is missing, stale, conflicting, or too uncertain for automatic qualification.
-
-Every assessment stores:
-
-- Institution ID
-- Harvest Job ID when applicable
-- Policy ID and version
-- Status
-- Score and threshold
-- Criterion results
-- Evidence snapshot
-- Rationale
-- Assessment timestamp
-
-Historical assessments do not silently change when a policy is updated.
+Every assessment stores institution, job, policy, version, state, score, threshold, criterion results, evidence snapshot, rationale, and timestamp.
 
 ## 6.6 Education policy plan
 
-Possible organization types:
+Organization types include schools, colleges, universities, academies, and training organizations.
 
-- School
-- College
-- University
-- Academy
-- Training organization
-
-Possible qualification dimensions:
-
-- Active institutional operation
-- Reachable administration
-- Admissions or student operations
-- Branch or scale indicators
-- Parent, student, faculty, fee, attendance, or communication complexity
-- Manual workflow signals
-- Existing portal or LMS evidence state
-- Multi-campus reporting requirements
-
-Possible objectives:
-
-- Admissions automation
-- Student operations
-- LMS or portal opportunity
-- Website modernization
-- Parent communication
-- Multi-campus operating system
-
-Relevant NEWAX outcomes:
-
-- Simplify admissions
-- Reduce manual administration
-- Improve student-operation visibility
-- Centralize communication
-- Strengthen institutional control
+Dimensions may include active operation, reachable administration, admissions and student operations, scale, parent/student/faculty workflows, manual admissions, fee, attendance, communication, portal/LMS evidence, and multi-campus reporting.
 
 ## 6.7 Healthcare policy plan
 
-Possible organization types:
+Organization types include clinics, hospitals, diagnostic laboratories, dental clinics, rehabilitation centres, and healthcare networks.
 
-- Clinic
-- Hospital
-- Diagnostic laboratory
-- Dental clinic
-- Rehabilitation center
-- Healthcare network
+Dimensions may include active facility identity, reachable administration, appointment and patient-coordination operations, inventory, reporting, departments, locations, secure workflow requirements, and handoff complexity.
 
-Possible qualification dimensions:
-
-- Active facility identity
-- Reachable administration or management
-- Appointment, patient coordination, inventory, reporting, or branch complexity
-- Multiple departments or locations
-- Secure workflow requirements
-- Operational handoff complexity
-
-Safeguards:
-
-- Do not collect unnecessary patient information.
-- Do not infer patient medical conditions.
-- Do not use sensitive personal health information as sales evidence.
-
-Relevant NEWAX outcomes:
-
-- Improve operational coordination
-- Strengthen visibility
-- Reduce manual handoffs
-- Protect sensitive workflows
+Sensitive patient information is not collected or used as sales evidence.
 
 ## 6.8 Real-estate policy plan
 
-Possible organization types:
+Organization types include developers, agencies, property managers, facility operators, and groups.
 
-- Property developer
-- Real-estate agency
-- Property manager
-- Facility operator
-- Real-estate group
-
-Possible qualification dimensions:
-
-- Active portfolio, development, or listings
-- Number of properties, agents, branches, or developments
-- Lead distribution and follow-up complexity
-- Inventory and availability visibility
-- Property-management workflows
-- Connected-building or facility-monitoring opportunity
-
-A solo agent may qualify for a simple CRM objective but fail a multi-site infrastructure objective.
+Dimensions may include active portfolio, properties, agents, branches, developments, lead distribution, inventory visibility, property operations, and connected-building opportunity.
 
 ## 6.9 Legal policy plan
 
-Possible organization types:
-
-- Law firm
-- Structured legal-services organization
-
-Possible qualification dimensions:
-
-- Multiple lawyers, departments, or offices
-- Matter intake complexity
-- Document-control requirements
-- Client communication
-- Deadline management
-- Secure internal operations
-- Reachable administrative or partner-level contact
-
-Relevant NEWAX outcomes:
-
-- Improve matter visibility
-- Strengthen document control
-- Simplify client intake
-- Build dependable internal operations
+Dimensions may include firm structure, lawyers, departments, offices, matter intake, documents, communication, deadlines, secure operations, and administrative or partner contacts.
 
 ## 6.10 Hospitality policy plan
 
-Possible organization types:
+Organization types include approved hotels, restaurant groups, venues, and hospitality operators.
 
-- Hotel
-- Approved restaurant group
-- Event venue
-- Hospitality operator
-
-Possible qualification dimensions:
-
-- Active public operation
-- Reservation and guest-service workflow
-- Inventory and staff coordination
-- Multiple departments or branches
-- Facility monitoring
-- Connected-infrastructure needs
-
-NEWAX ethical industry restrictions apply before qualification.
+Dimensions may include reservations, guest service, inventory, staff, departments, branches, facilities, and connected infrastructure. Ethical industry restrictions apply first.
 
 ## 6.11 Retail policy plan
 
-Possible organization types:
+Organization types include stores, chains, distributors, supermarkets, boutiques, showrooms, and omnichannel sellers.
 
-- Retail store
-- Retail chain
-- Distributor
-- Supermarket
-- Boutique
-- Showroom
-- Omnichannel seller
-
-Possible qualification dimensions:
-
-- Number of locations and channels
-- Inventory complexity
-- Procurement complexity
-- Order and customer operations
-- Centralized reporting requirements
-- Reachable management
+Dimensions may include locations, channels, inventory, procurement, orders, customer operations, reporting, and reachable management.
 
 ## 6.12 Islamic-finance policy plan
 
-Possible organization types:
+Organization types include Sharia-compliant institutions, Islamic fintech, approved takaful-related organizations, and Islamic financial services.
 
-- Sharia-compliant financial institution
-- Islamic fintech
-- Approved takaful-related organization
-- Islamic accounting or financial-services organization
-
-Possible qualification dimensions:
-
-- Regulatory and operating legitimacy
-- Approval and record complexity
-- Reporting and integration requirements
-- Secure data control
-- Workflow ownership requirements
-
-Conventional interest-based financial operations are excluded according to NEWAX policy.
+Conventional interest-based operations are excluded according to NEWAX policy.
 
 ## 6.13 Professional-services policy plan
 
-Possible organization types:
+Dimensions may include structured teams, repeatable delivery, service lines, onboarding, tasks, documents, reporting, CRM, and workflow complexity.
 
-- Accounting firm
-- Architecture or engineering firm
-- Structured advisory firm
-- Other repeatable business-services organization
+## 6.14 Policy upgrades
 
-Possible qualification dimensions:
-
-- Structured firm rather than an isolated informal operator
-- Repeatable client-delivery processes
-- Multiple team members or service lines
-- Client onboarding
-- Task, document, reporting, and CRM complexity
-
-## 6.14 Policy upgrade rules
-
-1. New jobs use the latest approved policy version.
-2. Running jobs remain pinned to their starting policy version.
-3. Historical assessments retain the original policy and evidence snapshot.
-4. Requalification is an explicit action.
-5. Policy edits create a new version instead of rewriting history.
-6. Policy activation and retirement require authorization and audit logs.
+1. New jobs use the latest approved policy.
+2. Running jobs remain pinned.
+3. Historical assessments retain original policy and evidence.
+4. Requalification is explicit.
+5. Policy edits create new versions.
+6. Activation and retirement require authorization and audit.
 
 ---
 
-# 7. The 64 delivery modules
+# 7. Locked frontend design and product plan
+
+## 7.1 Visual direction
+
+The frontend must feel calm, precise, operational, premium, reliable, and enterprise-ready.
+
+The hierarchy is created through typography, spacing, borders, neutral surfaces, fill weight, icons, and restrained elevation. Do not use gradients, glass effects, neon accents, decorative charts, or a separate bright colour for every status.
+
+## 7.2 Design tokens
+
+```css
+:root {
+  --background: #F7F7F4;
+  --surface: #FFFFFF;
+  --surface-muted: #F0F0EC;
+  --surface-hover: #EAEAE5;
+
+  --soft-black: #1A1A18;
+  --strong-black: #10100F;
+  --text-secondary: #666660;
+  --text-muted: #8A8A84;
+
+  --border: #DADAD4;
+  --border-strong: #AFAFAA;
+}
+```
+
+The primary background is soft white. Operational surfaces are white. Soft black is reserved for primary actions, active navigation, headings, selected states, and critical values.
+
+Semantic colour may be used sparingly where accessibility requires it. No state relies on colour alone.
+
+## 7.3 Button hierarchy
+
+### Primary button
+
+Soft-black background, soft-white text, 1px soft-black border, and 8px radius. Hover uses strong black. Use one principal primary action per section.
+
+### Secondary button
+
+White background, soft-black text, neutral/soft-black border, and 8px radius. Hover uses the muted surface.
+
+### Tertiary button
+
+Transparent, borderless, and reserved for low-priority actions.
+
+### Destructive button
+
+Monochrome with explicit wording, icon, confirmation, and stronger authorization where required.
+
+Heights:
+
+```text
+Small    32px
+Default  40px
+Large    46px
+```
+
+## 7.4 Shape, spacing, and typography
+
+```text
+Button radius       8px
+Input radius        8px
+Card radius        10px
+Dialog radius      12px
+Status-chip radius 999px
+```
+
+Spacing scale:
+
+```text
+4  8  12  16  20  24  32  40  48px
+```
+
+Typography stack:
+
+```css
+font-family: "Inter", "Geist", "Segoe UI", sans-serif;
+```
+
+Recommended hierarchy:
+
+```text
+Page title     28/34, weight 650
+Section title  20/28, weight 600
+Card title     16/24, weight 600
+Body           14/22, weight 400
+Table text     13/20, weight 400
+Label          12/18, weight 550
+Metric value   28–36, weight 650
+```
+
+## 7.5 Surfaces, tables, forms, and progress
+
+Cards use white surfaces, subtle borders, 10px radius, and minimal shadow.
+
+Inputs are 40px high with a white background and neutral border. Focus uses a soft-black border and low-opacity focus ring.
+
+Tables use muted headers, white rows, subtle horizontal separators, muted hover, and a soft-black inset edge for selection.
+
+Progress bars are 6px high with muted track and soft-black fill. Concrete counts are preferred over percentages. Unknown totals use indeterminate activity plus actual backend metrics.
+
+## 7.6 Application shell
+
+Expanded sidebar: 248px. Collapsed: 72px.
+
+Navigation:
+
+### Discover
+
+- Generate Leads
+- Harvest Runs
+- Generated Leads
+
+### Manage
+
+- Master Leads
+- Lead Dossiers
+- Daily Selection
+
+### Review
+
+- Resolution Reviews
+- Qualification Reviews
+- Data Quality
+
+### Activate
+
+- Exports
+- Communicator
+- Outreach Drafts
+
+### Governance
+
+- Compliance
+- Qualification Policies
+- Source Policies
+
+### Operations
+
+- Source Health
+- Jobs
+- Event Outbox
+- Audit Log
+- Secrets & Integrations
+- Settings
+
+The top bar contains breadcrumbs, global search, environment indicator, notifications, and user menu.
+
+## 7.7 Standard page structure
+
+```text
+Breadcrumb
+Page title and explanation
+Primary page action
+Optional summary metrics
+Filters or controls
+Main content
+Contextual drawer or detail panel
+```
+
+## 7.8 Product pages
+
+### Generate Leads
+
+Objective, sector, organization type, geography, target, quality requirements, source capability selection, exclusions, version preview, validation, draft, and start action.
+
+### Harvest Runs and Harvest Run
+
+Job list, parent summary, source cards, backend-defined stages, live events, concrete metrics, pause, resume, retry, cancel, warnings, and recovery.
+
+### Generated Leads
+
+Frozen result tabs for Accepted, Needs Review, Rejected, and All Candidates with advanced filtering, canonical-ID selection, export, dossier, and Communicator actions.
+
+### Master Leads
+
+Canonical global search, saved views, filters, columns, bulk selection, exports, Communicator handoff, Core handoff, and dossier access.
+
+### Lead Dossier
+
+Organization summary plus Overview, People, Infrastructure, Qualification, Evidence, History, and Compliance tabs.
+
+### Qualification Policies
+
+Version list, immutable policy versions, bounded rule builder, test mode, publishing, activation, retirement, and audit.
+
+### Source settings
+
+Connector state, versions, capabilities, last run, failures, credential metadata, quota, cost, and validation state.
+
+### Operations
+
+Job monitoring, source health, stranded work, event outbox, audit, failure queues, retries, and recovery.
+
+---
+
+# 8. Secrets & Integrations plan
+
+Status: **Planned**.
+
+Route:
+
+```text
+/settings/secrets
+```
+
+Navigation:
+
+```text
+Operations
+└── Secrets & Integrations
+```
+
+## 8.1 Purpose
+
+Authorized administrators can add, replace, validate, disable, enable, and rotate supported API keys, passwords, proxies, signing credentials, and integration secrets.
+
+The frontend never retrieves or displays existing plaintext secrets.
+
+## 8.2 Credential categories
+
+### Source credentials
+
+- Google Places
+- Yandex Maps
+- Brave Search
+- Apple MapKit team ID, key ID, and private key
+
+### Intelligence
+
+- OpenAI
+
+### Communication
+
+- SMTP host, port, user, password, and sender identity
+
+### Integration security
+
+- NEWAX Core webhook URL and signing secret
+
+### Restricted tooling
+
+Professional-network proxy, CAPTCHA service, and restricted-source credentials remain hidden or disabled until approved.
+
+## 8.3 Metadata table
+
+```text
+Integration
+Credential
+Status
+Environment
+Last Validated
+Last Rotated
+Updated By
+Actions
+```
+
+Only metadata and a short fingerprint are displayed.
+
+## 8.4 Add and replacement workflow
+
+```text
+Choose integration and environment
+→ Enter candidate secret
+→ Reauthenticate where required
+→ Submit through secure API
+→ Encrypt and store candidate version
+→ Validate through a safe provider request
+→ Activate only on success
+→ Retire previous version
+→ Record audit event without secret value
+```
+
+A failed candidate leaves the current working credential active.
+
+## 8.5 Secret actions
+
+- Validate
+- Replace
+- Disable
+- Enable
+- View metadata-only history
+
+Forbidden actions:
+
+- Reveal existing secret
+- Copy existing secret
+- Download existing secret
+
+## 8.6 Rotation metadata
+
+Store version, fingerprint, creation, activation, retirement, actor, validation result, and rotation reason. Historical plaintext remains unavailable.
+
+## 8.7 Permissions
+
+```text
+secrets.read_metadata
+secrets.create
+secrets.replace
+secrets.validate
+secrets.disable
+secrets.enable
+secrets.view_audit
+```
+
+Production replacement, production disablement, webhook signing changes, and private-key changes require reauthentication.
+
+## 8.8 Planned APIs
+
+```http
+GET    /api/v1/secrets
+GET    /api/v1/secrets/{secret_id}
+POST   /api/v1/secrets
+POST   /api/v1/secrets/{secret_id}/replace
+POST   /api/v1/secrets/{secret_id}/validate
+POST   /api/v1/secrets/{secret_id}/disable
+POST   /api/v1/secrets/{secret_id}/enable
+GET    /api/v1/secrets/{secret_id}/history
+```
+
+Responses return metadata only.
+
+## 8.9 Storage rules
+
+Local development may use an explicitly enabled ignored `.env.secrets` adapter. Production uses an approved encrypted deployment secret manager, Vault, cloud secret manager, or equivalent.
+
+Secrets never enter frontend persistence, GitHub, job configuration, logs, error details, analytics, telemetry, audit payloads, screenshots, or plaintext database fields.
+
+A separate configuration change proposes `.env.secrets` support. Until integrated, that file is not current `master` behavior.
+
+---
+
+# 9. The 64 top-level delivery modules
 
 ## Phase 1: Stabilize the existing repository
 
 ### Module 1: Open-PR and branch cleanup
 
-Review every open PR and classify it as merge, rebase, split, replace, or close. Retire obsolete branches and prevent superseded work from being merged accidentally.
-
-Acceptance:
-
-- Dependency graph recorded.
-- Unsafe and obsolete PRs identified.
-- No unclear stacked branch remains in the active sequence.
+Classify open PRs as merge, rebase, split, replace, or close. Retire obsolete and unsafe work.
 
 ### Module 2: Website evidence and detection corrections
 
-Integrate institution/domain-scoped page snapshots, evidence-aware detection statuses, service-gap scoring corrections, regression tests, and the profile-recomputation command.
-
-Acceptance:
-
-- Cross-institution snapshot contamination is impossible.
-- Detection states remain distinct.
-- Existing affected profiles can be recomputed deliberately.
+Integrate institution/domain-scoped snapshots, evidence-aware detection, scoring corrections, regression tests, and profile recomputation.
 
 ### Module 3: Deletion graph and data correction
 
-Integrate complete deletion cascades, shared-evidence handling, deletion manifests, residual-data verification, migration-chain tests, and post-correction data operations.
+Integrate deletion cascades, shared-evidence handling, manifests, residual verification, migrations, and post-correction operations.
 
 ### Module 4: Architecture documentation integration
 
-Merge the updated README and this roadmap after the correction stack is stable.
+Merge README and roadmap after the correction stack is stable.
 
 ### Module 5: Frontend PR disposition
 
-Review existing frontend PRs and classify reusable components and pages as reuse, rebase, split, replace, or close.
+Classify existing frontend work as reuse, rebase, split, replace, or close against the locked frontend architecture.
 
 ### Module 6: Repository baseline verification
 
-Establish the exact verified starting SHA with complete backend tests, migration-chain checks, frontend build, type checking, static analysis, CodeQL, and documented external-security-check status.
+Establish the exact baseline SHA with backend tests, migration chain, frontend checks, static analysis, CodeQL, and documented external-security status.
 
 ---
 
-## Phase 2: Authentication, permissions, and security
+## Phase 2: Authentication, permissions, security, and secret foundation
 
 ### Module 7: Strict authentication
 
@@ -957,23 +949,30 @@ Reject unknown tokens, define explicit development authentication, enforce expir
 
 ### Module 8: Authorization matrix
 
-Define and apply permissions for viewer, operator, reviewer, compliance officer, administrator, and service account roles across every route.
+Define and apply viewer, operator, reviewer, compliance officer, administrator, service account, and secrets-manager permissions across all routes.
 
-### Module 9: Service authentication and frontend sessions
+### Module 9: Service authentication, frontend sessions, and secret-store foundation
 
-Implement service-to-service authentication, frontend session lifecycle, production CORS, logout, and expiry handling.
+Deliver service-to-service authentication, frontend session lifecycle, production CORS, logout, expiry, approved secret-provider abstraction, encryption-at-rest contract, metadata-only secret access, write-only submission, provider validation, version activation, rotation metadata, and no-secret logging safeguards.
+
+This module may use two bounded PRs:
+
+```text
+9A  Service authentication and frontend sessions
+9B  Secret provider, metadata APIs, permissions, audit, and validation contract
+```
 
 ### Module 10: Crawler and raw-data security
 
-Implement SSRF controls, redirect revalidation, private-network blocking, protocol restrictions, response-size limits, HTML retention, and purge policy.
+Implement SSRF controls, redirect validation, private-network blocking, protocol restrictions, response limits, HTML retention, and purge policy.
 
 ### Module 11: Contact and person evidence integrity
 
-Persist all supported contacts, require evidence for person attribution, store attribution confidence, and prevent false decision-maker linkage.
+Persist all supported contacts, require evidence for person attribution, store attribution confidence, and prevent false decision-maker links.
 
 ### Module 12: Migration-driven test infrastructure
 
-Build test databases through Alembic and verify fresh schema, full upgrade, downgrade, and post-migration application behavior.
+Build test databases through Alembic and verify fresh schema, upgrades, downgrades, and post-migration behavior.
 
 ---
 
@@ -985,7 +984,7 @@ Implement proven identity locking, preferably PostgreSQL advisory locking around
 
 ### Module 14: Concurrent duplicate reconciliation
 
-Detect and safely reconcile duplicates that still emerge from overlapping source transactions.
+Detect and safely reconcile duplicates that still emerge from overlapping transactions.
 
 ### Module 15: Resolution transaction boundaries
 
@@ -993,7 +992,7 @@ Define per-record transactions, savepoints, retry safety, partial failures, and 
 
 ### Module 16: Resolution observability
 
-Add structured events and metrics for merge, pending, link-only, reject, lock conflict, retry, and reconciliation outcomes.
+Add events and metrics for merge, pending, link-only, reject, lock conflict, retry, and reconciliation.
 
 ---
 
@@ -1001,15 +1000,15 @@ Add structured events and metrics for merge, pending, link-only, reject, lock co
 
 ### Module 17: Common status and error contracts
 
-Define job, source-run, and stage statuses plus machine-readable warning and error codes.
+Define job, source-run, stage statuses, warnings, and machine-readable failure codes.
 
 ### Module 18: Source capability and workflow schemas
 
-Define backend-provided capabilities, source stages, metrics, retry behavior, pause/resume support, and UI labels.
+Define backend-provided capabilities, stages, metrics, retries, pause/resume support, credential-state metadata, and UI labels.
 
 ### Module 19: Normalized evidence contract
 
-Define common evidence envelopes for organizations, branches, people, contacts, locations, and signals while preserving raw source payloads.
+Define common envelopes for organizations, branches, people, contacts, locations, and signals while preserving raw payloads.
 
 ### Module 20: Execution versioning
 
@@ -1033,7 +1032,7 @@ Create append-only `HarvestJobEvent` and frozen `HarvestJobResult` records.
 
 ### Module 24: Harvest Job migration and indexes
 
-Deliver schema migration, constraints, indexes, downgrade path, and compatibility tests for existing `SourceRun` data.
+Deliver schema migration, constraints, indexes, downgrade path, and compatibility tests.
 
 ---
 
@@ -1041,19 +1040,19 @@ Deliver schema migration, constraints, indexes, downgrade path, and compatibilit
 
 ### Module 25: Job creation and validation API
 
-Implement `POST /api/v1/harvest-jobs` with request validation, source compatibility, sector/objective validation, version pinning, and idempotency.
+Implement creation with request validation, source compatibility, sector/objective validation, version pinning, and idempotency.
 
 ### Module 26: Job listing and detail APIs
 
-Implement list and detail endpoints with pagination, filtering, source summaries, stages, counts, warnings, and permissions.
+Implement list and detail endpoints with pagination, filters, source summaries, stages, counts, warnings, and permissions.
 
 ### Module 27: Job state-control APIs
 
-Implement pause, resume, cancel, and retry commands with legal state transitions.
+Implement pause, resume, cancel, and retry with legal transitions.
 
 ### Module 28: Source-run and result APIs
 
-Expose source-run details, stage details, frozen results, rejection reasons, and source contribution.
+Expose source-run details, stages, frozen results, rejection reasons, and source contribution.
 
 ---
 
@@ -1069,15 +1068,15 @@ Implement atomic claims, lease expiry, heartbeats, stuck-work detection, and saf
 
 ### Module 31: Retry and checkpoint engine
 
-Support source-specific retry policy, backoff, pagination cursors, crawl checkpoints, processed IDs, quota state, and resumability.
+Support source retry policy, backoff, cursors, crawl checkpoints, processed IDs, quotas, cost, and resumability.
 
 ### Module 32: Job progress aggregation
 
-Calculate real parent progress from child source metrics without fabricated elapsed-time percentages.
+Calculate real parent progress from child metrics without fabricated elapsed-time percentages.
 
 ### Module 33: Live event streaming
 
-Implement authenticated Server-Sent Events with cursors, reconnect, missed-event replay, and source/stage filtering.
+Implement authenticated Server-Sent Events with cursors, reconnect, replay, and source/stage filtering.
 
 ---
 
@@ -1085,7 +1084,7 @@ Implement authenticated Server-Sent Events with cursors, reconnect, missed-event
 
 ### Module 34: Source connector protocol and registry
 
-Create the shared connector interface and version-aware connector registry.
+Create the shared connector interface and version-aware registry.
 
 ### Module 35: Connector execution context
 
@@ -1093,11 +1092,11 @@ Provide cancellation, checkpointing, events, credentials, quotas, cost tracking,
 
 ### Module 36: Incremental evidence persistence
 
-Persist raw and normalized evidence while the source is running instead of waiting for complete collection.
+Persist raw and normalized evidence while a source is running.
 
 ### Module 37: Connector contract test harness
 
-Require every connector to pass shared tests for validation, stage reporting, cancellation, retry, versioning, evidence output, and partial failure.
+Require common tests for validation, stage reporting, cancellation, retry, versioning, evidence output, credential failure, and partial failure.
 
 ---
 
@@ -1105,23 +1104,23 @@ Require every connector to pass shared tests for validation, stage reporting, ca
 
 ### Module 38: Google planning workflow
 
-Implement credential validation, category mapping, geographic coverage, query planning, quota estimation, and Google-specific stages.
+Credential validation, category mapping, geographic coverage, query planning, quota estimation, and stages.
 
 ### Module 39: Google collection workflow
 
-Implement searches, pagination, place details, incremental storage, checkpoints, metrics, errors, and retries.
+Searches, pagination, details, incremental storage, checkpoints, metrics, errors, and retries.
 
 ### Module 40: Yandex complete workflow
 
-Implement taxonomy translation, geographic planning, GeoJSON parsing, pagination, normalization, checkpoints, and metrics.
+Taxonomy translation, planning, GeoJSON parsing, pagination, normalization, checkpoints, and metrics.
 
 ### Module 41: Apple Maps complete workflow
 
-Implement token lifecycle, search planning, stable source IDs, normalization, checkpoints, and metrics.
+Token lifecycle, search planning, stable IDs, normalization, checkpoints, and metrics.
 
 ### Module 42: Cross-map normalization tests
 
-Verify that equivalent organizations produce compatible normalized evidence across map connectors.
+Verify equivalent organizations produce compatible normalized evidence across map connectors.
 
 ---
 
@@ -1129,35 +1128,35 @@ Verify that equivalent organizations produce compatible normalized evidence acro
 
 ### Module 43: Website discovery and crawl planning
 
-Implement seed normalization, approved search discovery, URL validation, priority-page planning, domain plans, and website stage definitions.
+Seed normalization, approved search discovery, URL validation, priority pages, domain plans, and stages.
 
 ### Module 44: Incremental website crawling
 
-Create source runs before crawling and persist fetch progress, checkpoints, robots decisions, failures, and metrics incrementally.
+Persist fetch progress, checkpoints, robots decisions, failures, and metrics incrementally.
 
 ### Module 45: Website extraction and aggregation
 
-Extract all supported contacts, organization identity, person candidates, technology signals, and domain-level evidence safely.
+Extract supported contacts, organization identity, people, technology signals, and domain evidence safely.
 
-### Module 46: Authorized import workflow
+### Module 46: Authorized-import workflow
 
-Implement schema inspection, mapping, validation, unchanged-row detection, rejection reporting, and resolution handoff.
+Schema inspection, mapping, validation, unchanged-row detection, rejection reporting, and resolution handoff.
 
 ### Module 47: Manual and Telegram workflows
 
-Adapt both sources to the common connector, job, evidence, and entity-resolution contracts.
+Adapt both sources to common connector, job, evidence, and resolution contracts.
 
 ### Module 48: Restricted professional-network workflow
 
-Build the safe person-aware evidence and resolution model while keeping source execution disabled until approved.
+Build safe person-aware evidence and resolution while keeping execution disabled until approved.
 
 ---
 
 ## Phase 11: Resolution and enrichment integration
 
-### Module 49: Normalized evidence dispatcher
+### Module 49: Normalized-evidence dispatcher
 
-Route organization, branch, person, contact, location, and signal evidence to the correct shared service.
+Route organization, branch, person, contact, location, and signal evidence to the correct service.
 
 ### Module 50: Organization and branch resolution
 
@@ -1165,19 +1164,19 @@ Resolve canonical institutions and physical branches within safe identity transa
 
 ### Module 51: Person and contact resolution
 
-Resolve person candidates, roles, organization associations, contacts, attribution confidence, and unsupported relationships.
+Resolve people, roles, organization associations, contacts, attribution confidence, and unsupported relationships.
 
 ### Module 52: Provenance and source contribution
 
-Record which source contributed each identity field, location, contact, person, signal, and qualification fact.
+Record which source contributed each field, location, contact, person, signal, and qualification fact.
 
 ### Module 53: Job-linked human review
 
-Link ambiguous resolution cases to the Harvest Job, source run, evidence, reviewer decision, and result status.
+Link ambiguous cases to job, source run, evidence, reviewer decision, and result state.
 
 ### Module 54: Transactional lead-profile refresh
 
-Refresh scoring only after durable canonical changes and preserve score history.
+Refresh scoring after durable canonical changes and preserve score history.
 
 ---
 
@@ -1189,23 +1188,23 @@ Create versioned policies scoped by sector, lead type, organization type, and ob
 
 ### Module 56: Qualification rule engine
 
-Implement bounded required, weighted, disqualifying, review-trigger, evidence, and staleness rules.
+Implement bounded required, weighted, disqualifying, review, evidence, and staleness rules.
 
 ### Module 57: Universal eligibility and policy selection
 
-Apply common safeguards and select the most specific valid policy using documented fallback rules.
+Apply common safeguards and choose the most specific valid policy through documented fallback.
 
 ### Module 58: Qualification assessments and requalification
 
-Persist criterion-level evidence, score, threshold, rationale, policy version, and explicit requalification behavior.
+Persist criterion evidence, score, threshold, rationale, policy version, and explicit reassessment.
 
 ### Module 59: Education and healthcare policies
 
-Implement and test the first detailed policies because they provide high-value but materially different operating models.
+Implement and test the first detailed policies.
 
 ### Module 60: Remaining sector policies
 
-Implement real estate, legal, hospitality, retail, Islamic finance, and professional-services policy definitions.
+Implement real estate, legal, hospitality, retail, Islamic finance, and professional-services policies.
 
 ---
 
@@ -1213,42 +1212,125 @@ Implement real estate, legal, hospitality, retail, Islamic finance, and professi
 
 ### Module 61: Generated Leads and Master Leads APIs
 
-Implement frozen job-result queries and canonical all-run lead queries with search, filters, sorting, pagination, selected IDs, and saved views.
+Implement frozen job-result and canonical all-run queries with search, filters, sorting, pagination, selection, and saved views.
 
 ### Module 62: Lead Dossier and activity timeline
 
-Aggregate organization, branches, contacts, people, scores, qualification, evidence, source history, compliance, communication, and audit activity.
+Aggregate organization, branches, contacts, people, scores, qualification, evidence, source history, compliance, communication, and audit.
 
 ### Module 63: Export and Communicator backend
 
-Implement selected-ID and filter-snapshot exports, secure download, email delivery, campaign model, frozen audience, recipient eligibility, sequence, approval, scheduling, and stop rules.
+Implement selected-ID and filter-snapshot exports, secure delivery, campaign, frozen audience, recipient eligibility, sequence, approval, scheduling, and stop rules.
 
-Split this module into export and Communicator PRs if migration or review size exceeds the module rules.
+Split export and Communicator into separate PRs when required by migration or review size.
 
 ### Module 64: Complete frontend and rollout
 
-Deliver internal frontend slices for:
-
-1. Runtime configuration and authentication
-2. Generate Leads
-3. Harvest Run and live events
-4. Source-specific processing displays
-5. Generated Leads
-6. Master Leads
-7. Lead Dossier
-8. Export and Communicator setup
-9. Operations and failure recovery
-10. End-to-end and production verification
-
-These slices may use separate PRs while remaining one final product milestone.
+Deliver the locked frontend through submodules F1–F15 described below. The submodules may use separate PRs while remaining one final product milestone.
 
 ---
 
-# 8. Dependency order
+# 10. Frontend delivery submodules for Module 64
+
+## F1: Design tokens and foundations
+
+Deliver colour variables, typography, spacing, radii, elevation, primary/secondary/tertiary/destructive buttons, inputs, tables, focus styles, progress, status, reduced motion, and contrast tests.
+
+Acceptance:
+
+- Soft-white background and white operational surfaces are consistent.
+- Primary buttons use soft black.
+- Secondary buttons use white with soft-black/neutral borders.
+- No gradients or decorative accent system is introduced.
+- Components pass contrast and keyboard-focus checks.
+
+## F2: Application shell
+
+Deliver sidebar, top bar, breadcrumbs, responsive layout, environment indicator, notifications shell, user menu, and permission-aware navigation.
+
+## F3: Shared data components
+
+Deliver tables, filters, pagination, dialogs, drawers, toasts, empty states, loading states, status chips, confirm dialogs, and optimistic-lock conflict handling.
+
+## F4: Authentication and runtime configuration
+
+Deliver API base configuration, session lifecycle, expiry, logout, forbidden state, protected routes, environment safety, and reauthentication support for sensitive actions.
+
+## F5: Generate Leads
+
+Deliver lead type, objective, sector, organization type, geography, target, evidence requirements, source capability cards, quality controls, version preview, validation, draft, and job submission.
+
+## F6: Harvest Runs and live Harvest Run
+
+Deliver job list, parent summary, source cards, generic backend-driven stage rendering, SSE client, reconnect, pause, resume, retry, cancel, warnings, errors, and recovery state.
+
+## F7: Source-specific metric displays
+
+Deliver registered metric panels for Google, Yandex, Apple Maps, website, import, Telegram, manual, and restricted source workflows. Stage-state logic remains generic and backend driven.
+
+## F8: Generated Leads
+
+Deliver frozen result tabs, advanced filters, selection, rejection reasons, export, dossier, and Communicator actions.
+
+## F9: Master Leads
+
+Deliver canonical search, saved views, filtering, column control, selection, export, Communicator, Core handoff, and dossier access.
+
+## F10: Lead Dossier
+
+Deliver Overview, People, Infrastructure, Qualification, Evidence, History, Compliance, and persistent organization summary.
+
+## F11: Qualification and governance
+
+Deliver policy list, immutable versions, bounded rule builder, policy testing, publishing, activation, retirement, review queues, source policies, and permission controls.
+
+## F12: Secrets & Integrations
+
+Deliver:
+
+- Credential metadata table
+- Category and environment filters
+- Add-secret dialog
+- Manage-secret drawer
+- Write-only submission
+- Temporary show/hide only while entering a new value
+- Provider validation status
+- Atomic replacement workflow
+- Enable and disable controls
+- Rotation history
+- Reauthentication
+- Permission gates
+- Metadata-only audit history
+- Loading, empty, invalid, expired, disabled, and rotation-required states
+- Tests proving plaintext values are never rendered, persisted, logged, or returned
+
+Dependencies:
+
+- Module 8 authorization matrix
+- Module 9B secret provider, APIs, audit, validation, and rotation contract
+- F2 application shell
+- F3 shared components
+- F4 authentication and reauthentication
+
+## F13: Export and Communicator
+
+Deliver export setup, audience preview, eligibility exclusions, sequence, schedule, timezone, limits, approval, and campaign creation.
+
+## F14: Operations
+
+Deliver job monitoring, source health, failures, retry/recovery, event outbox, audit logs, configuration summaries, and operational metrics.
+
+## F15: End-to-end and rollout verification
+
+Deliver desktop, tablet, mobile review, accessibility, permissions, loading, empty, failure, and conflict states, live-backend E2E, performance checks, security review, deployment runbook, and post-deployment verification.
+
+---
+
+# 11. Dependency order
 
 ```text
 Modules 1–16
-Repository stability, security, data integrity, and resolution consistency
+Repository stability, authentication, secret foundation, security, data integrity, and resolution
         ↓
 Modules 17–37
 Shared contracts, Harvest Job persistence, APIs, runtime, and connector framework
@@ -1262,15 +1344,20 @@ Canonical resolution and enrichment integration
 Modules 55–60
 Qualification engine and sector policies
         ↓
-Modules 61–64
-Lead workspaces, exports, Communicator, frontend, and rollout
+Modules 61–63
+Lead APIs, dossier, exports, and Communicator backend
+        ↓
+Module 64 / F1–F15
+Frontend, Secrets & Integrations, operations, E2E, and rollout
 ```
 
-Frontend shells may be explored earlier on disconnected branches, but they must not imply unavailable APIs are operational.
+Frontend foundations may be built earlier on disconnected branches, but they must not imply unavailable APIs are operational.
+
+F12 must not begin integration work until Module 9B provides the approved metadata-only secret contract.
 
 ---
 
-# 9. Delivery milestones
+# 12. Delivery milestones
 
 ## Milestone A: Verified foundation
 
@@ -1278,13 +1365,14 @@ Modules 1–16
 
 Outcome:
 
-- Existing correction stack integrated
+- Correction stack integrated
 - Unsafe and obsolete PRs retired
 - Authentication and permissions hardened
+- Secret-provider contract defined
 - Crawler and raw-data security improved
 - Contacts and people remain evidence-safe
 - Resolution is concurrency-aware
-- Exact baseline is verified
+- Exact baseline verified
 
 ## Milestone B: Harvest Job platform
 
@@ -1294,7 +1382,7 @@ Outcome:
 
 - Harvest Jobs can be created and inspected
 - Child source runs and source-specific stages exist
-- Jobs can pause, resume, retry, and cancel
+- Jobs pause, resume, retry, and cancel
 - Workers use claims, leases, heartbeats, checkpoints, and retries
 - Live events are available
 - Connectors share one tested contract
@@ -1306,8 +1394,8 @@ Modules 38–48
 Outcome:
 
 - Google, Yandex, Apple, websites, imports, manual, and Telegram use independent workflows
-- Each workflow is versioned and upgradeable
-- Each source displays its real process and metrics
+- Workflows are versioned and upgradeable
+- Each source exposes real process and metrics
 - Professional-network support remains restricted but structurally safe
 
 ## Milestone D: Qualified canonical leads
@@ -1316,27 +1404,26 @@ Modules 49–60
 
 Outcome:
 
-- Organization, branch, person, contact, signal, and provenance evidence resolve correctly
-- Human review is job-linked
-- Qualification is versioned and objective-specific
-- Each sector uses appropriate qualification rules
+- Organization, branch, person, contact, signal, and provenance resolve correctly
+- Human review is job linked
+- Qualification is versioned and objective specific
+- Each sector uses suitable rules
 - Qualification remains separate from opportunity scoring
 
-## Milestone E: Operational lead workspace
+## Milestone E: Operational lead backend
 
 Modules 61–63
 
 Outcome:
 
-- Generated Leads represents one frozen job result
-- Master Leads represents the current canonical database
-- Lead Dossier explains facts, evidence, uncertainty, history, and next actions
+- Generated Leads and Master Leads APIs are complete
+- Lead Dossier explains evidence and history
 - Selected leads can be exported
-- Eligible selected leads can create a frozen Communicator audience
+- Eligible selected leads create frozen Communicator audiences
 
-## Milestone F: Complete product workflow
+## Milestone F: Complete operating interface
 
-Module 64
+Module 64 / F1–F15
 
 Outcome:
 
@@ -1350,42 +1437,60 @@ Generate Leads
 → NEWAX Core
 ```
 
+Also included:
+
+- Locked soft-white and soft-black design system
+- Qualification and governance UI
+- Administrator-only Secrets & Integrations page
+- Metadata-only credential management
+- Operations and failure recovery
+- Responsive, accessible, tested rollout
+
 ---
 
-# 10. Acceptance criteria for the target workflow
+# 13. Acceptance criteria
 
 The roadmap is not complete until all of the following are proven:
 
-1. An authorized user can create a Harvest Job from the UI and API.
+1. An authorized user can create a Harvest Job from UI and API.
 2. The request pins connector, workflow, normalization, taxonomy, source API, and qualification-policy versions.
-3. Multiple selected sources create separate child runs under one parent job.
-4. Every source exposes a real source-specific workflow to the UI.
+3. Multiple selected sources create separate child runs under one parent.
+4. Every source exposes a real workflow to the UI.
 5. The UI does not fabricate progress.
-6. Raw evidence is persisted incrementally and remains auditable.
-7. Concurrent sources do not silently create duplicate canonical institutions.
+6. Raw evidence is incremental and auditable.
+7. Concurrent sources do not silently duplicate canonical institutions.
 8. Ambiguous matches enter human review.
-9. Website detection distinguishes absence, non-detection, no crawl, failure, and unknown states.
+9. Website detection distinguishes absence, non-detection, no crawl, failure, and unknown.
 10. Contact-to-person attribution is evidence-backed.
-11. Each sector and objective uses the correct versioned qualification policy.
+11. Each sector and objective uses the correct versioned policy.
 12. Qualification and opportunity scoring remain separate.
-13. Accepted, rejected, and review-required job results are frozen with reasons.
-14. Generated Leads shows one job’s result snapshot.
+13. Accepted, rejected, and review-required results are frozen with reasons.
+14. Generated Leads shows one job snapshot.
 15. Master Leads shows canonical records across every harvest.
-16. Lead Dossier exposes facts, detections, inferences, unknowns, evidence, and history distinctly.
+16. Lead Dossier distinguishes facts, detections, inferences, unknowns, evidence, and history.
 17. Selected leads can be exported by canonical ID.
-18. A Communicator campaign freezes its audience at creation.
-19. Suppressed and ineligible recipients cannot be sent messages.
-20. Campaign creation does not automatically send before required approval.
-21. Pause, resume, retry, cancel, partial failure, and recovery states are tested.
-22. Migrations upgrade and downgrade cleanly.
-23. Backend tests, frontend checks, security checks, runtime verification, and exact-commit CI pass.
-24. Rollback and post-deployment verification procedures are documented and tested.
+18. A Communicator campaign freezes its audience.
+19. Suppressed and ineligible recipients cannot be contacted.
+20. Campaign creation does not automatically send before approval.
+21. The frontend uses the locked soft-white background and soft-black action hierarchy consistently.
+22. Primary and secondary buttons follow the defined visual hierarchy.
+23. Status is not communicated through colour alone.
+24. The UI is keyboard accessible and meets required contrast.
+25. Administrators can add, replace, validate, disable, enable, and rotate supported credentials.
+26. Existing plaintext secrets are never returned or displayed.
+27. A failed replacement leaves the previous active credential working.
+28. Secret changes require permissions, reauthentication where required, and audit without secret values.
+29. Secrets do not enter logs, errors, analytics, telemetry, screenshots, job configuration, or browser persistence.
+30. Pause, resume, retry, cancel, partial failure, and recovery are tested.
+31. Migrations upgrade and downgrade cleanly.
+32. Backend tests, frontend checks, accessibility, security checks, E2E, runtime verification, and exact-commit CI pass.
+33. Rollback and post-deployment verification procedures are documented and tested.
 
 ---
 
-# 11. Immediate active batch
+# 14. Immediate active batch
 
-Only the following modules should begin immediately:
+Only the following top-level modules begin immediately:
 
 ```text
 Module 1  Open-PR and branch cleanup
@@ -1396,22 +1501,23 @@ Module 5  Frontend PR disposition
 Module 6  Repository baseline verification
 ```
 
-Modules 7–12 begin only after the corrected baseline is integrated and verified.
+After the corrected baseline is verified, Modules 7–12 begin.
 
-The Harvest Job architecture begins only after authentication, evidence integrity, migration testing, and resolution concurrency are no longer blockers.
+Frontend F1–F3 may be prepared against the locked visual contract after Module 5 determines what existing frontend work can be safely reused. F4 waits for authentication direction. F5 onward must track real backend contracts. F12 waits for Module 9B.
 
-Building a sophisticated orchestrator on unreliable identity and evidence would not simplify operations. It would merely produce incorrect answers with better progress bars.
+The Harvest Job orchestrator must not be built on unreliable identity, evidence, authentication, or secret handling. That would merely produce incorrect answers through a beautifully bordered interface.
 
 ---
 
-# 12. Roadmap governance
+# 15. Roadmap governance
 
 - This file is the delivery-order source of truth.
-- README explains the product and architecture; this roadmap controls implementation sequence.
-- A module may be split when its final design exceeds sizing or risk limits.
-- Modules may be combined only when they share one migration, one transaction boundary, one API contract, or one inseparable user outcome.
-- Dependency order may change only after live-code inspection and documented reasoning.
-- Completed modules must be marked with the exact merged PR and commit.
-- Historical module descriptions must not be silently rewritten to make past work appear different.
-- Only the next six to ten modules should be represented as active implementation issues.
-- No module is complete while tests, migrations, security checks, runtime verification, or exact-commit CI remain unresolved.
+- README explains product and architecture; this roadmap controls sequence.
+- A top-level module may be split when size or risk requires it.
+- Modules combine only when they share a migration, transaction boundary, API contract, or inseparable outcome.
+- Frontend F1–F15 are submodules of Module 64 and may use separate PRs.
+- Dependency order changes only after live-code inspection and documented reasoning.
+- Completed modules are marked with the exact merged PR and commit.
+- Historical descriptions are not rewritten to make past work appear different.
+- Only the next six to ten modules are active implementation issues.
+- No module is complete while tests, migrations, security checks, accessibility, runtime verification, or exact-commit CI remain unresolved.
