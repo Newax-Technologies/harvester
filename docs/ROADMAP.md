@@ -1,534 +1,1089 @@
-# Harvester module roadmap
+# Harvester Standalone Product Roadmap
 
-Harvester is a universal market-intelligence and lead-discovery system — it finds, verifies,
-enriches, scores, and ranks. It is explicitly **not** an emailing/sales-conversation system and
-does not own canonical commercial identity. The three-way boundary:
+## Authority and status
+
+Status: **Planned and partially implemented**
+
+This is the single authoritative top-level roadmap for Harvester as an independent, standalone, resellable lead-intelligence application.
+
+It **re-baselines all 64 top-level modules** around the approved product boundary and includes the former standalone-product and optional-Core delivery crosswalks in this same document. Earlier versions remain available in Git history and the pull-request diff for historical reference.
+
+The earlier HSP and Core-sync workstreams are transition crosswalks, not extra module counts. Harvester has **64 top-level product modules**, not 64 modules plus another stack of architecture labels pretending arithmetic is a strategy.
+
+## Locked product boundary
+
+Harvester must operate without NEWAX Core or Communicator.
 
 ```text
-Harvester         Finds, verifies, enriches, scores, and ranks.
-Engagement Engine  Contacts, follows up, receives, and responds.
-Core / CRM          Owns canonical identity and the commercial relationship.
+Harvester
+Owns source intake, observations, evidence, resolution, lead records,
+qualification, scoring, research, dossiers, selection, exports,
+publishing rules, synchronization, operations, and product administration.
+
+Communicator
+Optionally receives approved lead and context payloads.
+Owns communication profiles, audiences, campaigns, messages,
+conversations, engagement, replies, and follow-up.
+
+NEWAX Core
+Optionally receives source-native observations, resolved entities,
+and approved source-owned lead facets.
+Owns enterprise existence, canonical identity, relationships,
+provenance, field governance, and cross-system identity links.
 ```
 
-This doc is the planned module list. Nothing here is scheduled — modules get built when
-explicitly requested, in whatever order is asked for. This is a reference, not a sprint plan.
+No product shares database tables, credentials, migrations, internal schemas, or runtime availability.
 
-## Tracked follow-ups from the core-newax sync integration
+## Module completion contract
 
-These are gaps identified while building the harvester → core-newax lead sync (`lead_sync_emitter.py`,
-`manual_leads.py`'s webhook hook). Each was deliberately scoped out of that work, not forgotten:
+Every top-level module is treated as a reusable product unit. Where applicable, it must include:
 
-1. **Outbox/retry durability. DONE (harvester side).** `LeadSyncEmitter.emit_institution_upserted`
-   is still fire-and-forget on its own and stays that way (its public signature/behavior is
-   relied on by its own existing test suite) — but `api/routes/manual_leads.py` and
-   `integrations/lead_sync_resync.py` (the two production call sites) no longer call it
-   directly. Both now go through `services/outbox_service.py::enqueue_and_attempt_delivery`,
-   which persists an `EventOutbox` row (its `id` *is* the envelope's `eventId`, extracted once at
-   enqueue time so every retry of that row reuses the identical id) before attempting delivery,
-   so a failed delivery becomes a retryable PENDING row instead of a lost event. Retries use
-   exponential backoff (`process_pending_deliveries`, claimed via `SELECT ... FOR UPDATE SKIP
-   LOCKED` — the same pattern used everywhere else in this codebase — with each row's attempt
-   isolated in its own savepoint) up to `MAX_ATTEMPTS` (6), after which a row moves to
-   `DEAD_LETTER` and needs an explicit `requeue_dead_letter` call to try again. Invokable via the
-   `process-outbox` CLI command or `GET/POST /api/v1/outbox/*`. An `event_id`-keyed inbox on
-   core-newax's side for idempotent replay is still unbuilt — that half of this follow-up
-   remains open.
-2. **Wire up the dormant auto-resolution pipeline. DONE.** `resolution/orchestrator.py::resolve_incoming_record`
-   now runs blocking + scoring for every `RawSourceRecord` created by `pipeline.py` (both
-   `process_place` and `_run_web_crawler`), and decides: attach to an already-resolved
-   institution, merge with an unresolved match, leave PENDING candidates for human review via
-   the (now-fixed) `resolution-reviews` API, or give a confidently-distinct record its own
-   institution. `canonical/merger.py` gained source-type-aware field extraction (it previously
-   assumed every record was Google-Places-shaped), a same-location-aware branch-collapse path,
-   and an `attach_record_to_institution` path for merging into an existing institution. Known v1
-   limitation, documented in `resolution/orchestrator.py`'s docstring: two concurrent runs can
-   each independently create a separate institution for what should be one, since resolution
-   only sees records already committed by *other* completed runs, not concurrent in-flight ones
-   — a full fix (advisory locks / per-record commits / a unique constraint) is separate follow-up
-   work. This was module 5 ("Entity Resolution and Deduplication") above.
-3. **Broader contact-type support.** Contact points outside phone/email/whatsapp/telegram (e.g.
-   `linkedin`) are currently skipped-and-logged rather than synced, since core-newax's
-   `ContactType` only supports that set. Expanding it is a joint harvester+core-newax change.
-4. **Deletion/reconciliation.** The sync is currently append-and-update only; if a phone number
-   or branch disappears from harvester, the previously-synced core-newax record isn't removed
-   or expired. Full reconciliation is unbuilt.
-5. **Cross-record person deduplication. Harvester side DONE, core-newax side still open.**
-   `models/person.py`'s `PersonCandidate` (module 1, "Entity Registry") now gives harvester its
-   own identity-clustering layer: `services/person_candidate_service.py::resolve_person_candidate`
-   finds-or-creates one `PersonCandidate` per (institution, exact-after-`normalize_name` name),
-   wired into every live `ContactPoint`-writing path (`canonical/merger.py`'s
-   `_add_contact_if_present`, `api/routes/manual_leads.py`'s contact loop), so the same real
-   person named on two different `contact_point` rows for one institution now converges onto one
-   `ContactPoint.person_candidate_id` instead of staying two unrelated bare strings. What's still
-   open: the lead-sync outbox/export layer doesn't use `person_candidate_id` as its `CorePerson`
-   external-key namespace yet (it still keys by raw `contact_point.id`), so core-newax's own
-   `CorePerson` de-dup gap is unchanged until that wiring is done as separate follow-up work.
+```text
+UI
+Backend services
+Database ownership and migrations
+Public or internal API
+Validation
+Permissions
+Tests
+Documentation
+Changelog
+Version and compatibility policy
+Operational visibility
+```
 
-## Planned modules
+A module is not Complete because one endpoint exists or because a markdown heading has developed confidence.
 
-1. **Entity Registry** (`entities/`) — institution, branch, contact_point, person_candidate,
-   source_record, signal. A `person_candidate` is a discovered *possible* contact, not a
-   verified person, until resolved.
-2. **Source Connectors** (`sources/`) — google_places, apple_maps, yandex_maps, web, search,
-   telegram, authorized_imports. Unauthorized scraping/account automation is out of bounds;
-   authorized imports and licensed/manual research are the accepted pattern.
-3. **Collection and Crawling** (`ingestion/`) — source_scheduler, web_crawler, rate_limiter,
-   page_fetcher, raw_snapshot, ingestion_job.
-4. **Data Normalization** (`normalization/`) — organization_name, phone, email, website,
-   social_handle, address, city, country.
-5. **Entity Resolution and Deduplication** (`resolution/`) — exact/fuzzy/domain/phone/
-   geographic matching, duplicate_candidates, merge_review, canonicalization.
-6. **Enrichment** (`enrichment/`) — website_analyzer, contact_extractor, social_resolver,
-   technology_detector, institution_classifier, location_enricher, decision_maker_discovery.
-7. **Business Intelligence** (`intelligence/`) — opportunity_signals, pain_detection,
-   size_estimation, operational_maturity, icp_matching, buying_signals, research_summary.
-8. **Lead Scoring** (`scoring/`) — contactability/fit/opportunity/evidence/freshness/risk
-   scores, score_explanation, score_history. Evidence-backed, not an opaque single number.
-9. **Persistent Lead Profiles** (`profiles/`) — lead_profile, organization_summary,
-   contactability, research_evidence, score_history, qualification_state, profile_history.
-10. **Ranking and Daily Selection** (`allocation/`) — deterministic_ranking, eligibility_filter,
-    daily_selection, reservation, duplicate_prevention, release_expired_reservations.
-11. **Compliance and Source Governance** (`compliance/`) — source_policy, suppression,
-    disqualification, consent_evidence, channel_eligibility, retention, deletion_requests.
-    Harvester stores and obeys suppression; the Engagement Engine receives/processes opt-outs.
-12. **Verification and Data Quality** (`verification/`) — evidence_validation,
-    confidence_scoring, conflict_detection, freshness_checks, unreachable_contact_checks,
-    source_comparison, review_queue.
-13. **Export and Integration** (`exports/`, `integrations/`) — CSV/JSON export, core_sync,
-    external_references, event_outbox, webhook_signing, delivery_status. Target pipeline:
-    `harvester transaction → durable outbox → signed event delivery → Core inbox →
-    idempotent processing → confirmed delivery` (the current `lead_sync_emitter.py` only
-    implements the "signed event delivery" step — no outbox/inbox yet, tracked separately).
-14. **Manual Lead Intake** (`manual_leads/`) — create_manual_lead, validate_submission,
-    add_branch, add_contact_point, submit_for_resolution. Feeds the same normalization/
-    resolution pipeline as scraped data, not a second-class path.
-15. **Operations and Administration** (`operations/`) — job_management, source_health,
-    failure_queue, configuration, audit, metrics, health_checks, admin_api.
+## Status vocabulary
 
-## Phase 2 — planned modules
+- **Current:** The principal capability exists in the repository today.
+- **Partial:** Useful foundations exist, but the complete standalone product workflow is not connected.
+- **Planned:** Required future work.
+- **Restricted:** Disabled until access, legal, security, compliance, and operational approval exist.
 
-Modules 1-15 above are v1 scope: a single implicit "sector" (whatever institutions the operator
-happens to source), one global ICP, one global qualification rule set, one global daily
-selection batch. Phase 2's flagship change is making sector/vertical a first-class,
-DB-configurable dimension rather than an assumption baked into `Settings` and a hardcoded mock —
-decomposed into four modules so each lands (and is reviewed) as its own unit, in this order since
-16 is the foundation the other three build on.
+## Module domains
 
-16. **Sector / Vertical Registry** (`sectors/`) — done. `Sector` model (`code`, `display_name`,
-    `institution_types` membership list, `icp_criteria`, `qualification_rules`, all
-    DB-configurable, not hardcoded) + migration; `canonical_institutions.sector_id` (nullable FK);
-    `services/sector_service.py::resolve_sector_for_institution_type` wired into every path that
-    sets/backfills `institution_type` (`canonical/merger.py`, `api/routes/manual_leads.py`) so
-    classification is automatic, not a separate manual step; `sectors` CRUD API/CLI; a one-time
-    `classify-sectors` backfill command for institutions that predate this module; an optional
-    `sector` hint in `job.yaml`, used only as a fallback when `institution_type` doesn't resolve
-    to any configured sector (`institution_type` stays authoritative, so the two sources of truth
-    can't silently disagree). Known v1 limitation (by design, not an oversight): one sector per
-    institution, classified by `institution_type` membership only — no fuzzy/ML classification
-    from name or description, and no multi-sector institutions.
+| Domain | Modules | Purpose |
+| --- | ---: | --- |
+| Product Foundation | 01–08 | Independent application, access, ownership and audit |
+| Connections and Data Exchange | 09–16 | Credentials, connectors, schemas, mappings and synchronization |
+| Harvest Orchestration and Source Workflows | 17–24 | Jobs, workers and governed intake |
+| Discovery, Evidence and Resolution | 25–32 | Source discovery, evidence preservation and identity resolution |
+| Lead Intelligence | 33–40 | Lead records, people, contacts, research, qualification and scoring |
+| Workspaces and Governance | 41–48 | Quality, compliance, review and operator workspaces |
+| Activation and Optional Integrations | 49–56 | Filters, exports, publishing and optional destinations |
+| Operations, Resale and Release | 57–64 | Reliability, administration, productization and release quality |
 
-    Seed data (a starting point, not a closed list — `sectors` is a table specifically so a new
-    one is a row insert, not a migration):
+---
 
-    | `code`           | `display_name`   | `institution_types`                                          |
-    |------------------|-------------------|--------------------------------------------------------------|
-    | `education`      | Education         | school, college, university, academy                         |
-    | `healthcare`      | Healthcare        | clinic, hospital, pharmacy, diagnostic_lab, dental_clinic     |
-    | `retail`          | Retail            | retail_store, supermarket, boutique, showroom                |
-    | `legal`           | Legal             | law_firm, legal_services                                     |
-    | `finance`         | Finance           | bank, insurance_agency, accounting_firm, financial_advisory   |
-    | `transportation`  | Transportation    | logistics_company, courier_service, freight_forwarder, transport_company |
-    | `real_estate`     | Real Estate       | real_estate_agency, property_developer                       |
-    | `hospitality`     | Hospitality       | hotel, restaurant, event_venue                                |
+# A. Product Foundation
 
-    Each row's `institution_types` list is itself editable post-seed (an operator sourcing a new
-    `institution_type` value just adds it to the matching sector's list, or creates a new sector),
-    and `icp_criteria`/`qualification_rules` per row start empty (falling back to today's global
-    `Settings`-based behavior per module 17) rather than guessed — an operator fills those in
-    per sector as real targeting criteria become known, not invented here.
+## Module 01 — Application Shell and Navigation
 
-    Invokable via the `list-sectors`/`classify-sectors` CLI commands or
-    `GET/POST/PATCH /api/v1/sectors*`.
-17. **Sector-Aware ICP & Qualification** (`intelligence/`, `qualification/`) — done. Depends on 16.
-    `intelligence/icp_matching.py::score_icp_fit` reads each of `target_institution_types`/
-    `min_branch_count` from `institution.sector.icp_criteria` **independently, per key** — a key
-    absent from `icp_criteria` falls back to the matching global `Settings.icp_target_institution_types`/
-    `icp_min_branch_count`, so a sector with only one criterion configured still inherits the
-    other from global settings, and every seeded sector's initially-empty `icp_criteria` (`{}`) is
-    a true no-op (identical to today's global-only behavior) until an operator fills one in — no
-    regression for existing data or newly-classified institutions alike.
-    `qualification/agent.py`'s `QualificationAgent` (`criteria_version` bumped to 3) layers a
-    genuinely per-sector check on top of the reachability/viability gate module 20 already fixed:
-    `institution.sector.qualification_rules` — `disqualifying_name_keywords` (a list; the
-    institution is disqualified if any keyword substring-matches its `canonical_name`,
-    case-insensitively) and `min_branch_count` (disqualified if its actual branch count, queried
-    fresh via `Branch`, is below it) — a small structured schema, not a full rules DSL, evaluated
-    in addition to the base gate, never in place of it. An institution with no sector, or a sector
-    whose `qualification_rules` is still empty (every seeded sector, until configured), skips this
-    extra layer entirely — same non-regression guarantee as the ICP side. `refresh_lead_profile`
-    fetches the institution's `Sector` (a plain scalar FK lookup, not a lazy relationship touch)
-    and threads it into `score_icp_fit` on every call.
-18. **Sector-Segmented Daily Selection** (`allocation/`) — done. Depends on 16.
-    `lead_reservations.sector_id` (nullable FK, a denormalized snapshot at claim time — same
-    "don't let a later change drift a past batch" principle `LeadScoreSnapshot` already uses —
-    not a live join to `canonical_institutions.sector_id`, which could change after the batch is
-    claimed). `services/daily_selection_service.py::select_daily_batch` gains a `sector_id`
-    parameter: when given, restricts the candidate pool to that sector (one reservation batch
-    per sector per day instead of one global ranked list); every created reservation always
-    snapshots the claimed institution's own current `sector_id` regardless of whether a filter
-    was applied, so unfiltered batches keep full sector visibility too. `list_reservations` gains
-    a matching `sector_id` filter. `GET/POST /api/v1/daily-selection*` and `select-daily-leads`
-    (`--sector-id`) gain a matching `sector_id` param/filter.
-19. **Sector Visibility in Exports & Operations** (`exports/`, `operations/`) — done. Depends
-    on 16. `GET /api/v1/exports/leads` (+ `export-leads --sector-id`) gains a `sector_id`
-    filter and a `sector_id` column on every export row; `GET /api/v1/lead-profiles` gains a
-    `sector_id` filter; `services/operations_service.py::compute_operational_metrics` gains an
-    `institutions_by_sector` breakdown (sector code → institution count, plus an
-    `unclassified` bucket) so a downstream consumer or dashboard can scope to (or compare
-    across) sectors instead of only ever seeing one undifferentiated pool of leads.
-20. **Service-Gap / Infrastructure Opportunity Scoring** (`intelligence/`, `profiles/`) — done.
-    Depends on module 6's `technology_detector.py` and module 7's `size_estimation.py`; cross-cutting,
-    not sector-dependent (NEWAX sells the same infrastructure — websites, LMS/operational
-    software, IoT hardware+software integration — regardless of what sector the buyer is in).
-    Scoped with the user: the best lead is the one with the *most* service gaps we can sell
-    into, not the fewest — the opposite of what a generic "looks legitimate" qualification check
-    would optimize for.
+**Status:** Partial
 
-    Standalone bug fix already shipped ahead of this module: `qualification/agent.py`'s pass/fail
-    gate previously required a website to qualify at all, exactly backwards for a business that
-    sells websites (a lead having one makes them a *weaker* website-sale opportunity, not a
-    disqualifying trait), and separately rejected anything with "elementary"/"middle school" in
-    its name — an arbitrary rule with no basis in this business's real targeting criteria. Fixed
-    to gate purely on reachability (≥1 `ContactPoint` on file) and viability (not
-    `OperatingStatus.CLOSED_PERMANENTLY`); `has_website` is now recorded as an informational,
-    non-disqualifying fact in the assessment's checklist/rationale instead.
+**Outcome:** Provide the standalone Harvester application frame, navigation, environment visibility, responsive layout, and route ownership.
 
-    Decided detection policy (simpler than an earlier draft of this plan): **absence means
-    unavailable, full stop** — no website found means no website, no LMS signal detected means no
-    LMS, for both website and LMS. This is a deliberate accepted tradeoff, not an oversight: an
-    institution the crawler never actually reached looks identical to one confirmed to lack a
-    website/LMS. Module 3's `RawPageSnapshot`/`SourceRun` data makes "was this actually crawled"
-    answerable later if that tradeoff turns out to matter in practice, without changing the
-    decision now.
+**Owns:** App shell, page headers, breadcrumbs, responsive navigation, environment indicator, permission-aware menus.
 
-    Built:
-    - LMS-detection rules in `enrichment/technology_detector.py::_LMS_SIGNAL_RULES` (Moodle,
-      Google Classroom, Canvas, Blackboard, Schoology, PowerSchool, "parent portal", "student
-      portal"), emitting `Signal` rows of the new `SignalType.TECHNOLOGY_PRESENT` (distinct from
-      `PAIN_POINT`/`BUYING_SIGNAL`, since "has an LMS" is a detected fact, not a pain point or
-      buying signal by itself).
-    - IoT hardware/software integration remains a known v1 limitation, deliberately unbuilt: it's
-      rarely announced on a public website, so it stays unknown/neutral (no product slot at all in
-      `service_gap.py`) rather than assumed-absent like website/LMS below — a real signal here
-      would need manual entry or authorized-import data, not the crawler.
-    - **Website quality engine** (`intelligence/website_quality.py::compute_website_quality_tier`)
-      — rule-based, built on the existing static crawler, no headless-browser/JS-rendering pass, as
-      decided with the user. A `WebsiteQualityTier` enum (`NONE`/`POOR`/`ADEQUATE`/`GOOD`/
-      `EXCEPTIONAL`, `models/profile.py`) computed per institution from a weighted checklist over
-      its own crawled `RawPageSnapshot` rows — scoped via
-      `services/lead_profile_service.py::_get_website_snapshots`'s
-      `FieldProvenance → RawSourceRecord → source_run_id` join (a precise link to "which crawl
-      runs actually contributed to this institution", not a domain-string match): `has_https`,
-      `has_mobile_viewport` (a `<meta name="viewport">` tag), `has_contact_or_booking_form` (a real
-      `<form>` tag), `page_count_crawled` (2-5 pages adequate, 6+ comprehensive), and
-      `broken_internal_link_rate` (fraction of this site's own snapshots whose `fetch_error` starts
-      with `http_error`, excluding robots/oversized/decode-error rows). `NONE` is forced whenever
-      `institution.website` is absent. Known v1 limitation, explicit rather than silent: purely
-      structural/technical signals, no design/copywriting/visual-quality judgment.
-    - `service_gap_score` (`intelligence/service_gap.py::compute_service_gap_score`, stored on
-      `LeadProfile.service_gap_score`). Implements `missing_product_count * size_multiplier`: a
-      small single-branch institution missing every product still scores lower than a multi-branch
-      institution missing the same things. `missing_product_count` sums the website gap
-      (`WebsiteQualityTier` → `0`/`0.5`/`1.0`: `NONE` fully missing, `POOR`/`ADEQUATE` a partial
-      gap, `GOOD`/`EXCEPTIONAL` no gap) and the LMS gap (`1.0` unless a `TECHNOLOGY_PRESENT` signal
-      mentions an LMS/portal, `0.0` otherwise). `size_multiplier` comes from
-      `intelligence/size_estimation.py::estimate_size_tier`'s `SizeTier` via `UNKNOWN`/`SMALL` →
-      `1.0`, `MEDIUM` → `1.5`, `LARGE` → `2.0`. Both new fields are computed and persisted inside
-      the same `services/lead_profile_service.py::refresh_lead_profile` call as everything else,
-      not a second, competing scoring path. Invokable via the existing `GET /api/v1/lead-profiles*`
-      read API (`LeadProfileResponse`/`LeadProfileListItem` in `schemas/profiles.py`).
+**Does not own:** Lead discovery logic, connector logic, and customer communication.
 
-## Explicitly not part of Harvester
+**Acceptance:** All standalone workspaces are reachable without NEWAX Core or Communicator; navigation reflects permissions and deployment capabilities.
 
-Moved to the separate NEWAX Engagement Engine: email sending, WhatsApp sending, message
-generation, approval workflow, follow-up sequences, reply monitoring/classification, automated
-responses, meeting booking, bounce/complaint handling, communication timing, conversation
-management.
+## Module 02 — Design System and Accessibility Foundation
 
-Owned by NEWAX Core/CRM: canonical organizations, canonical people, users, memberships,
-permissions, commercial lead stage, opportunity records, sales ownership, tasks, meetings,
-authoritative CRM timeline.
+**Status:** Partial
 
-## Current state vs. this plan (as of this doc's creation)
+**Outcome:** Provide one calm, enterprise-ready visual and interaction system across the product.
 
-Roughly mapped against what exists in `src/lead_harvester/` today:
+**Owns:** Tokens, typography, spacing, buttons, inputs, tables, dialogs, status patterns, loading states, keyboard behavior, reduced motion.
 
-- **Entity Registry**: done for v1 scope. `models/canonical.py` has institution/branch/
-  contact_point; `models/source.py` has source_record; `models/person.py`'s `PersonCandidate`
-  and `models/signal.py`'s `Signal` are the two entities this module added. `PersonCandidate`
-  is wired into every live `ContactPoint`-writing path via `services/person_candidate_service.py`
-  (see the "cross-record person deduplication" tracked follow-up above for what it fixes and
-  what's still open on the core-newax side). `Signal` is populated by
-  `intelligence/researcher.py::_persist_findings`: each `pain_points`/`buying_signals` list item
-  from the AI analysis becomes its own queryable/filterable `Signal` row (`PAIN_POINT`/
-  `BUYING_SIGNAL`), alongside — not instead of — the existing `ResearchFinding` row that already
-  holds the complete, unedited AI output as one JSON blob. Invokable via the
-  `list-person-candidates`/`list-signals` CLI commands or `GET /api/v1/entities/*`. As part of
-  this module, `intelligence/pain_detection.py` and `intelligence/scoring.py` were deleted:
-  confirmed zero live callers, both existed only to consume the dead Phase-1 `entities/`
-  dataclasses this doc's Lead Scoring note already flagged as superseded — leaving them in place
-  next to the new, real `Signal` model would have been exactly the kind of shadow-implementation
-  confusion `docs/CODE_REVIEW_LESSONS.md` pattern 2 warns about. The `entities/` dataclasses
-  themselves (and `storage/sqlite.py`) were deliberately kept: the `migrate-phase1` CLI command
-  is a real, still-needed one-time importer that depends on them. Known v1 limitation: no fuzzy/
-  trigram matching for `PersonCandidate` (exact-after-`normalize_name` only, consistent with this
-  codebase's other identity-matching v1 scopes); no automated merge/split UI for a
-  `PersonCandidate` a human later decides was wrong.
-- **Source Connectors**: done. `sources/` now has all seven: google_places, web,
-  authorized_imports, plus `yandex_maps.py` (Yandex Maps Search API, mirrors
-  google_places.py's shape), `apple_maps.py` (Apple MapKit Server API -- signs its own ES256
-  developer JWT locally and exchanges it for a short-lived access token; known v1 limitation:
-  Apple's `/v1/search` response has no phone/website field the way Google Places/Yandex do, so
-  those stay blank for Apple-sourced records), and `telegram_channels.py` (fetches a channel's
-  public `https://t.me/s/<channel>` preview page -- the page Telegram itself serves without
-  authentication for anonymous/embed viewing; no login/MTProto/Bot-API involved, and no
-  discovery -- job.yaml's `telegram_channels` list is the only input, since Telegram exposes no
-  public search). `job.yaml`'s `places_provider` key (`google`/`apple`/`yandex`) selects which
-  tile-based connector `LeadPipeline.run()` drives through the same
-  `geographic_tiling.py` query machinery; `canonical/merger.py::display_fields` and
-  `compliance/source_policy.py` were extended with a branch/entry per new SourceType (Yandex and
-  Apple Maps are LICENSED_API; Telegram is PUBLIC_WEB_CRAWL, not ACCOUNT_AUTOMATION, since it's
-  an unauthenticated page fetch). Also found and fixed: `sources/search.py`'s
-  `BraveSearchSource` had zero callers anywhere in the codebase since it was written (a
-  genuinely dead connector, not merely "partial") -- wired into `_run_web_crawler` as an
-  optional seed-discovery step (`job.yaml`'s `search_queries` list; requires
-  `BRAVE_SEARCH_API_KEY`), since its only purpose is discovering more seed URLs for the same web
-  crawler that already exists, not a separate ingestion path.
-- **Ingestion**: done for the pieces that were genuine gaps; the rest of this module's
-  sub-concerns were already satisfied by existing code, just not living under a dedicated
-  `ingestion/` directory -- moving already-correct, already-tested code into a new folder purely
-  for naming purity would have been pure churn, not a real improvement, so it wasn't done.
-  `web_crawler`/`page_fetcher`/`rate_limiter` are `sources/web.py`'s `WebCrawler`/`_fetch`/
-  `DomainRateLimiter` (plus `RobotsCache` for robots.txt compliance); `ingestion_job` is
-  `models/source.py`'s `SourceRun` (status/started_at/completed_at per run, already exposed via
-  `services/operations_service.py`'s `list_source_runs`/`get_source_run_detail`);
-  `source_scheduler` is intentionally external (an operator's cron/k8s CronJob/etc. invokes
-  `lead-harvester run --config job.yaml` on a schedule) rather than an in-process scheduler --
-  a deliberate, common architecture for this kind of tool, not a gap. What was genuinely
-  missing: `raw_snapshot`. `RawSourceRecord.raw_payload` only ever stored the EXTRACTED lead
-  fields for a domain (aggregated across every page that contributed to it) -- the actual
-  fetched HTML was discarded, with no way to audit what a crawl actually saw, re-run extraction
-  against historical pages without re-fetching, or tell "page had no useful data" apart from
-  "page was skipped/failed and never really looked at". `models/source.py`'s new
-  `RawPageSnapshot` is that record: one row per page a WEBSITE crawl attempted, success or
-  failure (robots-disallowed/non-HTML/oversized/HTTP-error/decode-error all captured with a
-  machine-readable `fetch_error` reason), accumulated on `WebCrawler` during `crawl()` (as a
-  `self.snapshots` side channel, not part of `crawl()`'s return value, so no caller's signature
-  had to change) and persisted by `pipeline.py::_run_web_crawler` once the run's `SourceRun`
-  exists. Invokable via the `ops-page-snapshots` CLI command or
-  `GET /api/v1/operations/page-snapshots` (excludes the stored HTML body from the response --
-  query the database directly for that). Known v1 limitation: no separate retention/expiry
-  policy for this table (`services/compliance_service.py::purge_expired_raw_records` only ever
-  targeted `RawSourceRecord`).
-- **Normalization**: done for the pieces that map onto live data, still living in
-  `resolution/normalize.py` rather than its own module -- moving already-correct, already-tested
-  functions into a new `normalization/` package purely for naming purity would have been pure
-  churn, the same call this doc's Ingestion entry already made. Covers phone/domain/name/city/
-  country (`country_to_iso2`, a ~55-entry country name/alias -> ISO-2 table wired into
-  `sources/authorized_imports.py`), plus the two pieces that were genuinely missing:
-  `normalize_website` (adds a scheme only when missing -- preserving an explicit `http://` rather
-  than forcing `https://`, since some institutions genuinely only serve http -- lowercases the
-  host, strips `www.` and a bare trailing `/`) and `normalize_social_profile` (maps a social
-  profile URL to `(contact_type, canonical_url)` for one of eight recognized platforms, or `None`
-  for an unrecognized host or a bare platform homepage with no identifying handle). Both are
-  applied uniformly across every source in `canonical/merger.py::display_fields` (website) and
-  `_add_contacts_and_provenance` (social profiles), rather than per-source-type special-casing.
-  Fixed a real, previously-silent gap in the same pass: `sources/web.py`'s crawler already
-  extracted social profile links into `Lead.social_profiles` (via `extractors.extract_social_profiles`)
-  and deduped them across pages, but nothing downstream ever turned that into a `ContactPoint` --
-  a discovered LinkedIn/Facebook/Instagram/etc. presence sat stranded in `RawSourceRecord.raw_payload`
-  only, permanently invisible to dossiers, exports, and outreach. `manual_leads.py` also now
-  normalizes `payload.website` the same way before storing it on `CanonicalInstitution`, so a
-  manually entered site is consistent with a scraped one. Known v1 limitation: `LeadSyncEmitter`
-  only syncs `phone`/`email`/`whatsapp`/`telegram` contact types to core-newax (see module 13's
-  `SUPPORTED_CONTACT_TYPES`) -- the new social contact_types are stored and usable inside
-  harvester (dossiers, exports, outreach eligibility) but not yet mirrored to Core, a deliberate,
-  already-documented scope boundary of that integration, not a gap in this module.
-- **Resolution**: done for the live ingestion paths. `resolution/orchestrator.py` wires
-  blocking + scoring into `pipeline.py` (both Google Places and the web crawler), with a human
-  review path for ambiguous (PENDING) matches via the `resolution-reviews` API. See tracked
-  follow-up #2 above for the one documented v1 limitation (cross-run concurrency).
-- **Enrichment**: done for the pieces that map onto live data. `enrichment/technology_detector.py`
-  runs rule-based pain-point/buying-signal detection over each crawled page's visible text
-  (`sources/web.py::_extract_lead`); `pipeline.py::_persist_detected_signals` materializes its
-  output into real `models/signal.py` `Signal` rows once a page resolves to an institution,
-  gated on `SourceType.WEBSITE`. Revives the intent of the deleted `intelligence/pain_detection.py`
-  (dead Phase-1 code -- see `docs/CODE_REVIEW_LESSONS.md` pattern 2) with a real, wired
-  implementation instead. contact_extractor/social_resolver are already covered by
-  `extractors.py` (`extract_emails`/`extract_phones`/`extract_social_profiles`), reused by the
-  crawler rather than duplicated. The dead, synchronous `enrichment/website_analyzer.py` (a
-  superseded Phase-1 fetch helper with zero live callers) was removed. Known v1 limitation:
-  text-pattern matching only, no HTML/DOM inspection -- can't fingerprint a specific CMS or
-  booking widget by its markup. institution_classifier/location_enricher/
-  decision_maker_discovery remain unbuilt.
-- **Business Intelligence**: done for the pieces that map onto live data.
-  `opportunity_signals`/`pain_detection`/`buying_signals` are covered by `models/signal.py`'s
-  `Signal` table (module 1) fed from two sources: `intelligence/researcher.py`'s AI analysis
-  (LinkedIn) and `enrichment/technology_detector.py`'s rule-based detection (module 6, website
-  text). `research_summary` is `intelligence/research_summary.py::summarize_signals` -- composes
-  a real summary from Signal evidence for every institution that has no AI-generated one, not a
-  hardcoded "no summary yet" placeholder. `size_estimation` is
-  `intelligence/size_estimation.py::estimate_size_tier` -- a branch-count/contact-count proxy
-  (the only size signal this schema has; no headcount data exists). `operational_maturity` is
-  `intelligence/operational_maturity.py::compute_operational_maturity` -- a 0-100 score from
-  website presence and detected pain-point/buying-signal counts, distinct from the sales-facing
-  lead score. `icp_matching` is `intelligence/icp_matching.py::score_icp_fit` -- a real,
-  configurable weighted match (`Settings.icp_target_institution_types`/`icp_min_branch_count`)
-  against operator-stated criteria, unlike `profiles/scoring.py`'s `category_fit` category
-  (which only asks whether `institution_type` is known at all, not whether it matches anyone's
-  target). All three are computed in `services/lead_profile_service.py::refresh_lead_profile`
-  and stored on `LeadProfile` (`size_tier`/`operational_maturity_score`/`icp_match_score`),
-  surfaced through the existing `GET /api/v1/lead-profiles*` API. Also fixed a real bug found in
-  the same pass: `profiles/scoring.py`'s `research_signal` category and `organization_summary`
-  previously only ever read `ResearchFinding` rows (LinkedIn-only) -- a website-crawled
-  institution with real `technology_detector.py`-detected signals earned zero score credit and
-  got a static "no summary yet" placeholder despite the evidence sitting in the `Signal` table
-  the whole time. Both now read `Signal` directly (a strict superset of what `ResearchFinding`'s
-  `pain_points`/`buying_signals` list findings held, since `researcher.py` already writes a
-  `Signal` row for each of those items too -- reading both would have double-counted a
-  LinkedIn-researched institution's evidence). `icp_matching`'s v1 limitation: only two criteria
-  (institution type, minimum branch count) are configurable; geography/size-tier aren't yet.
-  `operational_maturity`'s v1 limitation: every pain-point signal is weighted equally (no
-  per-signal severity field exists on `Signal` to weight by).
-- **Lead Scoring**: done against live data (`profiles/scoring.py::compute_lead_score`) --
-  evidence-backed 0-100 score with a per-category breakdown (scale, contactability,
-  category_fit, qualification, research_signal, freshness, confidence), not an opaque single
-  number. `intelligence/scoring.py` (the older MVP referenced here previously) scores the dead
-  Phase-1 `entities/` dataclasses that nothing in the live pipeline constructs -- superseded,
-  not reused, per `docs/CODE_REVIEW_LESSONS.md` pattern 2 (don't let a second implementation of
-  "the same" concept diverge from the live one).
-- **Persistent Lead Profiles**: done. `models/profile.py`'s `LeadProfile` (current-state,
-  one row per institution) and `LeadScoreSnapshot` (append-only score_history) are kept fresh
-  by `services/lead_profile_service.py::refresh_lead_profile`, called from every path that
-  changes score-relevant data: `resolution/orchestrator.py::resolve_incoming_record` (all three
-  institution-producing branches), `intelligence/researcher.py::research_profile` (new AI
-  findings), and `api/routes/manual_leads.py::create_manual_lead`. `qualification/agent.py`'s
-  `QualificationAgent` (previously built but never called from any live path) is now wired in
-  via `qualify_and_refresh`/`qualify_all_unassessed`, invokable through the `qualify-leads` CLI
-  command or the `GET /api/v1/lead-profiles*` read API. Known v1 limitation: `qualify-leads`
-  only ever assesses an institution once (no re-assessment policy for institutions whose data
-  changed after their first qualification) -- revisiting that is separate follow-up work, not
-  silently unhandled.
-- **Ranking and Daily Selection**: done. `allocation/eligibility.py` states the eligibility rules
-  (institution OPERATIONAL, never DISQUALIFIED, meets a minimum score, has a real contact method)
-  and the deterministic ranking key (score desc, institution_id asc tiebreak) in Python;
-  `services/daily_selection_service.py::select_daily_batch` implements the same rules again in
-  SQL so the claim itself can filter/rank/lock atomically (kept in sync by hand, the same
-  documented tradeoff `resolution/blocking.py::_predicted_decision` already accepts for its own
-  duplication of `scoring.py`'s decision matrix). `models/allocation.py`'s `LeadReservation`
-  claims an institution for a bounded TTL window via `SELECT ... FOR UPDATE SKIP LOCKED` (so two
-  overlapping selection runs never claim the same institution), with a partial unique index
-  (`WHERE status = 'RESERVED'`) as migration-level defense in depth. Expired reservations release
-  automatically on the next `select_daily_batch` call; `mark_consumed`/`release_reservation`
-  handle the other two lifecycle transitions. Invokable via the `select-daily-leads` CLI command
-  or the `POST/GET /api/v1/daily-selection*` API. Known v1 limitation: nothing yet calls
-  `mark_consumed` automatically -- `outreach/automator.py` still works off `OutreachDraft`/
-  `AccountBrief`, not `LeadProfile`/`LeadReservation`, so wiring an actual outreach run to consume
-  a reservation once it sends is separate, bigger integration work (see the existing
-  boundary-conflict note on `outreach/` below), not silently unhandled.
-- **Compliance and Source Governance**: done for v1 scope, with one deliberately unresolved
-  tension surfaced rather than hidden. `compliance/source_policy.py` is a static, reviewed-by-
-  people registry declaring each `SourceType`'s authorization basis -- and it states plainly
-  that `SourceType.LINKEDIN` (`sources/linkedin_stealth.py`/`sources/account_farm.py`'s browser
-  account automation) is the one source that does NOT meet this repo's own documented standard
-  from module 2 above ("unauthorized scraping/account automation is out of bounds"). This module
-  does not resolve that contradiction (disabling a relied-upon feature unilaterally is a business
-  decision, not a data-model concern) -- it makes the contradiction impossible to miss: printed as
-  a banner every time `LinkedInStealthCrawler.run()` actually executes, and queryable via
-  `compliance/source_policy.py::contested_sources()`. `compliance/channel_eligibility.py` +
-  `models/compliance.py`'s `SuppressionEntry` (optionally scoped to one channel, e.g. opted out of
-  email but still callable) implement suppression -- wired as a real gate into
-  `outreach/automator.py::run()`, which previously sent to any APPROVED draft with no compliance
-  check at all. `DeletionRequest` implements a deliberately two-step right-to-erasure flow
-  (`services/compliance_service.py::request_deletion` never deletes anything by itself;
-  a separate `fulfill_deletion` call does). `purge_expired_raw_records` is v1's entire retention
-  enforcement, narrowly scoped to `RawSourceRecord` rows with no `FieldProvenance` reference at
-  all, to avoid corrupting data other live features (confidence scoring, conflict detection)
-  still depend on. Invokable via `suppress-contact`/`purge-expired-records` CLI commands or
-  `GET/POST /api/v1/compliance/*`. Known v1 limitations: a suppressed `OutreachDraft` stays
-  APPROVED forever and is re-checked (and re-released) every automator run rather than moving to
-  a dedicated terminal status -- adding one is separate follow-up work, deliberately avoided here
-  to not widen `OutreachDraft`'s already carefully-claimed `SENDING`/`SENT` state machine for this
-  fix; `consent_evidence` reuses the existing `ContactPoint.is_publicly_listed` flag rather than a
-  new tracked field, since that's already the closest signal this codebase records.
-- **Verification and Data Quality**: done for v1 scope. `verification/checks.py` states three
-  checks as pure functions over already-loaded data: `check_confidence_drift` (does
-  `CanonicalInstitution.confidence_score` still match what `verification/confidence.py`'s
-  formula would compute from the institution's actual current `branch_membership`
-  FieldProvenance count -- catches drift from anything that changes the source count without
-  going through `canonical/merger.py`'s own increment), `check_stale_evidence` (no
-  FieldProvenance/ResearchFinding recorded within a configurable freshness window), and
-  `check_conflicting_canonical_name` (two sources asserting meaningfully different names for
-  the same institution after `resolution/normalize.py`'s own `normalize_name` -- v1 scope is
-  exact-after-normalization comparison, not fuzzy/trigram similarity). `services/
-  verification_service.py::run_verification_checks`/`run_verification_sweep` run these and
-  create `DataQualityFlag` rows (the review_queue), deduping against any already-OPEN flag of
-  the same type so re-running a sweep doesn't spam duplicates; the sweep savepoint-isolates
-  each institution (`docs/CODE_REVIEW_LESSONS.md` pattern 3) so one failing check doesn't
-  abort the batch. Invokable via the `verify-data-quality` CLI command or
-  `GET/POST /api/v1/verification/*`. Found and fixed a real pre-existing bug in the same pass:
-  `CanonicalInstitution.confidence_score` is a 0-100 scale everywhere in `canonical/merger.py`
-  (documented there as "an API/UI-facing percentage"), but `api/routes/manual_leads.py` set it
-  to `0.7` (a 0-1 fraction -- effectively the *lowest* possible score, the opposite of its own
-  "high base confidence" comment) and `profiles/scoring.py` (module 9) thresholded it at
-  `>0.8`/`>0.5` (same wrong-scale assumption) -- both fixed, and `merger.py`'s own two inline
-  copies of the "+10 per source, capped at 100" formula extracted into
-  `verification/confidence.py` as a single source of truth. Known v1 limitations: conflict
-  detection only covers `canonical_name` (not every field type); `unreachable_contact_checks`
-  has no automated signal source (no email/phone verification API integration exists) and is
-  only ever recorded manually via `flag_contact_unreachable`; `source_comparison` isn't a
-  separate abstraction, it's what the conflicting-field check already does for the one field
-  it covers.
-- **Export and Integration**: mostly built. `lead_sync_emitter.py` implements signed delivery;
-  `services/outbox_service.py` now sits in front of it (both live call sites route through it)
-  giving harvester's side a durable, retried, dead-letterable delivery ledger (see the tracked
-  follow-up above) — the still-missing piece is a core-newax-side `event_id`-keyed inbox for
-  idempotent replay. `exports/lead_export.py` adds the CSV/JSON export piece: one row per
-  `ContactPoint` (the actual contactable unit), carrying its institution's identity/score fields
-  (reusing `LeadProfile` rather than recomputing) and an `is_suppressed` flag (reusing
-  `services/compliance_service.py`'s suppression lookup) so a downstream consumer can't
-  accidentally treat a suppressed contact as safe to message. Invokable via the `export-leads`
-  CLI command or `GET /api/v1/exports/leads`. Known v1 limitation: a `ContactPoint` has no direct
-  link to a specific `Branch` (contacts are institution-wide in this schema), so branch info is
-  summarized per-institution (primary city/country, branch count) rather than joined per-row.
-- **Manual Lead Intake**: exists and correctly scoped — `manual_leads.py::create_manual_lead`
-  is the one connected, live write path today.
-- **Operations and Administration**: done for v1 scope, as a read/aggregate layer over data
-  every other module already writes -- no new tables. `services/operations_service.py`:
-  `list_source_runs`/`get_source_run_detail` give `job_management` a real read API over the
-  existing `SourceRun`/`RawSourceRecord` tables; `compute_source_health` reports each
-  `SourceType`'s last run, last success, and 7-day failure count; `list_stranded_records` is
-  read-only visibility into exactly the same "stranded" set `pipeline.py`'s
-  `_retry_stranded_records` already self-heals every run (reuses its eligibility list directly
-  rather than restating it, so the two can't drift), giving `failure_queue` an inspectable view
-  without duplicating the retry logic that already exists; `list_audit_log` is the first read
-  API over `AuditLog` (previously write-only -- populated by `resolution_service.py`/
-  `draft_review_service.py` but nothing ever read it back); `get_sanitized_config` exposes an
-  explicit allowlist of `Settings` fields (not a blocklist), so a future secret field can never
-  leak through it just because nobody remembered to exclude it; `compute_operational_metrics`
-  extends `DashboardService.get_summary` (reused, not recomputed) with outbox/data-quality/
-  suppression counts from the modules that landed after the dashboard was built;
-  `check_health` is a real check (an actual `SELECT 1`, plus detecting any `SourceRun` stuck in
-  `STARTED` past a threshold -- a strong crashed-worker signal) rather than the trivial
-  always-"ok" `/api/v1/health`. Invokable via the `ops-health`/`ops-metrics`/
-  `ops-source-health` CLI commands or `GET /api/v1/operations/*`. Known v1 limitation: no
-  `admin_api` write surface (e.g. manually cancelling a stuck run, editing `job_config`) --
-  every endpoint here is read-only by design for this increment.
+**Does not own:** Business rules or source-specific workflow state.
 
-**Boundary conflict worth a decision, not silently resolved here**: `outreach/` (drafting +
-`automator.py`, which sends LinkedIn messages and emails) and LinkedIn-stealth message-sending
-capability currently live inside Harvester, but per the Harvester/Engagement-Engine boundary
-above, sending and conversation-management belong to the Engagement Engine, not Harvester.
-Whether that code moves to a separate service, gets deprecated, or is deliberately kept as an
-interim capability until the Engagement Engine exists is an open decision, not resolved by this
-document.
+**Acceptance:** Shared components pass accessibility checks and every module uses the same visual language instead of inventing another shade of dashboard anxiety.
+
+## Module 03 — Tenant and Workspace Isolation
+
+**Status:** Planned
+
+**Outcome:** Separate every customer's data, configuration, credentials, jobs, leads, exports, and audit history.
+
+**Owns:** Tenant identity, workspace boundaries, tenant-scoped queries, storage prefixes, background-job scope, tenant tests.
+
+**Does not own:** Cross-tenant analytics without explicit governed aggregation.
+
+**Acceptance:** A tenant cannot read, write, export, infer, or operate on another tenant's data through UI, API, worker, file, cache, or event path.
+
+## Module 04 — Authentication and Session Security
+
+**Status:** Partial
+
+**Outcome:** Authenticate users and service identities independently of other NEWAX products.
+
+**Owns:** Login, logout, session lifecycle, password or external identity integration, service credentials, expiry, revocation, reauthentication.
+
+**Does not own:** Business permissions and connector credentials.
+
+**Acceptance:** Harvester can be deployed and accessed without Core authentication; session and service-token behavior is tested.
+
+## Module 05 — Authorization and Permission Registry
+
+**Status:** Partial
+
+**Outcome:** Control every business and administrative action through explicit permissions.
+
+**Owns:** Permission catalog, role composition, policy checks, API guards, worker authorization context, denied-action audit.
+
+**Does not own:** Hardcoded business behavior based on role names.
+
+**Acceptance:** Every protected UI action and API operation maps to an explicit permission and is denied by default.
+
+## Module 06 — Users, Teams, Ownership and Assignment
+
+**Status:** Planned
+
+**Outcome:** Manage operators, reviewers, administrators, owners, and work assignment inside Harvester.
+
+**Owns:** User lifecycle, teams, lead ownership, review assignment, workload visibility, reassignment history.
+
+**Does not own:** Customer communication ownership once records are published to Communicator.
+
+**Acceptance:** Leads, reviews, jobs, and operational tasks can be assigned and traced without relying on another application.
+
+## Module 07 — Product Configuration and Environment Profiles
+
+**Status:** Partial
+
+**Outcome:** Manage tenant and deployment configuration without editing application code.
+
+**Owns:** Development, testing, staging and production profiles; feature settings; limits; taxonomies; safe defaults; configuration history.
+
+**Does not own:** Secrets and database passwords.
+
+**Acceptance:** Configuration is validated, versioned, tenant-scoped where applicable, and distinguishable from credentials.
+
+## Module 08 — Audit and Activity History
+
+**Status:** Partial
+
+**Outcome:** Preserve who did what, when, from where, and against which object.
+
+**Owns:** User actions, service actions, approvals, configuration changes, exports, publications, security events, correlation IDs.
+
+**Does not own:** Raw source evidence, which remains in evidence modules.
+
+**Acceptance:** Material actions are append-only, queryable, exportable under permission, and never contain plaintext secrets.
+
+# B. Connections and Data Exchange
+
+## Module 09 — Credential Vault and Secret Lifecycle
+
+**Status:** Planned
+
+**Outcome:** Store and use database, API, webhook, queue, signing, and provider credentials safely.
+
+**Owns:** Write-only secrets, encryption, secret references, fingerprints, candidate validation, activation, rotation, retirement, audit.
+
+**Does not own:** Returning stored plaintext secrets to the browser or logs.
+
+**Acceptance:** A failed replacement leaves the previous credential active; plaintext is unavailable after submission.
+
+## Module 10 — Connection Profiles and Access Modes
+
+**Status:** Planned
+
+**Outcome:** Describe every external source or destination independently from its credentials.
+
+**Owns:** Connector type, environment, endpoint metadata, database metadata, SSL, tenant, purpose, health, read/write mode.
+
+**Does not own:** Source-specific field mapping and Harvester normalization.
+
+**Acceptance:** Every connection declares read-only, import, export, write, bidirectional, or inspection capability and uses least privilege.
+
+## Module 11 — Connector Registry and Capability Framework
+
+**Status:** Partial
+
+**Outcome:** Provide one plugin contract for built-in and future connectors.
+
+**Owns:** Connector registration, version, capabilities, limits, validation, schema discovery, cursors, health, contract tests.
+
+**Does not own:** Embedding source-specific assumptions into the central orchestrator.
+
+**Acceptance:** Unsupported operations fail explicitly and a connector can be upgraded without changing Harvester's lead model.
+
+## Module 12 — Source Schema Registry
+
+**Status:** Planned
+
+**Outcome:** Version the structure and meaning of every incoming source.
+
+**Owns:** Schema identity, versions, field metadata, samples, compatibility, activation, deprecation, source ownership.
+
+**Does not own:** Harvester's internal lead schema.
+
+**Acceptance:** A changed source schema cannot silently reuse an incompatible mapping or corrupt previously understood records.
+
+## Module 13 — Mapping and Transformation Profiles
+
+**Status:** Partial
+
+**Outcome:** Convert source-native fields into Harvester intake contracts while preserving the original payload.
+
+**Owns:** Direct mapping, rename, constants, conditions, enums, split, combine, lookup, normalization, metadata, ignore, review rules.
+
+**Does not own:** Final lead qualification, scoring, or Core formatting.
+
+**Acceptance:** Mappings are versioned, previewable, testable, rollback-capable, and independent for every source and tenant.
+
+## Module 14 — Import Preview, Validation and Quarantine
+
+**Status:** Planned
+
+**Outcome:** Show what an import or synchronization will do before records enter normal processing.
+
+**Owns:** Samples, mapped preview, validation results, duplicate hints, create/update/skip/quarantine actions, rejection reasons.
+
+**Does not own:** Direct writes to Master Leads.
+
+**Acceptance:** Operators can inspect source, transformed result, validation, intended action, and errors before activation.
+
+## Module 15 — Synchronization Engine and Checkpoints
+
+**Status:** Partial
+
+**Outcome:** Move data reliably between Harvester and approved sources or destinations without coupling local transactions to remote availability.
+
+**Owns:** Manual, scheduled, polling, webhook and event modes; checkpoints; retries; backoff; dead letter; backpressure; idempotency.
+
+**Does not own:** Product-specific mapping or destination business logic.
+
+**Acceptance:** Runs resume from durable checkpoints, preserve event identity on retry, and never roll back committed Harvester data because a remote system is unavailable.
+
+## Module 16 — Synchronization Conflicts, Reconciliation and Repair
+
+**Status:** Planned
+
+**Outcome:** Detect and resolve drift, missing deliveries, conflicting revisions, and partial synchronization.
+
+**Owns:** Conflict records, dry-run comparison, replay, repair, backfill, checksums, operator decisions, reconciliation reports.
+
+**Does not own:** Silent last-write-wins behavior.
+
+**Acceptance:** Every conflict has evidence, a resolution state, an audit trail, and a safe replay or manual-repair path.
+
+# C. Harvest Orchestration and Source Workflows
+
+## Module 17 — Harvest Job Definition
+
+**Status:** Planned
+
+**Outcome:** Represent one complete lead-generation request independently of any particular source.
+
+**Owns:** Objective, lead type, sectors, organization types, geography, source mix, target count, quality mode, exclusions, pinned versions.
+
+**Does not own:** Source execution details.
+
+**Acceptance:** The same job contract works when one or many sources are selected and remains historically reproducible.
+
+## Module 18 — Harvest Job Orchestrator
+
+**Status:** Planned
+
+**Outcome:** Coordinate selected source workflows, acceptance targets, pause, resume, retry, cancellation, completion, and partial failure.
+
+**Owns:** Parent lifecycle, child-run creation, acceptance accounting, failure isolation, cost and quota summary, frozen completion state.
+
+**Does not own:** Source-specific crawling, pagination, or parsing.
+
+**Acceptance:** One source failure does not erase other results; the parent state is derived from durable child state rather than frontend optimism.
+
+## Module 19 — Source Run and Stage Engine
+
+**Status:** Partial
+
+**Outcome:** Give every connector an independently versioned workflow under one common lifecycle.
+
+**Owns:** Source run, stage definitions, stage state, metrics, cursors, warnings, failures, heartbeats, pinned connector and workflow versions.
+
+**Does not own:** Hardcoded frontend progress logic.
+
+**Acceptance:** The backend publishes real stages and metrics; the frontend renders them generically.
+
+## Module 20 — Scheduler, Worker and Execution Control
+
+**Status:** Partial
+
+**Outcome:** Run harvest, verification, research, synchronization, export, and maintenance work reliably.
+
+**Owns:** Queues, worker leases, concurrency, retries, priorities, schedules, cancellation, stranded-work recovery, workload limits.
+
+**Does not own:** Source or lead business rules.
+
+**Acceptance:** No work is silently lost, duplicated, or executed outside the correct tenant and permission context.
+
+## Module 21 — Manual Lead and Evidence Entry
+
+**Status:** Current
+
+**Outcome:** Allow authorized users to submit organizations, people, contacts, and evidence through the same governed pipeline as automated sources.
+
+**Owns:** Original submission, validation, normalization, duplicate resolution, provenance, correction history.
+
+**Does not own:** Bypassing identity resolution or qualification.
+
+**Acceptance:** Manual entry preserves the original input and cannot create a duplicate merely because a human clicked confidently.
+
+## Module 22 — Authorized File Import
+
+**Status:** Current
+
+**Outcome:** Import licensed or customer-owned CSV, JSON, and approved tabular datasets.
+
+**Owns:** Authority reference, encoding and schema inspection, column mapping, row validation, reimport detection, rejection report.
+
+**Does not own:** Unlicensed acquisition or uncontrolled spreadsheet-to-table copying.
+
+**Acceptance:** Every row retains source authority, source identity, mapping version, raw evidence, and a deterministic import result.
+
+## Module 23 — Database Source Connectors
+
+**Status:** Planned
+
+**Outcome:** Read approved data from customer or partner databases through pluggable adapters.
+
+**Owns:** PostgreSQL, MySQL, MariaDB, SQL Server, SQLite, MongoDB, Supabase, Neon, RDS-compatible, Cloud SQL-compatible, Azure SQL.
+
+**Does not own:** Database-owner access, arbitrary SQL from the browser, or direct writes to Harvester business tables.
+
+**Acceptance:** Adapters enforce allowlists, bounded queries, least privilege, contract tests, checkpoints, and explicit capability limits.
+
+## Module 24 — API and Webhook Source Connectors
+
+**Status:** Planned
+
+**Outcome:** Receive or retrieve approved records from REST, GraphQL, webhook, partner, and customer APIs.
+
+**Owns:** Authentication, pagination, rate limits, signatures, retries, schema versions, polling and event intake.
+
+**Does not own:** Provider-specific business normalization outside adapter and mapping layers.
+
+**Acceptance:** Every accepted payload is authenticated where required, preserved source-native, versioned, and traceable to its connection.
+
+# D. Discovery, Evidence and Resolution
+
+## Module 25 — Public Website and Search Discovery
+
+**Status:** Partial
+
+**Outcome:** Discover and inspect approved public websites and search results for organization, person, contact, technology, and operational evidence.
+
+**Owns:** Seed discovery, URL policy, robots and terms controls, crawl planning, SSRF protection, page extraction, crawl states.
+
+**Does not own:** Treating non-detection as confirmed absence.
+
+**Acceptance:** Fetch attempts, coverage, failures, snapshots, evidence and detection states remain explicit and auditable.
+
+## Module 26 — Map Provider Discovery
+
+**Status:** Partial
+
+**Outcome:** Discover organizations and branches through approved map providers.
+
+**Owns:** Google Places, Yandex Maps, Apple Maps, category translation, geography planning, pagination, quota, provider IDs, place details.
+
+**Does not own:** One universal parser pretending every provider has the same taxonomy.
+
+**Acceptance:** Every provider has an isolated workflow and emits the common evidence contract with versioned source identity.
+
+## Module 27 — Telegram and Approved Public-Channel Discovery
+
+**Status:** Partial
+
+**Outcome:** Collect permitted public-channel evidence under explicit source policy.
+
+**Owns:** Configured channels, permitted metadata and content, public contacts, organization hints, coverage, corroboration requirements.
+
+**Does not own:** Private access, access-control bypass, or automatic high-confidence identity claims.
+
+**Acceptance:** Public-channel evidence remains low-confidence until corroborated and can be disabled by policy.
+
+## Module 28 — Professional-Network Discovery
+
+**Status:** Restricted
+
+**Outcome:** Support lawful, approved professional-network research without making it a default dependency.
+
+**Owns:** Approved access methods, profile references, person-role evidence, organization links, research safety, facts versus inference.
+
+**Does not own:** Credential abuse, access-control bypass, anti-bot circumvention, or representing a person as an organization.
+
+**Acceptance:** The module stays disabled until access, legal, security, compliance, and operational approval are recorded.
+
+## Module 29 — Raw Observation Store
+
+**Status:** Current
+
+**Outcome:** Preserve every accepted source observation before interpretation.
+
+**Owns:** Immutable raw records, source identity, payload hash, versions, capture time, tenant, connector, schema, authority, retention.
+
+**Does not own:** Canonical lead decisions.
+
+**Acceptance:** Identical payloads deduplicate safely; changed payloads create new immutable versions; different sources remain separate evidence.
+
+## Module 30 — Snapshot and Document Evidence Store
+
+**Status:** Partial
+
+**Outcome:** Preserve website pages, documents, attachments, and other evidence artifacts used for extraction or verification.
+
+**Owns:** Content hash, storage reference, MIME type, fetch result, source URL, timestamps, retention, access controls.
+
+**Does not own:** Unbounded storage without policy or copying credentials into artifacts.
+
+**Acceptance:** Every extracted fact can point to the correct artifact and access follows tenant, privacy, and retention rules.
+
+## Module 31 — Normalized Evidence and Provenance
+
+**Status:** Partial
+
+**Outcome:** Convert raw source material into comparable evidence without losing its origin.
+
+**Owns:** Normalized names, domains, phones, locations, roles, contacts, field provenance, confidence, detection state, source references.
+
+**Does not own:** Lead qualification, scoring, or customer relationship state.
+
+**Acceptance:** Facts, detections, inferences, unknowns and conflicts are distinguishable and linked back to raw evidence.
+
+## Module 32 — Entity Resolution and Conflict Workbench
+
+**Status:** Partial
+
+**Outcome:** Resolve duplicate organizations, branches, people, contacts, domains, and relationships safely.
+
+**Owns:** Candidate generation, match scoring, merge/link/reject/review decisions, concurrency protection, conflict evidence, human review.
+
+**Does not own:** NEWAX Core canonical identity; Harvester resolves its own lead-oriented records.
+
+**Acceptance:** Ambiguous matches remain reviewable, concurrent sources cannot silently create duplicates, and every merge is reversible or reconstructable from evidence.
+
+# E. Lead Intelligence
+
+## Module 33 — Master Lead Registry
+
+**Status:** Current
+
+**Outcome:** Maintain Harvester's resolved lead-oriented organizations, branches, people, contacts, and relationships.
+
+**Owns:** Harvester IDs, current resolved views, source links, operating state, branch structure, current contacts, revision history.
+
+**Does not own:** Enterprise-wide existence or canonical identity owned by optional NEWAX Core.
+
+**Acceptance:** The registry works independently and can retain optional external identity links without replacing Harvester IDs.
+
+## Module 34 — Person, Role and Relationship Attribution
+
+**Status:** Partial
+
+**Outcome:** Connect people to organizations and roles only when supported by evidence.
+
+**Owns:** Person candidates, role history, organization relationship, attribution confidence, source evidence, review state.
+
+**Does not own:** Assuming every email or phone belongs to a named person.
+
+**Acceptance:** Person-role links expose confidence and evidence; unsupported attribution stays organization-level or unknown.
+
+## Module 35 — Contact Method Verification
+
+**Status:** Partial
+
+**Outcome:** Assess whether email, phone, WhatsApp, website, form, and other contact methods are usable and current.
+
+**Owns:** Syntax, domain, reachability where lawful, source corroboration, verification time, invalidation, replacement, history.
+
+**Does not own:** Campaign sending or conversation management.
+
+**Acceptance:** Invalidation never deletes historical evidence; verification freshness and intended-channel eligibility remain explicit.
+
+## Module 36 — Lead Profile and History
+
+**Status:** Current
+
+**Outcome:** Summarize the current commercial lead interpretation of a resolved entity.
+
+**Owns:** Lead status, profile attributes, size, contactability, category fit, research summary, score snapshots, change history.
+
+**Does not own:** Entity existence or customer communication history.
+
+**Acceptance:** Profile changes are versioned and traceable to evidence, policy, and scoring inputs.
+
+## Module 37 — Signals and Research Findings
+
+**Status:** Current
+
+**Outcome:** Store detected opportunities, risks, needs, events, facts, and structured research findings.
+
+**Owns:** Signal type, evidence, confidence, freshness, source, status, review, supersession.
+
+**Does not own:** Presenting inference as fact.
+
+**Acceptance:** Signals distinguish observed fact, model inference, operator assessment, and unknown state.
+
+## Module 38 — Website and Technology Intelligence
+
+**Status:** Partial
+
+**Outcome:** Assess the organization's public digital and operational infrastructure from scoped evidence.
+
+**Owns:** Technology detection, website quality, forms, portals, analytics, accessibility, infrastructure indicators, detection states.
+
+**Does not own:** Declaring absence when crawl coverage is insufficient.
+
+**Acceptance:** Every detection records evidence, scope, confidence, freshness, and PRESENT/ABSENT_CONFIRMED/NOT_DETECTED/NOT_CRAWLED/CRAWL_FAILED/UNKNOWN state.
+
+## Module 39 — Qualification Policy and Assessment
+
+**Status:** Partial
+
+**Outcome:** Decide whether a resolved entity belongs in a usable lead pool under a versioned policy.
+
+**Owns:** Sector, lead type, organization type, objective, policy versions, required rules, weighted rules, disqualifiers, review triggers, evidence requirements.
+
+**Does not own:** Opportunity ranking or Core entity admission.
+
+**Acceptance:** Assessments preserve policy version, criteria, evidence snapshot, rationale, threshold, outcome, and review state.
+
+## Module 40 — Opportunity Scoring, Maturity and Service-Gap Analysis
+
+**Status:** Partial
+
+**Outcome:** Rank qualified or reviewable opportunities by value, fit, urgency, and likely operational need.
+
+**Owns:** Score model, scale, maturity, service gaps, website opportunity, automation opportunity, connected-infrastructure opportunity, score history.
+
+**Does not own:** Qualification eligibility or guaranteed sales outcomes.
+
+**Acceptance:** Scoring is explainable, versioned, historically reproducible, and separate from qualification.
+
+# F. Workspaces and Governance
+
+## Module 41 — Data Quality, Freshness and Verification
+
+**Status:** Current
+
+**Outcome:** Detect missing, stale, contradictory, weak, or suspicious lead data.
+
+**Owns:** Quality rules, flags, severity, verification jobs, freshness policies, remediation, closure evidence.
+
+**Does not own:** Silently correcting source data without provenance.
+
+**Acceptance:** Quality flags remain visible until resolved with evidence, accepted as known limitation, or superseded.
+
+## Module 42 — Compliance, Suppression and Channel Eligibility
+
+**Status:** Current
+
+**Outcome:** Prevent prohibited acquisition, retention, export, publication, and contact preparation.
+
+**Owns:** Source policies, ethical restrictions, suppression, deletion requests, retention, consent evidence, channel eligibility, legal holds.
+
+**Does not own:** Sending messages, which belongs to Communicator or another approved destination.
+
+**Acceptance:** Suppressed or prohibited records cannot escape through export, group, publication, API, or retry path.
+
+## Module 43 — Research Jobs and Account Briefs
+
+**Status:** Partial
+
+**Outcome:** Run structured, evidence-grounded research and create useful lead briefs.
+
+**Owns:** Research requests, findings, source citations, prompt-injection controls, summaries, opportunity framing, account briefs, review.
+
+**Does not own:** Autonomous promises, invented facts, or conversation history.
+
+**Acceptance:** Briefs cite Harvester evidence, distinguish fact from inference, and remain useful whether or not Communicator or Core is installed.
+
+## Module 44 — Generated Leads Snapshots
+
+**Status:** Planned
+
+**Outcome:** Freeze the exact accepted, rejected, and review-required output of one completed Harvest Job.
+
+**Owns:** Job result membership, score and qualification at completion, reasons, source contributions, evidence summary, snapshot version.
+
+**Does not own:** Current Master Lead state after the job ends.
+
+**Acceptance:** Historical job results never change silently when the current lead record is later enriched.
+
+## Module 45 — Master Leads Workspace
+
+**Status:** Partial
+
+**Outcome:** Search, filter, sort, compare, select, and manage current lead records across all harvests.
+
+**Owns:** Server-side search, columns, bulk actions, saved views, source coverage, ownership, qualification, score, freshness, publication state.
+
+**Does not own:** Direct destination sending.
+
+**Acceptance:** Operators can manage current leads without relying on an external CRM or Core interface.
+
+## Module 46 — Lead Dossier Workspace
+
+**Status:** Partial
+
+**Outcome:** Present the complete current lead story in one reviewable workspace.
+
+**Owns:** Identity, branches, people, contacts, evidence, provenance, infrastructure, qualification, score, history, quality, compliance, publications, notes.
+
+**Does not own:** Communicator conversation transcript unless retrieved through an optional governed adapter.
+
+**Acceptance:** Facts, detections, inferences, unknowns and historical changes are visually and semantically distinct.
+
+## Module 47 — Human Review Queues
+
+**Status:** Partial
+
+**Outcome:** Centralize decisions that automation must not make silently.
+
+**Owns:** Resolution review, qualification review, data-quality review, attribution review, publication review, assignment, SLA, decisions, rationale.
+
+**Does not own:** Hiding uncertainty behind a confidence number.
+
+**Acceptance:** Every review item has evidence, permitted actions, assignment, decision history, and optimistic-lock protection.
+
+## Module 48 — Daily Selection, Reservation and Ownership
+
+**Status:** Partial
+
+**Outcome:** Allocate qualified leads for controlled work without duplicate effort.
+
+**Owns:** Eligibility, ranking inputs, daily selection, reservations, owner, expiry, release, conflicts, audit.
+
+**Does not own:** Campaign scheduling or conversation follow-up.
+
+**Acceptance:** One lead cannot be silently reserved by competing operators or destinations, and expiry/release behavior is deterministic.
+
+# G. Activation and Optional Integrations
+
+## Module 49 — Saved Filters, Views and Groups
+
+**Status:** Planned
+
+**Outcome:** Create reusable live or fixed selections inside Harvester.
+
+**Owns:** Saved filters, dynamic groups, static groups, ownership, sharing, permissions, membership preview, refresh.
+
+**Does not own:** Frozen destination audiences, which are created by Module 52.
+
+**Acceptance:** Dynamic membership changes with lead data; static membership changes only through an explicit action.
+
+## Module 50 — Export and Report Jobs
+
+**Status:** Partial
+
+**Outcome:** Produce governed files and summaries for approved lead selections.
+
+**Owns:** CSV, JSON, Excel, summary reports, selected IDs, configurable fields, background jobs, expiring links, checksums, audit.
+
+**Does not own:** Bypassing suppression, field permissions, or retention policy.
+
+**Acceptance:** Exports are reproducible, permission-scoped, redacted where required, and traceable to their exact selection and schema.
+
+## Module 51 — Publishing Rules
+
+**Status:** Planned
+
+**Outcome:** Decide which Harvester records may be sent to which destination and when.
+
+**Owns:** Filter criteria, triggers, schedules, approvals, destination, mapping, redaction, deduplication, pause, dry run.
+
+**Does not own:** Destination-owned communication or identity logic.
+
+**Acceptance:** Nothing leaves Harvester merely because a connector exists; every publication is governed by an explicit active rule.
+
+## Module 52 — Frozen Audiences and Payload Profiles
+
+**Status:** Planned
+
+**Outcome:** Freeze the exact records and fields approved for one publication or campaign handoff.
+
+**Owns:** Audience snapshot, Minimal Contact, Standard Lead, Full Lead Context, Raw Observation, Resolved Entity, Custom profile, field allowlist.
+
+**Does not own:** Destination-side group membership after delivery.
+
+**Acceptance:** The published audience and bytes remain auditable even when dynamic filters or lead records later change.
+
+## Module 53 — Direct Communicator Adapter
+
+**Status:** Planned
+
+**Outcome:** Allow Harvester and Communicator to work together without NEWAX Core.
+
+**Owns:** Capability discovery, credentials, organization/person/contact references, lead context, acknowledgement links, bounce/opt-out/invalid feedback, refresh requests.
+
+**Does not own:** Communicator profiles, audiences, campaigns, messages, conversations, sentiment, or follow-up logic.
+
+**Acceptance:** Both products remain independently usable; Communicator maps the payload into its own model and Harvester remains lead-intelligence owner.
+
+## Module 54 — Optional NEWAX Core Adapter
+
+**Status:** Planned
+
+**Outcome:** Publish source-native observations, resolved entities, and approved lead facets to NEWAX Core when a customer enables it.
+
+**Owns:** Raw, resolved-entity and lead-context streams; independent controls; signing; links; backfill; reconciliation; Core capability negotiation.
+
+**Does not own:** Making Core mandatory, sharing tables, or formatting Harvester data directly as Core Registry rows.
+
+**Acceptance:** Core downtime creates a recoverable backlog and never blocks local harvesting, resolution, qualification, or export.
+
+## Module 55 — Generic Customer Destination Adapters
+
+**Status:** Planned
+
+**Outcome:** Publish approved Harvester outputs to customer databases, CRMs, ERPs, APIs, files, queues, and object storage.
+
+**Owns:** Destination adapters, outbound mapping, create/update policies, idempotency, acknowledgements, external references, safe write scopes.
+
+**Does not own:** Unrestricted remote writes or destination business logic inside Harvester.
+
+**Acceptance:** Every destination uses its own mapping, least-privilege credential, capability declaration, and reconciliation path.
+
+## Module 56 — Event Delivery, Feedback and Command Intake
+
+**Status:** Partial
+
+**Outcome:** Provide durable product-to-product and system-to-system operational exchange.
+
+**Owns:** Transactional outbox, delivery attempts, HMAC or asymmetric signing, retries, dead letter, receipts, feedback events, verification and refresh commands.
+
+**Does not own:** Synchronous distributed transactions across products.
+
+**Acceptance:** Events and commands are versioned, idempotent, tenant-scoped, authenticated, replay-safe, and observable.
+
+# H. Operations, Resale and Release
+
+## Module 57 — Operations, Health and Metrics
+
+**Status:** Partial
+
+**Outcome:** Make the product's real operational state visible and recoverable.
+
+**Owns:** Job health, source health, worker health, queue depth, failures, retries, throughput, yield, cost, quota, latency, alerts, runbooks.
+
+**Does not own:** Decorative metrics that cannot drive an action.
+
+**Acceptance:** Operators can identify, diagnose, pause, retry, reconcile, and recover failed or degraded workflows.
+
+## Module 58 — Integration Administration UI
+
+**Status:** Planned
+
+**Outcome:** Manage connections, credentials, mappings, schemas, synchronization, destinations, and optional product adapters safely.
+
+**Owns:** Connections, Secrets, Schemas, Mappings, Sync Runs, Conflicts, Publishing, Communicator, Core, Audit tabs.
+
+**Does not own:** Revealing plaintext secrets or permitting uncontrolled SQL.
+
+**Acceptance:** Administrators can configure and validate integrations without server-file editing, and dangerous actions require reauthentication and approval.
+
+## Module 59 — Multi-Tenant Product Administration
+
+**Status:** Planned
+
+**Outcome:** Operate Harvester as a resellable service across isolated customer tenants.
+
+**Owns:** Tenant lifecycle, quotas, plans, regions, data residency, administrators, suspension, deletion, support access, tenant health.
+
+**Does not own:** Cross-tenant access by ordinary operators.
+
+**Acceptance:** Tenant onboarding, operation, support, export and deletion are isolated, permissioned, auditable, and reversible where policy permits.
+
+## Module 60 — Licensing and Feature Entitlements
+
+**Status:** Planned
+
+**Outcome:** Control product editions and paid capabilities without code forks.
+
+**Owns:** License identity, plan, features, usage limits, connector entitlements, expiry, grace, enforcement, audit, offline validation where required.
+
+**Does not own:** Using licensing to weaken data ownership or trap customer exports.
+
+**Acceptance:** Features fail closed according to entitlement while customer-owned data remains exportable under policy.
+
+## Module 61 — Controlled Branding and Terminology
+
+**Status:** Planned
+
+**Outcome:** Support enterprise branding and bounded white-label requirements without fragmenting the product.
+
+**Owns:** Logo, product name, domain, email identity, terminology labels, approved themes, legal notices, default NEWAX branding.
+
+**Does not own:** Per-customer forks of workflows, schemas, or security controls.
+
+**Acceptance:** Brand changes remain configuration, preserve accessibility, and cannot alter product ownership or compliance semantics.
+
+## Module 62 — Packaging, Deployment, Backup and Restore
+
+**Status:** Planned
+
+**Outcome:** Ship Harvester as dependable customer-owned or managed business infrastructure.
+
+**Owns:** Container images, environment manifests, managed and self-hosted profiles, database provisioning guidance, object storage, backup, restore, disaster recovery.
+
+**Does not own:** Assuming one NEWAX-hosted environment is the only deployment.
+
+**Acceptance:** A customer can deploy, back up, restore, and verify Harvester without installing Core or Communicator.
+
+## Module 63 — Upgrade, Migration and Compatibility Management
+
+**Status:** Planned
+
+**Outcome:** Upgrade application, database, connectors, schemas, mappings, policies, and integrations without losing explainability or recoverability.
+
+**Owns:** Semantic versions, migrations, compatibility matrix, deprecation, rollback, pinned run versions, upgrade reports, data repair.
+
+**Does not own:** Silent reinterpretation of historical evidence or job results.
+
+**Acceptance:** Running jobs remain pinned, historical context remains readable, migrations are tested, and rollback or forward repair is documented.
+
+## Module 64 — Security, Quality and Release Governance
+
+**Status:** Partial
+
+**Outcome:** Release only verified, supportable, secure product versions.
+
+**Owns:** Threat review, source-policy review, secret tests, tenant-isolation tests, migration tests, connector contract tests, accessibility, performance, CI, exact-head verification, release notes.
+
+**Does not own:** Treating a detailed roadmap as proof of implementation.
+
+**Acceptance:** A release is not Complete until the exact commit passes required checks with no unresolved security, data-integrity, compliance, migration, accessibility, or operational issue.
+
+# Delivery order
+
+The module numbers are stable product identities, not a command to implement sixty-four things in one heroic branch.
+
+## Foundation gate
+
+Modules 01–16 establish standalone product access, tenancy, credentials, connectors, mappings and reliable synchronization.
+
+## Harvest gate
+
+Modules 17–32 establish the complete source-to-evidence-to-resolution pipeline.
+
+## Intelligence gate
+
+Modules 33–48 establish lead records, qualification, scoring, research, quality, compliance and operator workflows.
+
+## Activation gate
+
+Modules 49–56 establish governed selection, export, publication and optional integrations.
+
+## Productization gate
+
+Modules 57–64 establish operations, administration, tenancy, licensing, packaging, upgrades and release governance.
+
+# Required architectural tests
+
+The roadmap is not satisfied until tests prove:
+
+1. Harvester starts and performs its core workflow with Core and Communicator absent.
+2. Every tenant boundary holds across APIs, workers, files, caches, exports and events.
+3. Source-native records are preserved before Harvester mapping or interpretation.
+4. Each source schema and mapping version is historically identifiable.
+5. No connector writes directly to Harvester business tables.
+6. Retries do not duplicate observations, leads, exports or publications.
+7. Optional destination failure cannot roll back Harvester data.
+8. Direct Harvester-to-Communicator operation works without Core.
+9. Core synchronization can be disabled without reducing Harvester functionality.
+10. Suppression and policy rules apply to exports, groups, APIs, publications and retries.
+11. Historical Harvest Job snapshots remain stable after later enrichment.
+12. Exact-head formatting, linting, tests, builds, security and migration checks pass before release.
+
+# Governing rules
+
+1. Harvester is a standalone lead-intelligence product.
+2. The application owns its operational database, identifiers and formatting.
+3. Every external source and destination uses a credentialed, versioned adapter.
+4. Raw evidence is immutable; resolved records are governed views.
+5. Facts, detections, inferences, unknowns and conflicts remain distinct.
+6. Entity resolution and lead qualification are separate.
+7. Qualification and opportunity scoring are separate.
+8. Core and Communicator are optional adapters, never hidden dependencies.
+9. No shared database tables exist between products.
+10. The customer controls what leaves Harvester.
+11. The system should do the work; the operator should remain in control.
+12. Current, Partial, Planned and Restricted are evidence terms, not marketing adjectives.
+
+---
+
+# I. Standalone Product Transition Crosswalk
+
+## Crosswalk status
+
+Status: **Integrated into this authoritative 64-module roadmap**
+
+The standalone-product workstreams HSP-0 through HSP-11 are no longer an additional layer of product modules. Their requirements are incorporated directly into Modules 01–64.
+
+Harvester therefore has one authoritative count:
+
+> **64 top-level standalone product modules**
+
+This section preserves traceability from the earlier HSP labels to the numbered module identities.
+
+## HSP crosswalk
+
+| Earlier workstream | Integrated modules | Result |
+| --- | --- | --- |
+| HSP-0 Architecture and product boundary | 01–08 | Standalone application, tenancy, authentication, permissions, ownership, configuration and audit |
+| HSP-1 Connections and credentials | 09–10 | Credential vault and connection profiles |
+| HSP-2 Database adapter kernel | 11, 23 | Connector framework and database source adapters |
+| HSP-3 Source schemas and mappings | 12–14 | Schema registry, mappings, preview, validation and quarantine |
+| HSP-4 Harvester normalization boundary | 29–40 | Raw observations, evidence, resolution, Master Leads and lead intelligence |
+| HSP-5 Synchronization engine | 15–16, 56 | Checkpoints, retries, conflict handling, reconciliation and durable event exchange |
+| HSP-6 Publishing rules and output profiles | 49–52 | Filters, groups, exports, publishing rules, frozen audiences and payloads |
+| HSP-7 Direct Communicator integration | 53 | Optional direct adapter without Core |
+| HSP-8 Optional NEWAX Core adapter | 54 | Optional source-native publication and identity-link reconciliation |
+| HSP-9 Administration UI | 58 | Connections, secrets, schemas, mappings, sync, publication and adapter administration |
+| HSP-10 Multi-tenant resale | 03, 59–61 | Tenant isolation, product administration, licensing and controlled branding |
+| HSP-11 Packaging and rollout | 62–64 | Deployment, backup, restore, upgrades, security and release governance |
+
+## Decisions preserved
+
+1. Harvester operates without NEWAX Core or Communicator.
+2. Harvester owns its database, identifiers, mapping and lead-intelligence format.
+3. Every source and destination uses a versioned credentialed adapter.
+4. Direct Harvester-to-Communicator integration works without Core.
+5. Core remains an optional identity and governance destination.
+6. Publishing is controlled by filters, rules, frozen audiences, payload profiles and approvals.
+7. Multi-tenant resale, licensing, packaging, backup, restore and upgrades are first-class product requirements.
+8. No HSP workstream is counted as an extra top-level module.
+
+## Standalone roadmap change control
+
+Future standalone-product roadmap changes must modify the relevant numbered module in this document.
+
+Do not create another parallel top-level module count unless the existing 64-module architecture is formally re-baselined with an archived predecessor, explicit migration map and verified reason.
+
+---
+
+# J. Optional NEWAX Core Adapter Delivery Crosswalk
+
+## Core adapter status
+
+Status: **Planned optional integration**
+
+This section is the delivery crosswalk for the optional NEWAX Core adapter. It does not create additional top-level Harvester modules.
+
+The previous 9D, 19B, 23B, 33C, 36B, 52B and 63B labels are retired. Their requirements are incorporated into the authoritative standalone module architecture.
+
+## Core integration product boundary
+
+Harvester operates fully when NEWAX Core is absent, disabled or unavailable.
+
+```text
+Harvester local workflow
+→ source intake
+→ raw evidence
+→ Harvester resolution
+→ lead intelligence
+→ local commit
+→ optional Core outbox event
+→ asynchronous delivery
+```
+
+Core never participates in Harvester's local transaction and never defines Harvester's database schema.
+
+## Authoritative Core-adapter module mapping
+
+| Core-sync concern | Harvester module |
+| --- | --- |
+| Credentials and signing secrets | Module 09 — Credential Vault and Secret Lifecycle |
+| Core connection metadata and access mode | Module 10 — Connection Profiles and Access Modes |
+| Adapter capabilities and version | Module 11 — Connector Registry and Capability Framework |
+| Core-facing source schemas | Module 12 — Source Schema Registry |
+| Source-native outbound mapping | Module 13 — Mapping and Transformation Profiles |
+| Durable checkpoints and retry | Module 15 — Synchronization Engine and Checkpoints |
+| Reconciliation, backfill and repair | Module 16 — Synchronization Conflicts, Reconciliation and Repair |
+| Raw observation source | Module 29 — Raw Observation Store |
+| Evidence and provenance projection | Module 31 — Normalized Evidence and Provenance |
+| Harvester entity source | Module 33 — Master Lead Registry |
+| Optional Core adapter | Module 54 — Optional NEWAX Core Adapter |
+| Outbox delivery and command intake | Module 56 — Event Delivery, Feedback and Command Intake |
+| Core administration page | Module 58 — Integration Administration UI |
+| Compatibility and upgrade policy | Module 63 — Upgrade, Migration and Compatibility Management |
+| Security and release verification | Module 64 — Security, Quality and Release Governance |
+
+## Optional Core streams
+
+### Raw observations
+
+Every accepted source observation may be queued after durable local storage.
+
+### Resolved entities
+
+Every new or materially changed Harvester-resolved organization, person, location, contact or relationship may be queued after resolution and validation.
+
+### Lead context
+
+Selected Harvester-owned qualification, score, opportunity, research or dossier summaries may be published only through an approved payload profile and publishing rule.
+
+Lead context remains a source-owned facet. It is not Core identity truth.
+
+## Core adapter delivery requirements
+
+The adapter must provide:
+
+- Independent enable, pause and disable controls
+- Source-native versioned payloads
+- Stable event identity
+- Deterministic payload hashes
+- Exact-byte signing
+- Idempotent retries
+- Per-entity ordering where required
+- Dead letter
+- Circuit breaker
+- Backpressure
+- Live-work priority over backfill
+- Permanent optional Harvester-to-Core links
+- Reconciliation and repair
+- Metrics and audit
+
+## Core adapter acceptance criteria
+
+The optional Core integration is not complete until:
+
+1. Harvester performs its full local workflow with Core disabled.
+2. Core downtime never rolls back or blocks local Harvester commits.
+3. Raw, resolved-entity and lead-context streams can be controlled independently.
+4. Harvester sends source-native contracts rather than Core database rows.
+5. Core performs its own schema validation, normalization, identity resolution, provenance and merge policy.
+6. Harvester IDs remain valid before and after a Core link exists.
+7. Retries reuse the same event ID and exact serialized payload.
+8. A new material revision receives a new event ID.
+9. Backfill cannot starve live events.
+10. Direct Harvester-to-Communicator operation remains available without Core.
+11. Tenant, permission, signing, secret, replay and no-leak tests pass.
+12. The exact release commit passes Module 64 verification.
+
+## Core adapter implementation sequence
+
+```text
+Module 09–13 foundations
+→ Module 15–16 synchronization
+→ Module 29 and 31 source contracts
+→ Module 54 adapter
+→ Module 56 delivery and commands
+→ Module 58 administration
+→ Module 63 compatibility
+→ Module 64 release verification
+```
+
+No Core-specific work should be embedded into unrelated source connectors, lead scoring, qualification, exports or frontend pages.
+
+# Unified roadmap change-control rule
+
+All future Harvester roadmap changes must be made in this file against the relevant numbered module or crosswalk section.
+
+Do not create another parallel roadmap document unless a formally approved re-baseline requires an archived predecessor, migration map, ownership decision and verified reason.

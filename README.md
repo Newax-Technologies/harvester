@@ -1,147 +1,234 @@
-# Lead Harvester
+# NEWAX Lead Harvester
 
-A Python MVP for finding and ranking business leads from:
+Harvester is a standalone lead-discovery, evidence, verification, resolution, qualification, and research application.
 
-1. Search queries through the Brave Search API.
-2. Public websites that permit crawling.
-3. Authorized social-media exports in CSV format.
+It connects approved public, authorized, customer-owned, and partner sources, preserves source evidence, resolves organizations and people, builds lead profiles, applies qualification policies, and prepares controlled outputs for exports or optional destination systems.
 
-It extracts contact details, organization identity, social links, evidence text, target keywords, locations, and buying-intent phrases. It then scores and deduplicates leads in SQLite and exports CSV or JSON.
+> **Product principle:** Define the market. Let the infrastructure discover, verify, resolve, qualify, and prepare the opportunities while the operator remains in control.
 
-## Why it does not blindly scrape social networks
+## Product boundary
 
-Most social platforms restrict automated collection, reuse, and commercial exploitation of user data. This project deliberately uses official APIs or exports you are authorized to process. Adding a login-cookie scraper would be easy engineering and terrible product judgment: it would be fragile, legally risky, and likely to get accounts blocked.
+Harvester is designed as a separate, resellable application with its own:
 
-## Features
+- Operational database and migrations
+- Authentication, authorization, and tenant isolation
+- Connection and credential profiles
+- Source connectors and source-schema registry
+- Mapping and normalization engine
+- Raw observations, evidence, and provenance
+- Resolved organizations, people, branches, contacts, and relationships
+- Lead profiles, qualification, scoring, research, and dossiers
+- Synchronization, outbox, retry, reconciliation, and audit
+- Backup, restore, export, licensing, and upgrade path
 
-- Async website crawler using HTTPX.
-- `robots.txt` checks using Python's standard library.
-- Per-domain rate limiting, response-size limits, timeouts, and concurrency controls.
-- Same-domain crawling with priority for contact/about/team pages.
-- Email, phone, organization, location, social-profile, and evidence extraction.
-- Brave Search query discovery when an API key is configured.
-- Social CSV ingestion with flexible column aliases.
-- Lead scoring from contactability, ICP keyword fit, location fit, and intent signals.
-- SQLite persistence, fingerprint deduplication, CSV/JSON export.
-- Unit tests and Docker support.
+Harvester does not require Communicator or NEWAX Core.
 
-## Installation
+Both are optional integrations:
+
+```text
+Harvester only
+Sources → Harvester → leads, dossiers, exports, APIs, or customer systems
+
+Harvester + Communicator
+Harvester publishing rule → direct adapter → Communicator mapping and normalization
+
+Harvester + NEWAX Core
+Optional raw-observation, resolved-entity, and approved lead-context streams
+→ Core ingestion, canonical identity, provenance, and governance
+
+Full NEWAX deployment
+Harvester
+├── optional direct Communicator adapter
+├── optional NEWAX Core adapter
+└── optional customer or partner destinations
+```
+
+## Independent formatting
+
+Harvester formats incoming information according to lead-intelligence needs:
+
+```text
+Source-native record
+→ raw observation
+→ normalized evidence
+→ resolution candidate
+→ resolved organization, person, branch, contact, or relationship
+→ lead profile
+→ qualification assessment
+→ opportunity score
+→ research dossier
+```
+
+This remains separate from:
+
+```text
+Communicator
+Communication profiles, groups, audiences, campaigns, conversations, and engagement
+
+NEWAX Core
+Existence, canonical identity, relationships, provenance, and governed source facets
+```
+
+A shared source or common event envelope does not create a shared internal database schema.
+
+## Connections and credentials
+
+Harvester is planned to support credentialed adapters for:
+
+- PostgreSQL
+- MySQL
+- MariaDB
+- Microsoft SQL Server
+- SQLite for bounded local use
+- MongoDB
+- Supabase
+- Neon
+- Amazon RDS-compatible relational services
+- Google Cloud SQL-compatible relational services
+- Azure SQL
+- REST and GraphQL APIs
+- CSV and JSON imports
+- Webhooks
+- Message queues
+- Object storage
+- Communicator
+- NEWAX Core
+- Approved customer and partner systems
+
+"Any database" is implemented through versioned adapters with declared capabilities, least-privilege credentials, schema discovery, mapping, checkpoints, validation, and audit. It is not unrestricted SQL access to whatever server responds politely.
+
+Every source is mapped and normalized into Harvester's own evidence and lead model. Every destination receives only customer-approved data through publishing rules and payload profiles.
+
+## Core product journey
+
+```text
+Generate Leads
+→ define objective, sector, geography, sources, quantity, and quality rules
+→ create Harvest Job
+→ monitor source-specific work
+→ review frozen Generated Leads
+→ search current Master Leads
+→ inspect complete Lead Dossier
+→ export or publish selected records
+```
+
+Principal workspaces:
+
+- Generate Leads
+- Harvest Runs
+- Generated Leads
+- Master Leads
+- Lead Dossier
+- Resolution Reviews
+- Qualification Policies
+- Data Quality
+- Exports
+- Connections and Credentials
+- Synchronization
+- Communicator integration
+- NEWAX Core integration
+- Operations and Audit
+
+## Current implementation
+
+The repository currently provides substantial backend foundations, including:
+
+- Source runs and raw source records
+- Website snapshots
+- Canonical institutions, branches, contacts, and people candidates
+- Provenance and resolution review
+- Sector classification
+- Qualification assessments
+- Signals and research findings
+- Lead profiles and score history
+- Daily selection and reservations
+- Suppression and data-quality controls
+- Exports
+- Event outbox
+- Account briefs, outreach drafts, and outcomes
+- FastAPI routes and CLI workflows
+
+The complete multi-source Harvest Job orchestration, generic connection framework, resale foundation, and optional-product integration architecture remain planned until implemented and verified.
+
+## Automatic publication
+
+When optional destinations are configured, Harvester may publish through durable local outboxes.
+
+### Raw observations
+
+Every accepted source observation may be queued after durable local storage.
+
+### Resolved entities
+
+Every new or materially changed Harvester-resolved entity may be queued after local resolution and validation.
+
+### Lead context
+
+Customer-selected lead summaries, qualification, score, opportunity signals, research summaries, or dossier references may be published through explicit rules.
+
+Optional destination failure never rolls back a committed Harvester observation or lead update.
+
+## Running locally
 
 ```bash
-cd lead-harvester
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-```
-
-Optional environment variables:
-
-```bash
 cp .env.example .env
-export BRAVE_SEARCH_API_KEY="your-key"
-export LEAD_HARVESTER_USER_AGENT="YourCompanyLeadBot/1.0 (+https://yourdomain.com/contact)"
 ```
 
-The CLI reads environment variables from the shell. It intentionally does not silently load `.env`; production systems should use a proper secret manager, because apparently committing API keys remains a popular human hobby.
-
-## Run with seed websites
+Current CLI examples include:
 
 ```bash
-lead-harvester run \
-  --seeds-file examples/seeds.txt \
-  --keywords "clinic,hospital,orthotics,prosthetics" \
-  --locations "Islamabad,Rawalpindi" \
-  --minimum-score 35 \
-  --export output/leads.csv
+lead-harvester run --config job.yaml
+lead-harvester import-authorized ...
+lead-harvester qualify-leads ...
+lead-harvester select-daily-leads ...
+lead-harvester verify-data-quality ...
+lead-harvester export-leads ...
+lead-harvester process-outbox ...
 ```
 
-## Run with search queries
+Verification:
 
 ```bash
-export BRAVE_SEARCH_API_KEY="your-key"
-
-lead-harvester run \
-  --query 'private clinics Islamabad "contact"' \
-  --query 'orthopedic rehabilitation Rawalpindi' \
-  --keywords "clinic,rehabilitation,orthopedic" \
-  --locations "Islamabad,Rawalpindi" \
-  --count-per-query 10 \
-  --export output/web-leads.csv
-```
-
-## Import authorized social-media data
-
-Your CSV may use aliases such as `platform`, `profile_url`, `display_name`, `company`, `job_title`, `bio`, `caption`, or `post_text`.
-
-```bash
-lead-harvester run \
-  --social-csv examples/social_export.csv \
-  --keywords "automation,website,CRM,patient management" \
-  --locations "Islamabad,Rawalpindi" \
-  --minimum-score 40 \
-  --export output/social-leads.csv
-```
-
-## Combine all sources
-
-```bash
-lead-harvester run \
-  --query 'schools Islamabad need LMS' \
-  --seed https://example.edu.pk \
-  --social-csv licensed-social-export.csv \
-  --keywords "school,LMS,learning management system" \
-  --locations "Islamabad,Rawalpindi" \
-  --database output/leads.sqlite3 \
-  --export output/leads.json \
-  --format json
-```
-
-## Expected social CSV fields
-
-The importer accepts common aliases. A useful canonical shape is:
-
-```csv
-platform,profile_url,display_name,company,job_title,email,phone,website,location,bio
-```
-
-Only process data that you own, have licensed, received through an official API, or have another lawful basis to use. Keep evidence and source URLs so every lead remains auditable.
-
-## Scoring model
-
-- Email: +22; named email: +5.
-- Phone: +18.
-- Website: +8.
-- Social profiles: up to +8.
-- Keyword matches: up to +30.
-- Target location: +10.
-- Buying intent: up to +24.
-- Named contact: +4.
-- No email and no phone: -15.
-- Final score is capped at 100.
-
-Edit `src/lead_harvester/scoring.py` to match your actual ICP. A universal lead score is marketing astrology wearing a spreadsheet costume.
-
-## Tests
-
-```bash
-pytest -q
 ruff check .
+ruff format --check .
+pytest -q
 ```
 
-## Production roadmap
+Database changes must validate the full Alembic migration chain against PostgreSQL. Frontend changes must pass relevant type, lint, format, unit, build, accessibility, and end-to-end checks.
 
-1. Add official platform connectors behind a shared adapter interface.
-2. Add domain/email verification through a licensed provider.
-3. Add entity resolution across domains, company names, and social profiles.
-4. Add CRM synchronization and human review before outreach.
-5. Add consent, suppression, retention, and deletion controls.
-6. Add a FastAPI service and dashboard only after the data pipeline proves useful.
+## Documentation
 
-## Compliance guardrails
+- [Detailed Product and Architecture Specification](docs/archive/README-detailed-product-specification.md)
+- [Authoritative Roadmap](docs/ROADMAP.md)
+- [Standalone Product and Integration Framework](docs/architecture/standalone-product-and-integration-framework.md)
+- [Automatic NEWAX Core Synchronization](docs/architecture/newax-core-automatic-sync.md)
 
-- Respect `robots.txt`, site terms, API terms, and applicable privacy/marketing laws.
-- Do not bypass authentication, CAPTCHAs, rate limits, or access controls.
-- Do not collect sensitive personal data.
-- Do not auto-message scraped profiles.
-- Keep a suppression list and honor deletion/opt-out requests.
-- Use official APIs or authorized exports for social platforms.
+## Status language
+
+- **Current:** Present in the repository today.
+- **Partial:** Some required models or services exist, but the complete workflow is not connected.
+- **Correction pending:** Implemented in an open branch or PR but not integrated into `master`.
+- **Planned:** Required architecture awaiting implementation and verification.
+- **Restricted:** Disabled until access, security, legal, compliance, and operational requirements are approved.
+
+## Governing rules
+
+1. Harvester is a standalone lead-intelligence product.
+2. Different source workflows use one orchestration standard.
+3. Raw evidence is immutable; resolved records are governed views.
+4. Facts, detections, inferences, and unknowns remain distinct.
+5. Qualification and opportunity ranking are separate.
+6. Source schemas are mapped into Harvester's model, not adopted as Harvester's model.
+7. Customer publishing rules determine what leaves Harvester.
+8. Communicator and NEWAX Core remain optional adapters.
+9. Products never share private tables or database credentials.
+10. Secrets are encrypted, write-only, permission-protected, and audited.
+11. External failures are expected, visible, and recoverable.
+12. A change is complete only after exact-head verification without unresolved issues.
+
+## Locked rule
+
+> Harvester may connect to many sources and destinations, but it always owns how data becomes evidence, a resolved entity, a qualified lead, and a research dossier.
