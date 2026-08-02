@@ -40,6 +40,11 @@ Source-specific models define how one external source is planned, queried, extra
   - Defines strict geographic search, pagination, saturation, documented-field extraction, independent verification, scoring boundaries, cost, security, temporary caching, attribution, deletion, and contract gates
   - Marks the current connector restricted for production persistence until the intended Harvester workflow is covered by approved Yandex terms
 
+- [LinkedIn Authorized Data Source Model](sources/linkedin-authorized-data-source-model.md)
+  - Normative planned architecture for authorized organization connections, member consent, approved Sales Navigator partnerships, customer-authorized imports, and bounded operator references
+  - Defines LinkedIn identity, organization activity, analytics, role evidence, scoring boundaries, consent, privacy, retention, deletion, API approval, and source-transition controls
+  - Records the current stealth crawler separately as a quarantined legacy component with a feature freeze, production block, data-remediation plan, and removal path rather than treating it as an approved interim source
+
 Previous versions remain available through Git history and pull-request history rather than duplicate archive documents inside the active repository.
 
 ## Locked product boundaries
