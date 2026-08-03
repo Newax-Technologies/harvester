@@ -61,16 +61,16 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-HOS-GST-010-V1` | Guest Transport | guest transport | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-GST-011-V1` | Loyalty Programs | loyalty programs; loyalty program | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-GST-012-V1` | Guest Feedback and Reputation Management | guest feedback and reputation management; guest feedback & reputation management | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-HOS-OPS-001-V1` | Property Management Systems | property management systems; property management system | `ORG-GENERIC` | `EX-BROAD` |
-| `KW-HOS-OPS-002-V1` | Hotel Booking Engines | hotel booking engines; hotel booking engine | `ORG-INSTITUTION` | `EX-PHRASE` |
-| `KW-HOS-OPS-003-V1` | Channel Management Systems | channel management systems; channel management system | `ORG-SERVICE` | `EX-BROAD` |
-| `KW-HOS-OPS-004-V1` | Revenue Management Systems | revenue management systems; revenue management system | `ORG-SERVICE` | `EX-BROAD` |
-| `KW-HOS-OPS-005-V1` | Restaurant POS Systems | restaurant pos systems; restaurant pos system | `ORG-INSTITUTION` | `EX-PHRASE` |
-| `KW-HOS-OPS-006-V1` | Kitchen Management Systems | kitchen management systems; kitchen management system | `ORG-SERVICE` | `EX-BROAD` |
-| `KW-HOS-OPS-007-V1` | Housekeeping Management Systems | housekeeping management systems; housekeeping management system | `ORG-SERVICE` | `EX-BROAD` |
-| `KW-HOS-OPS-008-V1` | Maintenance Management Systems | maintenance management systems; maintenance management system | `ORG-SERVICE` | `EX-BROAD` |
+| `KW-HOS-OPS-001-V1` | Property Management Systems | property management systems; property management system | `ORG-SOFTWARE` | `EX-BROAD` |
+| `KW-HOS-OPS-002-V1` | Hotel Booking Engines | hotel booking engines; hotel booking engine | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-HOS-OPS-003-V1` | Channel Management Systems | channel management systems; channel management system | `ORG-SOFTWARE` | `EX-BROAD` |
+| `KW-HOS-OPS-004-V1` | Revenue Management Systems | revenue management systems; revenue management system | `ORG-SOFTWARE` | `EX-BROAD` |
+| `KW-HOS-OPS-005-V1` | Restaurant POS Systems | restaurant pos systems; restaurant pos system | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-HOS-OPS-006-V1` | Kitchen Management Systems | kitchen management systems; kitchen management system | `ORG-SOFTWARE` | `EX-BROAD` |
+| `KW-HOS-OPS-007-V1` | Housekeeping Management Systems | housekeeping management systems; housekeeping management system | `ORG-SOFTWARE` | `EX-BROAD` |
+| `KW-HOS-OPS-008-V1` | Maintenance Management Systems | maintenance management systems; maintenance management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-HOS-OPS-009-V1` | Hospitality CRM | hospitality crm; accommodation crm | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HOS-OPS-010-V1` | Inventory and Procurement Systems | inventory and procurement systems; inventory & procurement systems; inventory and procurement system | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HOS-OPS-010-V1` | Inventory and Procurement Systems | inventory and procurement systems; inventory & procurement systems; inventory and procurement system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-HOS-OPS-011-V1` | Food Safety and Hygiene Services | food safety and hygiene services; food safety & hygiene services; food safety and hygiene service; food safety and hygiene providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-HOS-OPS-012-V1` | Hospitality Staffing | hospitality staffing; accommodation staffing | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-OPS-013-V1` | Hospitality Supplies | hospitality supplies; hospitality supply; accommodation supplies | `ORG-PRODUCT` | `EX-PHRASE` |
