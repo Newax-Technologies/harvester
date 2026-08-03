@@ -79,16 +79,16 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-RET-ECM-009-V1` | Retail Franchises | retail franchises; retail franchise | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-RET-ECM-010-V1` | Catalogue and Telephone Retail | catalogue and telephone retail; catalogue & telephone retail | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-RET-ECM-011-V1` | Click-and-Collect Retail | click-and-collect retail | `ORG-COMMERCE` | `EX-PHRASE` |
-| `KW-RET-OPS-001-V1` | Point-of-Sale Systems | point-of-sale systems; point of sale systems; point-of-sale system; POS; point of sale | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-RET-OPS-002-V1` | Retail Inventory Systems | retail inventory systems; retail inventory system | `ORG-COMMERCE` | `EX-PHRASE` |
+| `KW-RET-OPS-001-V1` | Point-of-Sale Systems | point-of-sale systems; point of sale systems; point-of-sale system; POS; point of sale | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-RET-OPS-002-V1` | Retail Inventory Systems | retail inventory systems; retail inventory system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-RET-OPS-003-V1` | E-Commerce Platforms | e-commerce platforms; ecommerce platforms; e-commerce platform | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-RET-OPS-004-V1` | Order Management Systems | order management systems; order management system | `ORG-SERVICE` | `EX-BROAD` |
+| `KW-RET-OPS-004-V1` | Order Management Systems | order management systems; order management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-RET-OPS-005-V1` | Warehouse and Fulfilment for Retail | warehouse and fulfilment for retail; warehouse & fulfilment for retail | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-RET-OPS-006-V1` | Retail CRM and Loyalty | retail crm and loyalty; retail crm & loyalty | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-RET-OPS-007-V1` | Merchandising Systems | merchandising systems; merchandising system | `ORG-GENERIC` | `EX-BROAD` |
-| `KW-RET-OPS-008-V1` | Pricing and Promotion Systems | pricing and promotion systems; pricing & promotion systems; pricing and promotion system | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-RET-OPS-007-V1` | Merchandising Systems | merchandising systems; merchandising system | `ORG-SOFTWARE` | `EX-BROAD` |
+| `KW-RET-OPS-008-V1` | Pricing and Promotion Systems | pricing and promotion systems; pricing & promotion systems; pricing and promotion system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-RET-OPS-009-V1` | Retail Analytics | retail analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-RET-OPS-010-V1` | Store Operations Systems | store operations systems; store operations system | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-RET-OPS-010-V1` | Store Operations Systems | store operations systems; store operations system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-RET-OPS-011-V1` | Loss Prevention | loss prevention | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-RET-OPS-012-V1` | Retail Workforce Management | retail workforce management | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-RET-OPS-013-V1` | Retail Procurement | retail procurement | `ORG-COMMERCE` | `EX-PHRASE` |
