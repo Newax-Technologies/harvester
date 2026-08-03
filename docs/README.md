@@ -43,6 +43,12 @@ Taxonomy documents define controlled registries and mappings used by the Service
   - Prevents activities from propagating across domains and prevents duplicate targets or scores across overlapping classifications
   - Defines the minimum registry, applicability, selection, provenance, and acceptance requirements
 
+- [Healthcare Product and Service Domain Registry](taxonomy/healthcare-domain-registry.md)
+  - Defines the controlled domain registry for broad sector `BS-001 Healthcare`
+  - Includes 142 canonical domains across medicines, devices, supplies, facilities, digital health, operations, research, education, and public health
+  - Provides a 40-domain first-release presentation shortlist without replacing canonical domain identities
+  - Requires independent activity groups, approved domain–activity combinations, cross-sector reuse, evidence attribution, and duplicate prevention
+
 ## Source-specific models
 
 Source-specific models define how one external source is planned, queried, extracted, governed, retained, and connected to Harvester evidence. They remain subordinate to the roadmap, operating model, services model, applicable scoring profile, and integration framework.
@@ -93,6 +99,7 @@ No product shares private database tables, database-owner credentials, migration
 - Operating-model and decision-invariant changes belong in the intelligence operating model.
 - Provider types, service offerings, customer markets, lead-subject types, opportunity signals, qualification boundaries, first-page configuration, and universal generation rules belong in `SERVICES.md`.
 - Broad-sector registry, sector-to-domain applicability, and first-stage market-selection changes belong in `taxonomy/broad-sector-registry.md`, subordinate to `SERVICES.md`.
+- Healthcare domain definitions, family assignments, first-release visibility, cross-sector mappings, and Healthcare domain-to-activity applicability belong in `taxonomy/healthcare-domain-registry.md`, subordinate to the broad-sector registry and `SERVICES.md`.
 - Provider-specific opportunity weights, rubrics, confidence, risk, and recommendations belong in an explicitly scoped scoring profile.
 - The NEWAX Opportunity Scoring Model applies only to selected NEWAX business-infrastructure offerings and must not be treated as the universal Harvester score.
 - Source query, extraction, field-mask, coverage, retention, attribution, failure, cost, and source-specific compliance changes belong in the relevant source model.
