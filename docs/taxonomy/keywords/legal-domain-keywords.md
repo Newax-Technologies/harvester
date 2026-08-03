@@ -19,10 +19,10 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-LEG-PRA-006-V1` | Tax Law | tax law | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-PRA-007-V1` | Employment and Labour Law | employment and labour law; employment & labour law | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-PRA-008-V1` | Intellectual Property Law | intellectual property law | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-LEG-PRA-009-V1` | Technology and Data Law | technology and data law; technology & data law; tech and data law | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-LEG-PRA-010-V1` | Privacy and Data Protection Law | privacy and data protection law; privacy & data protection law | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-LEG-PRA-009-V1` | Technology and Data Law | technology and data law; technology & data law; tech and data law | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-LEG-PRA-010-V1` | Privacy and Data Protection Law | privacy and data protection law; privacy & data protection law | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-PRA-011-V1` | Competition and Antitrust Law | competition and antitrust law; competition & antitrust law | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-LEG-PRA-012-V1` | Real Estate and Property Law | real estate and property law; real estate & property law; property and property law | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-LEG-PRA-012-V1` | Real Estate and Property Law | real estate and property law; real estate & property law | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-PRA-013-V1` | Construction Law | construction law; building law | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-PRA-014-V1` | Energy and Infrastructure Law | energy and infrastructure law; energy & infrastructure law; power and infrastructure law | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-PRA-015-V1` | Healthcare and Life Sciences Law | healthcare and life sciences law; healthcare & life sciences law; health care and life sciences law; medical and life sciences law | `ORG-GENERIC` | `EX-PHRASE` |
@@ -49,7 +49,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-LEG-DIS-013-V1` | Alternative Dispute Resolution | alternative dispute resolution | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-DIS-014-V1` | Appellate Practice | appellate practice | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-LEG-DIS-015-V1` | Regulatory Investigations | regulatory investigations; regulatory investigation | `ORG-PUBLIC` | `EX-PHRASE` |
-| `KW-LEG-DIS-016-V1` | White-Collar and Financial Crime | white-collar and financial crime; white-collar & financial crime; white-collar and finance crime | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-LEG-DIS-016-V1` | White-Collar and Financial Crime | white-collar and financial crime; white-collar & financial crime | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-PER-001-V1` | Family Law | family law | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-PER-002-V1` | Marriage and Divorce Law | marriage and divorce law; marriage & divorce law | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-PER-003-V1` | Child Custody and Guardianship | child custody and guardianship; child custody & guardianship | `ORG-GENERIC` | `EX-PHRASE` |
@@ -61,7 +61,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-LEG-PER-009-V1` | Personal Injury | personal injury | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-PER-010-V1` | Medical Negligence | medical negligence | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-PER-011-V1` | Human Rights Law | human rights law | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-LEG-PER-012-V1` | Legal Aid | legal aid; law aid | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-LEG-PER-012-V1` | Legal Aid | legal aid | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-REG-001-V1` | Corporate Compliance | corporate compliance | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-REG-002-V1` | Regulatory Compliance | regulatory compliance | `ORG-PUBLIC` | `EX-PHRASE` |
 | `KW-LEG-REG-003-V1` | Anti-Money-Laundering Compliance | anti-money-laundering compliance; AML; financial crime controls | `ORG-GENERIC` | `EX-PHRASE` |
@@ -73,40 +73,40 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-LEG-REG-009-V1` | Policy Drafting | policy drafting | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-REG-010-V1` | Internal Investigations | internal investigations; internal investigation | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-REG-011-V1` | Whistleblowing and Ethics Programs | whistleblowing and ethics programs; whistleblowing & ethics programs; whistleblowing and ethics program | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-LEG-REG-012-V1` | Legal Risk Management | legal risk management; law risk management | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-LEG-REG-012-V1` | Legal Risk Management | legal risk management | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-LEG-REG-013-V1` | Contract Compliance | contract compliance | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-REG-014-V1` | Third-Party Due Diligence | third-party due diligence | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-LEG-OPS-001-V1` | Legal Research | legal research; law research | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-LEG-OPS-002-V1` | Legal Drafting | legal drafting; law drafting | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-LEG-OPS-001-V1` | Legal Research | legal research | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-LEG-OPS-002-V1` | Legal Drafting | legal drafting | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-003-V1` | Contract Drafting | contract drafting | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-004-V1` | Contract Review | contract review | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-005-V1` | Document Review | document review | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-006-V1` | Due Diligence | due diligence | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-LEG-OPS-007-V1` | Legal Translation | legal translation; law translation | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-LEG-OPS-007-V1` | Legal Translation | legal translation | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-008-V1` | Court Filing and Process Services | court filing and process services; court filing & process services; court filing and process service; court filing and process providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-LEG-OPS-009-V1` | Notary and Attestation | notary and attestation; notary & attestation | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-010-V1` | Trademark and Patent Filing | trademark and patent filing; trademark & patent filing | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-011-V1` | Company Registration Services | company registration services; company registration service; company registration providers | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-LEG-OPS-012-V1` | Legal Document Management | legal document management; law document management | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-LEG-OPS-012-V1` | Legal Document Management | legal document management | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-LEG-OPS-013-V1` | Matter and Case Management | matter and case management; matter & case management | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-LEG-OPS-014-V1` | Legal Billing and Timekeeping | legal billing and timekeeping; legal billing & timekeeping; law billing and timekeeping | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-LEG-OPS-014-V1` | Legal Billing and Timekeeping | legal billing and timekeeping; legal billing & timekeeping | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-015-V1` | E-Discovery | e-discovery | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-016-V1` | Litigation Support | litigation support | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-LEG-OPS-017-V1` | Legal Staffing and Outsourcing | legal staffing and outsourcing; legal staffing & outsourcing; law staffing and outsourcing | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-LEG-OPS-017-V1` | Legal Staffing and Outsourcing | legal staffing and outsourcing; legal staffing & outsourcing | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-018-V1` | Expert Witness Services | expert witness services; expert witness service; expert witness providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-LEG-DIG-001-V1` | Case Management Systems | case management systems; case management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-LEG-DIG-002-V1` | Matter Management Systems | matter management systems; matter management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-LEG-DIG-003-V1` | Contract Lifecycle Management | contract lifecycle management | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-LEG-DIG-004-V1` | Legal CRM Systems | legal crm systems; legal crm system; law crm systems | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-LEG-DIG-004-V1` | Legal CRM Systems | legal crm systems; legal crm system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-LEG-DIG-005-V1` | Client Portals | client portals; client portal | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-LEG-DIG-006-V1` | Document Automation | document automation | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-LEG-DIG-007-V1` | Legal Knowledge Management | legal knowledge management; law knowledge management | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-LEG-DIG-008-V1` | Legal Research Platforms | legal research platforms; legal research platform; law research platforms | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-LEG-DIG-007-V1` | Legal Knowledge Management | legal knowledge management | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-LEG-DIG-008-V1` | Legal Research Platforms | legal research platforms; legal research platform | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-LEG-DIG-009-V1` | Compliance Management Systems | compliance management systems; compliance management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-LEG-DIG-010-V1` | E-Discovery Platforms | e-discovery platforms; e-discovery platform | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-LEG-DIG-011-V1` | Digital Signature and Execution | digital signature and execution; digital signature & execution | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-LEG-DIG-012-V1` | Court and Hearing Management | court and hearing management; court & hearing management | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-LEG-DIG-013-V1` | Legal Analytics | legal analytics; law analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-LEG-DIG-013-V1` | Legal Analytics | legal analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-LEG-DIG-014-V1` | Intellectual Property Management Systems | intellectual property management systems; intellectual property management system | `ORG-SOFTWARE` | `EX-PHRASE` |
 
 A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
