@@ -17,7 +17,7 @@ When documents overlap, use this order:
    - Strengthens the existing 64 modules without creating a second roadmap
 
 3. [Harvester Services and Opportunity Model](SERVICES.md)
-   - Universal provider, service-offering, customer-market, lead-subject, opportunity-signal, qualification, and first-page generation model
+   - Universal provider, service-offering, customer-market, lead-subject, opportunity-signal, qualification, and first-page lead-generation model
    - Requires the complete service and target definition before **Generate Leads**
    - Supports B2B, B2C, referral, professional, healthcare, legal, local, remote, appointment, project, and recurring services
    - Establishes service gap as one signal type rather than the universal product model
@@ -37,11 +37,11 @@ When documents overlap, use this order:
 
 Taxonomy documents define controlled registries and mappings used by the Services and Opportunity Model. They remain subordinate to `SERVICES.md` and cannot independently create an eligible service, gap, opportunity, or lead.
 
-- [Sector, Domain and Activity Taxonomy Index](taxonomy/README.md)
+- [Sector, Domain, Activity and Keyword Taxonomy Index](taxonomy/README.md)
   - Links all 16 broad-sector domain registries
   - Covers 1,586 canonical product and service domains
   - Covers 519 canonical business activities
-  - Confirms an explicit activity-profile assignment for every canonical domain
+  - Confirms an explicit activity-profile assignment and separate keyword profile for every canonical domain
   - Preserves multi-sector selection, independent domain activity groups, canonical identity reuse, and duplicate prevention
 
 - [Canonical Activity Registry and Domain Mappings](taxonomy/activity-registry.md)
@@ -49,6 +49,13 @@ Taxonomy documents define controlled registries and mappings used by the Service
   - Maps all 1,586 domains to explicit `CORE`, `COMMON`, and `OPTIONAL` applicability profiles
   - Treats activities absent from a profile as `NOT_APPLICABLE` by default
   - Prevents one domain's activity selection from propagating to another domain
+
+- [Keyword Taxonomy Index](taxonomy/keywords/README.md)
+  - Defines separate discovery profiles for all 1,586 domains and all 519 canonical activities
+  - Separates domain terms, activity terms, organization cues, exclusions, and negative context
+  - Defines exact, phrase, semantic, entity, and regex match-mode requirements
+  - Keeps problem, buying-intent, competitor, existing-solution, and service-gap keywords subordinate to an active provider offering
+  - Prohibits a keyword match from independently proving a domain, activity, service gap, opportunity, or qualified lead
 
 - [Broad Sector Registry and Selection Framework](taxonomy/broad-sector-registry.md)
   - Defines the first-stage registry of 16 broad sectors
@@ -114,7 +121,9 @@ No product shares private database tables, database-owner credentials, migration
 - Broad-sector registry, sector-to-domain applicability, and first-stage market-selection changes belong in `taxonomy/broad-sector-registry.md`, subordinate to `SERVICES.md`.
 - Sector-specific domain definitions, family assignments, first-release visibility, and cross-sector mappings belong in the registries listed by `taxonomy/README.md`.
 - Canonical activity definitions, applicability profiles, and domain-to-activity assignments belong under `taxonomy/activity-registry.md` and its linked mapping files.
-- Target-workspace activity overrides must remain explicit, versioned selections and must not silently mutate canonical activity or domain mappings.
+- Domain and activity discovery terms, organization cues, exclusions, negative context, match modes, and locale-specific keyword packs belong under `taxonomy/keywords/`.
+- Service-specific target terms, problem signals, buying-intent signals, competitor terms, existing-solution terms, and service-gap profiles require an active provider offering and remain subordinate to `SERVICES.md`.
+- Target-workspace activity and keyword overrides must remain explicit, versioned selections and must not silently mutate canonical registries.
 - Provider-specific opportunity weights, rubrics, confidence, risk, and recommendations belong in an explicitly scoped scoring profile.
 - The NEWAX Opportunity Scoring Model applies only to selected NEWAX business-infrastructure offerings and must not be treated as the universal Harvester score.
 - Source query, extraction, field-mask, coverage, retention, attribution, failure, cost, and source-specific compliance changes belong in the relevant source model.
