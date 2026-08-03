@@ -84,7 +84,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-EDU-RES-004-V1` | University Research Centres | university research centres; university research centers; university research centre | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-RES-005-V1` | Laboratories and Innovation Centres | laboratories and innovation centres; laboratories & innovation centres; laboratories and innovation centers; laboratories and innovation centre; labs and innovation centres | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-EDU-RES-006-V1` | Academic Journals | academic journals; academic journal | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-EDU-RES-007-V1` | Research Data Services | research data services; research data service; research data providers | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-EDU-RES-007-V1` | Research Data Services | research data services; research data service; research data providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-RES-008-V1` | Research Ethics and Review Services | research ethics and review services; research ethics & review services; research ethics and review service; research ethics and review providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-RES-009-V1` | Grant Management Services | grant management services; grant management service; grant management providers | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-EDU-RES-010-V1` | Academic Conference Services | academic conference services; academic conference service; academic conference providers | `ORG-SERVICE` | `EX-PHRASE` |
@@ -93,7 +93,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-EDU-SUP-001-V1` | Education Consultancy | education consultancy; learning consultancy | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-SUP-002-V1` | Admissions and Enrolment Services | admissions and enrolment services; admissions & enrolment services; admissions and enrolment service; admissions and enrolment providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-SUP-003-V1` | Student Recruitment Services | student recruitment services; student recruitment service; student recruitment providers | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-EDU-SUP-004-V1` | Scholarship and Financial-Aid Services | scholarship and financial-aid services; scholarship & financial-aid services; scholarship and financial-aid service; scholarship and finance-aid services; scholarship and financial-aid providers | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-EDU-SUP-004-V1` | Scholarship and Financial-Aid Services | scholarship and financial-aid services; scholarship & financial-aid services; scholarship and financial-aid service; scholarship and financial-aid providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-SUP-005-V1` | Education Verification Services | education verification services; education verification service; learning verification services; education verification providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-SUP-006-V1` | Accreditation Services | accreditation services; accreditation service; accreditation providers | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-EDU-SUP-007-V1` | Examination Boards | examination boards; examination board | `ORG-GENERIC` | `EX-PHRASE` |
@@ -105,6 +105,6 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-EDU-SUP-013-V1` | Education Staffing and Recruitment | education staffing and recruitment; education staffing & recruitment; learning staffing and recruitment | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-EDU-SUP-014-V1` | Education Procurement | education procurement; learning procurement | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-EDU-SUP-015-V1` | Alumni Management Services | alumni management services; alumni management service; alumni management providers | `ORG-SERVICE` | `EX-BROAD` |
-| `KW-EDU-SUP-016-V1` | Career Services and Placement | career services and placement; career services & placement; career providers and placement | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-EDU-SUP-016-V1` | Career Services and Placement | career services and placement; career services & placement | `ORG-SERVICE` | `EX-PHRASE` |
 
 A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
