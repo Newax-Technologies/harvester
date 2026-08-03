@@ -71,7 +71,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-FAG-INP-013-V1` | Agricultural Drones | agricultural drones; agricultural drone | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FAG-INP-014-V1` | Farm Sensors and Telemetry | farm sensors and telemetry; farm sensors & telemetry | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FAG-INP-015-V1` | Agricultural Packaging | agricultural packaging | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-FAG-INP-016-V1` | Farm Energy and Solar Systems | farm energy and solar systems; farm energy & solar systems; farm energy and solar system; farm power and solar systems | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-FAG-INP-016-V1` | Farm Energy and Solar Systems | farm energy and solar systems; farm energy & solar systems; farm energy and solar system; farm power and solar systems | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FAG-PRO-001-V1` | Grains and Milling Products | grains and milling products; grains & milling products; grains and milling product | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-FAG-PRO-002-V1` | Flour and Bakery Ingredients | flour and bakery ingredients; flour & bakery ingredients; flour and bakery ingredient | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FAG-PRO-003-V1` | Edible Oils and Fats | edible oils and fats; edible oils & fats; edible oils and fat | `ORG-GENERIC` | `EX-PHRASE` |
