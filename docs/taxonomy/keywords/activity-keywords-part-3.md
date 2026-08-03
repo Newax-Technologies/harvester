@@ -1,174 +1,184 @@
-# Harvester Canonical Activity Keyword Registry
-
-Part **3 of 3**
+# Harvester Canonical Activity Keywords — Part 3
 
 Status: **Proposed**  
 Version: **1.0**  
-Date: **3 August 2026**  
+Date: **4 August 2026**  
 Implementation status: **Not implemented**
 
-These keyword aliases describe canonical business activities. They support discovery and evidence retrieval; they do not prove that a target performs an activity.
+This file defines default discovery terms for canonical business activities. Terms identify possible activity evidence only. They do not prove that an organization performs the activity.
 
-| Activity code | Activity | Primary phrase and reviewed aliases |
-| --- | --- | --- |
-| `ACT-FIN-008` | Remittance Services | remittance services |
-| `ACT-FIN-009` | Currency Exchange | currency exchange |
-| `ACT-FIN-010` | Investment Management | investment management |
-| `ACT-FIN-011` | Portfolio Management | portfolio management |
-| `ACT-FIN-012` | Securities Trading | securities trading |
-| `ACT-FIN-013` | Underwriting | underwriting |
-| `ACT-FIN-014` | Takaful Administration | takaful administration |
-| `ACT-FIN-015` | Claims Processing | claims processing |
-| `ACT-FIN-016` | Accounting | accounting |
-| `ACT-FIN-017` | Bookkeeping | bookkeeping |
-| `ACT-FIN-018` | Payroll Processing | payroll processing |
-| `ACT-FIN-019` | Tax Preparation | tax preparation |
-| `ACT-FIN-020` | Tax Filing | tax filing |
-| `ACT-FIN-021` | Audit Services | audit services |
-| `ACT-FIN-022` | Financial Reporting | financial reporting |
-| `ACT-FIN-023` | Credit Assessment | credit assessment |
-| `ACT-FIN-024` | Debt Collection | debt collection |
-| `ACT-FIN-025` | Treasury Management | treasury management |
-| `ACT-FIN-026` | Crowdfunding | crowdfunding |
-| `ACT-FIN-027` | Grant Disbursement | grant disbursement |
-| `ACT-FIN-028` | Fund Administration | fund administration |
-| `ACT-FIN-029` | Billing | billing |
-| `ACT-FIN-030` | Revenue Cycle Management | revenue cycle management |
-| `ACT-FIN-031` | Reconciliation | reconciliation |
-| `ACT-FIN-032` | Settlement | settlement |
-| `ACT-FIN-033` | Escrow Administration | escrow administration |
-| `ACT-FIN-034` | Budgeting | budgeting |
-| `ACT-FIN-035` | Financial Planning | financial planning |
-| `ACT-LEG-001` | Legal Advising | legal advising |
-| `ACT-LEG-002` | Legal Representation | legal representation |
-| `ACT-LEG-003` | Contract Drafting | contract drafting |
-| `ACT-LEG-004` | Contract Review | contract review |
-| `ACT-LEG-005` | Legal Research | legal research |
-| `ACT-LEG-006` | Litigation | litigation |
-| `ACT-LEG-007` | Arbitration Services | arbitration services |
-| `ACT-LEG-008` | Mediation Services | mediation services |
-| `ACT-LEG-009` | Filing Legal Documents | filing legal documents |
-| `ACT-LEG-010` | Registering Rights | registering rights |
-| `ACT-LEG-011` | Compliance Advising | compliance advising |
-| `ACT-LEG-012` | Corporate Secretarial Services | corporate secretarial services |
-| `ACT-LEG-013` | Investigation | investigation |
-| `ACT-LEG-014` | Evidence Management | evidence management |
-| `ACT-LEG-015` | Legal Case Management | legal case management |
-| `ACT-LEG-016` | Dispute Resolution | dispute resolution |
-| `ACT-LEG-017` | Notary Services | notary services |
-| `ACT-LEG-018` | Governance Administration | governance administration |
-| `ACT-LEG-019` | Board Administration | board administration |
-| `ACT-LEG-020` | Policy Drafting | policy drafting |
-| `ACT-LEG-021` | Intellectual Property Management | intellectual property management |
-| `ACT-LEG-022` | Conveyancing | conveyancing |
-| `ACT-LEG-023` | Probate Administration | probate administration |
-| `ACT-LEG-024` | Legal Discovery | legal discovery |
-| `ACT-LEG-025` | Legal Document Review | legal document review |
-| `ACT-PUB-001` | Public Administration | public administration |
-| `ACT-PUB-002` | Regulation | regulation |
-| `ACT-PUB-003` | Licensing Administration | licensing administration |
-| `ACT-PUB-004` | Permitting | permitting |
-| `ACT-PUB-005` | Enforcement | enforcement |
-| `ACT-PUB-006` | Tax Administration | tax administration |
-| `ACT-PUB-007` | Public Service Delivery | public service delivery |
-| `ACT-PUB-008` | Citizen Support | citizen support |
-| `ACT-PUB-009` | Program Delivery | program delivery |
-| `ACT-PUB-010` | Grantmaking | grantmaking |
-| `ACT-PUB-011` | Fundraising | fundraising |
-| `ACT-PUB-012` | Donation Collection | donation collection |
-| `ACT-PUB-013` | Zakat Collection | zakat collection |
-| `ACT-PUB-014` | Waqf Administration | waqf administration |
-| `ACT-PUB-015` | Advocacy | advocacy |
-| `ACT-PUB-016` | Campaigning | campaigning |
-| `ACT-PUB-017` | Volunteer Management | volunteer management |
-| `ACT-PUB-018` | Membership Management | membership management |
-| `ACT-PUB-019` | Community Development | community development |
-| `ACT-PUB-020` | Humanitarian Relief | humanitarian relief |
-| `ACT-PUB-021` | Disaster Response | disaster response |
-| `ACT-PUB-022` | Beneficiary Management | beneficiary management |
-| `ACT-PUB-023` | Monitoring and Evaluation | monitoring and evaluation |
-| `ACT-PUB-024` | Policy Development | policy development |
-| `ACT-PUB-025` | Stakeholder Engagement | stakeholder engagement |
-| `ACT-PUB-026` | Public Consultation | public consultation |
-| `ACT-PUB-027` | Constituent Services | constituent services |
-| `ACT-PUB-028` | Emergency Coordination | emergency coordination |
-| `ACT-PUB-029` | Social Protection Delivery | social protection delivery |
-| `ACT-PUB-030` | Relief Distribution | relief distribution |
-| `ACT-PUB-031` | Capacity Building | capacity building |
-| `ACT-PUB-032` | Partnership Management | partnership management |
-| `ACT-HSP-001` | Accommodation Operations | accommodation operations |
-| `ACT-HSP-002` | Guest Services | guest services |
-| `ACT-HSP-003` | Reservations Management | reservations management |
-| `ACT-HSP-004` | Housekeeping | housekeeping |
-| `ACT-HSP-005` | Food Service | food service |
-| `ACT-HSP-006` | Catering | catering |
-| `ACT-HSP-007` | Event Management | event management |
-| `ACT-HSP-008` | Venue Operations | venue operations |
-| `ACT-HSP-009` | Tour Operations | tour operations |
-| `ACT-HSP-010` | Travel Booking | travel booking |
-| `ACT-HSP-011` | Ticketing | ticketing |
-| `ACT-HSP-012` | Itinerary Planning | itinerary planning |
-| `ACT-HSP-013` | Destination Management | destination management |
-| `ACT-HSP-014` | Passenger Transport | passenger transport |
-| `ACT-HSP-015` | Pilgrimage Coordination | pilgrimage coordination |
-| `ACT-HSP-016` | Visa Assistance | visa assistance |
-| `ACT-HSP-017` | Travel Documentation | travel documentation |
-| `ACT-HSP-018` | Concierge Services | concierge services |
-| `ACT-HSP-019` | Front Desk Operations | front desk operations |
-| `ACT-HSP-020` | Revenue Management | revenue management |
-| `ACT-HSP-021` | Loyalty Program Management | loyalty program management |
-| `ACT-HSP-022` | Property Reservations | property reservations |
-| `ACT-HSP-023` | Banquet Operations | banquet operations |
-| `ACT-HSP-024` | Recreation Operations | recreation operations |
-| `ACT-HSP-025` | Attraction Operations | attraction operations |
-| `ACT-HSP-026` | Tour Guiding | tour guiding |
-| `ACT-HSP-027` | Travel Assistance | travel assistance |
-| `ACT-HSP-028` | Travel Insurance Assistance | travel insurance assistance |
-| `ACT-HSP-029` | Travel Compliance | travel compliance |
-| `ACT-HSP-030` | Group Travel Coordination | group travel coordination |
-| `ACT-REA-001` | Property Development | property development |
-| `ACT-REA-002` | Property Investment | property investment |
-| `ACT-REA-003` | Property Acquisition | property acquisition |
-| `ACT-REA-004` | Property Sales | property sales |
-| `ACT-REA-005` | Property Leasing | property leasing |
-| `ACT-REA-006` | Property Brokerage | property brokerage |
-| `ACT-REA-007` | Property Management | property management |
-| `ACT-REA-008` | Community Management | community management |
-| `ACT-REA-009` | Facilities Operations | facilities operations |
-| `ACT-REA-010` | Tenant Management | tenant management |
-| `ACT-REA-011` | Lease Administration | lease administration |
-| `ACT-REA-012` | Rent Collection | rent collection |
-| `ACT-REA-013` | Property Valuation | property valuation |
-| `ACT-REA-014` | Building Inspection | building inspection |
-| `ACT-REA-015` | Land Surveying | land surveying |
-| `ACT-REA-016` | Urban Planning | urban planning |
-| `ACT-REA-017` | Construction Management | construction management |
-| `ACT-REA-018` | Design Management | design management |
-| `ACT-REA-019` | Cost Estimation | cost estimation |
-| `ACT-REA-020` | Building Maintenance | building maintenance |
-| `ACT-REA-021` | Space Management | space management |
-| `ACT-REA-022` | Asset Operations | asset operations |
-| `ACT-REA-023` | Occupancy Management | occupancy management |
-| `ACT-REA-024` | Handover Management | handover management |
-| `ACT-REA-025` | Defect Management | defect management |
-| `ACT-END-001` | Collecting | collecting |
-| `ACT-END-002` | Sorting Recovered Materials | sorting recovered materials |
-| `ACT-END-003` | Dismantling | dismantling |
-| `ACT-END-004` | Scrap Trading | scrap trading; scrap dealer; recyclable materials trading |
-| `ACT-END-005` | Material Recovery | material recovery |
-| `ACT-END-006` | Recycling | recycling; recycle; recycler; material recovery |
-| `ACT-END-007` | Reprocessing | reprocessing |
-| `ACT-END-008` | Waste Treatment | waste treatment |
-| `ACT-END-009` | Hazardous Waste Handling | hazardous waste handling |
-| `ACT-END-010` | Medical Waste Handling | medical waste handling |
-| `ACT-END-011` | Composting | composting |
-| `ACT-END-012` | Disposal | disposal |
-| `ACT-END-013` | Destruction | destruction |
-| `ACT-END-014` | Take-Back Management | take-back management |
-| `ACT-END-015` | Reuse | reuse |
-| `ACT-END-016` | Selling Recovered Materials | selling recovered materials |
-| `ACT-END-017` | Waste Auditing | waste auditing |
-| `ACT-END-018` | E-Waste Processing | e-waste processing |
-| `ACT-END-019` | Waste Transport | waste transport |
+| Activity code | Activity | Family | Default activity terms and phrases |
+| --- | --- | --- | --- |
+| `ACT-EDU-023` | Knowledge Management | Education and knowledge delivery | `knowledge management`; `knowledge management services`; `knowledge management operations`; `knowledge management provider`; `we provide knowledge management`; `our knowledge management services`; `knowledge management department` |
+| `ACT-EDU-024` | Conference Delivery | Education and knowledge delivery | `conference delivery`; `conference delivery services`; `conference delivery operations`; `conference delivery provider`; `we provide conference delivery`; `our conference delivery services`; `conference delivery department` |
+| `ACT-EDU-025` | Workshop Delivery | Education and knowledge delivery | `workshop delivery`; `workshop delivery services`; `workshop delivery operations`; `workshop delivery provider`; `we provide workshop delivery`; `our workshop delivery services`; `workshop delivery department` |
+| `ACT-FIN-001` | Banking | Financial and transaction operations | `banking`; `bank`; `banking services`; `banking operations`; `banking provider`; `we provide banking`; `our banking services`; `banking department` |
+| `ACT-FIN-002` | Financing | Financial and transaction operations | `financing`; `financ`; `financing services`; `financing operations`; `financing provider`; `we provide financing`; `our financing services`; `financing department` |
+| `ACT-FIN-003` | Lending | Financial and transaction operations | `lending`; `lend`; `lending services`; `lending operations`; `lending provider`; `we provide lending`; `our lending services`; `lending department` |
+| `ACT-FIN-004` | Islamic Financing | Financial and transaction operations | `islamic financing`; `islamic financ`; `islamic financing services`; `islamic financing operations`; `islamic financing provider`; `we provide islamic financing`; `our islamic financing services`; `islamic financing department` |
+| `ACT-FIN-005` | Deposits Management | Financial and transaction operations | `deposits management`; `deposits management services`; `deposits management operations`; `deposits management provider`; `we provide deposits management`; `our deposits management services`; `deposits management department` |
+| `ACT-FIN-006` | Payments Processing | Financial and transaction operations | `payments processing`; `payments process`; `payments processing services`; `payments processing operations`; `payments processing provider`; `we provide payments processing`; `our payments processing services`; `payments processing department` |
+| `ACT-FIN-007` | Money Transfer | Financial and transaction operations | `money transfer`; `money transfer services`; `money transfer operations`; `money transfer provider`; `we provide money transfer`; `our money transfer services`; `money transfer department` |
+| `ACT-FIN-008` | Remittance Services | Financial and transaction operations | `remittance services`; `remittance`; `remittance services services`; `remittance services operations`; `remittance services provider`; `we provide remittance services`; `our remittance services services`; `remittance services department` |
+| `ACT-FIN-009` | Currency Exchange | Financial and transaction operations | `currency exchange`; `currency exchange services`; `currency exchange operations`; `currency exchange provider`; `we provide currency exchange`; `our currency exchange services`; `currency exchange department` |
+| `ACT-FIN-010` | Investment Management | Financial and transaction operations | `investment management`; `investment management services`; `investment management operations`; `investment management provider`; `we provide investment management`; `our investment management services`; `investment management department` |
+| `ACT-FIN-011` | Portfolio Management | Financial and transaction operations | `portfolio management`; `portfolio management services`; `portfolio management operations`; `portfolio management provider`; `we provide portfolio management`; `our portfolio management services`; `portfolio management department` |
+| `ACT-FIN-012` | Securities Trading | Financial and transaction operations | `securities trading`; `securities trad`; `securities trading services`; `securities trading operations`; `securities trading provider`; `we provide securities trading`; `our securities trading services`; `securities trading department` |
+| `ACT-FIN-013` | Underwriting | Financial and transaction operations | `underwriting`; `underwrit`; `underwriting services`; `underwriting operations`; `underwriting provider`; `we provide underwriting`; `our underwriting services`; `underwriting department` |
+| `ACT-FIN-014` | Takaful Administration | Financial and transaction operations | `takaful administration`; `takaful administration services`; `takaful administration operations`; `takaful administration provider`; `we provide takaful administration`; `our takaful administration services`; `takaful administration department` |
+| `ACT-FIN-015` | Claims Processing | Financial and transaction operations | `claims processing`; `claims process`; `claims processing services`; `claims processing operations`; `claims processing provider`; `we provide claims processing`; `our claims processing services`; `claims processing department` |
+| `ACT-FIN-016` | Accounting | Financial and transaction operations | `accounting`; `account`; `accounting services`; `accounting operations`; `accounting provider`; `we provide accounting`; `our accounting services`; `accounting department` |
+| `ACT-FIN-017` | Bookkeeping | Financial and transaction operations | `bookkeeping`; `bookkeep`; `bookkeeping services`; `bookkeeping operations`; `bookkeeping provider`; `we provide bookkeeping`; `our bookkeeping services`; `bookkeeping department` |
+| `ACT-FIN-018` | Payroll Processing | Financial and transaction operations | `payroll processing`; `payroll process`; `payroll processing services`; `payroll processing operations`; `payroll processing provider`; `we provide payroll processing`; `our payroll processing services`; `payroll processing department` |
+| `ACT-FIN-019` | Tax Preparation | Financial and transaction operations | `tax preparation`; `tax preparation services`; `tax preparation operations`; `tax preparation provider`; `we provide tax preparation`; `our tax preparation services`; `tax preparation department` |
+| `ACT-FIN-020` | Tax Filing | Financial and transaction operations | `tax filing`; `tax fil`; `tax filing services`; `tax filing operations`; `tax filing provider`; `we provide tax filing`; `our tax filing services`; `tax filing department` |
+| `ACT-FIN-021` | Audit Services | Financial and transaction operations | `audit services`; `audit`; `audit services services`; `audit services operations`; `audit services provider`; `we provide audit services`; `our audit services services`; `audit services department` |
+| `ACT-FIN-022` | Financial Reporting | Financial and transaction operations | `financial reporting`; `financial report`; `financial reporting services`; `financial reporting operations`; `financial reporting provider`; `we provide financial reporting`; `our financial reporting services`; `financial reporting department` |
+| `ACT-FIN-023` | Credit Assessment | Financial and transaction operations | `credit assessment`; `credit assessment services`; `credit assessment operations`; `credit assessment provider`; `we provide credit assessment`; `our credit assessment services`; `credit assessment department` |
+| `ACT-FIN-024` | Debt Collection | Financial and transaction operations | `debt collection`; `debt collection services`; `debt collection operations`; `debt collection provider`; `we provide debt collection`; `our debt collection services`; `debt collection department` |
+| `ACT-FIN-025` | Treasury Management | Financial and transaction operations | `treasury management`; `treasury management services`; `treasury management operations`; `treasury management provider`; `we provide treasury management`; `our treasury management services`; `treasury management department` |
+| `ACT-FIN-026` | Crowdfunding | Financial and transaction operations | `crowdfunding`; `crowdfund`; `crowdfunding services`; `crowdfunding operations`; `crowdfunding provider`; `we provide crowdfunding`; `our crowdfunding services`; `crowdfunding department` |
+| `ACT-FIN-027` | Grant Disbursement | Financial and transaction operations | `grant disbursement`; `grant disbursement services`; `grant disbursement operations`; `grant disbursement provider`; `we provide grant disbursement`; `our grant disbursement services`; `grant disbursement department` |
+| `ACT-FIN-028` | Fund Administration | Financial and transaction operations | `fund administration`; `fund administration services`; `fund administration operations`; `fund administration provider`; `we provide fund administration`; `our fund administration services`; `fund administration department` |
+| `ACT-FIN-029` | Billing | Financial and transaction operations | `billing`; `bill`; `billing services`; `billing operations`; `billing provider`; `we provide billing`; `our billing services`; `billing department` |
+| `ACT-FIN-030` | Revenue Cycle Management | Financial and transaction operations | `revenue cycle management`; `revenue cycle management services`; `revenue cycle management operations`; `revenue cycle management provider`; `we provide revenue cycle management`; `our revenue cycle management services`; `revenue cycle management department` |
+| `ACT-FIN-031` | Reconciliation | Financial and transaction operations | `reconciliation`; `reconciliation services`; `reconciliation operations`; `reconciliation provider`; `we provide reconciliation`; `our reconciliation services`; `reconciliation department` |
+| `ACT-FIN-032` | Settlement | Financial and transaction operations | `settlement`; `settlement services`; `settlement operations`; `settlement provider`; `we provide settlement`; `our settlement services`; `settlement department` |
+| `ACT-FIN-033` | Escrow Administration | Financial and transaction operations | `escrow administration`; `escrow administration services`; `escrow administration operations`; `escrow administration provider`; `we provide escrow administration`; `our escrow administration services`; `escrow administration department` |
+| `ACT-FIN-034` | Budgeting | Financial and transaction operations | `budgeting`; `budget`; `budgeting services`; `budgeting operations`; `budgeting provider`; `we provide budgeting`; `our budgeting services`; `budgeting department` |
+| `ACT-FIN-035` | Financial Planning | Financial and transaction operations | `financial planning`; `financial plann`; `financial planning services`; `financial planning operations`; `financial planning provider`; `we provide financial planning`; `our financial planning services`; `financial planning department` |
+| `ACT-LEG-001` | Legal Advising | Legal, governance and rights operations | `legal advising`; `legal advis`; `legal advising services`; `legal advising operations`; `legal advising provider`; `we provide legal advising`; `our legal advising services`; `legal advising department` |
+| `ACT-LEG-002` | Legal Representation | Legal, governance and rights operations | `legal representation`; `legal representation services`; `legal representation operations`; `legal representation provider`; `we provide legal representation`; `our legal representation services`; `legal representation department` |
+| `ACT-LEG-003` | Contract Drafting | Legal, governance and rights operations | `contract drafting`; `contract draft`; `contract drafting services`; `contract drafting operations`; `contract drafting provider`; `we provide contract drafting`; `our contract drafting services`; `contract drafting department` |
+| `ACT-LEG-004` | Contract Review | Legal, governance and rights operations | `contract review`; `contract review services`; `contract review operations`; `contract review provider`; `we provide contract review`; `our contract review services`; `contract review department` |
+| `ACT-LEG-005` | Legal Research | Legal, governance and rights operations | `legal research`; `legal research services`; `legal research operations`; `legal research provider`; `we provide legal research`; `our legal research services`; `legal research department` |
+| `ACT-LEG-006` | Litigation | Legal, governance and rights operations | `litigation`; `litigation services`; `litigation operations`; `litigation provider`; `we provide litigation`; `our litigation services`; `litigation department` |
+| `ACT-LEG-007` | Arbitration Services | Legal, governance and rights operations | `arbitration services`; `arbitration`; `arbitration services services`; `arbitration services operations`; `arbitration services provider`; `we provide arbitration services`; `our arbitration services services`; `arbitration services department` |
+| `ACT-LEG-008` | Mediation Services | Legal, governance and rights operations | `mediation services`; `mediation`; `mediation services services`; `mediation services operations`; `mediation services provider`; `we provide mediation services`; `our mediation services services`; `mediation services department` |
+| `ACT-LEG-009` | Filing Legal Documents | Legal, governance and rights operations | `filing legal documents`; `filing legal documents services`; `filing legal documents operations`; `filing legal documents provider`; `we provide filing legal documents`; `our filing legal documents services`; `filing legal documents department` |
+| `ACT-LEG-010` | Registering Rights | Legal, governance and rights operations | `registering rights`; `registering rights services`; `registering rights operations`; `registering rights provider`; `we provide registering rights`; `our registering rights services`; `registering rights department` |
+| `ACT-LEG-011` | Compliance Advising | Legal, governance and rights operations | `compliance advising`; `compliance advis`; `compliance advising services`; `compliance advising operations`; `compliance advising provider`; `we provide compliance advising`; `our compliance advising services`; `compliance advising department` |
+| `ACT-LEG-012` | Corporate Secretarial Services | Legal, governance and rights operations | `corporate secretarial services`; `corporate secretarial`; `corporate secretarial services services`; `corporate secretarial services operations`; `corporate secretarial services provider`; `we provide corporate secretarial services`; `our corporate secretarial services services`; `corporate secretarial services department` |
+| `ACT-LEG-013` | Investigation | Legal, governance and rights operations | `investigation`; `investigation services`; `investigation operations`; `investigation provider`; `we provide investigation`; `our investigation services`; `investigation department` |
+| `ACT-LEG-014` | Evidence Management | Legal, governance and rights operations | `evidence management`; `evidence management services`; `evidence management operations`; `evidence management provider`; `we provide evidence management`; `our evidence management services`; `evidence management department` |
+| `ACT-LEG-015` | Legal Case Management | Legal, governance and rights operations | `legal case management`; `legal case management services`; `legal case management operations`; `legal case management provider`; `we provide legal case management`; `our legal case management services`; `legal case management department` |
+| `ACT-LEG-016` | Dispute Resolution | Legal, governance and rights operations | `dispute resolution`; `dispute resolution services`; `dispute resolution operations`; `dispute resolution provider`; `we provide dispute resolution`; `our dispute resolution services`; `dispute resolution department` |
+| `ACT-LEG-017` | Notary Services | Legal, governance and rights operations | `notary services`; `notary`; `notary services services`; `notary services operations`; `notary services provider`; `we provide notary services`; `our notary services services`; `notary services department` |
+| `ACT-LEG-018` | Governance Administration | Legal, governance and rights operations | `governance administration`; `governance administration services`; `governance administration operations`; `governance administration provider`; `we provide governance administration`; `our governance administration services`; `governance administration department` |
+| `ACT-LEG-019` | Board Administration | Legal, governance and rights operations | `board administration`; `board administration services`; `board administration operations`; `board administration provider`; `we provide board administration`; `our board administration services`; `board administration department` |
+| `ACT-LEG-020` | Policy Drafting | Legal, governance and rights operations | `policy drafting`; `policy draft`; `policy drafting services`; `policy drafting operations`; `policy drafting provider`; `we provide policy drafting`; `our policy drafting services`; `policy drafting department` |
+| `ACT-LEG-021` | Intellectual Property Management | Legal, governance and rights operations | `intellectual property management`; `intellectual property management services`; `intellectual property management operations`; `intellectual property management provider`; `we provide intellectual property management`; `our intellectual property management services`; `intellectual property management department` |
+| `ACT-LEG-022` | Conveyancing | Legal, governance and rights operations | `conveyancing`; `conveyanc`; `conveyancing services`; `conveyancing operations`; `conveyancing provider`; `we provide conveyancing`; `our conveyancing services`; `conveyancing department` |
+| `ACT-LEG-023` | Probate Administration | Legal, governance and rights operations | `probate administration`; `probate administration services`; `probate administration operations`; `probate administration provider`; `we provide probate administration`; `our probate administration services`; `probate administration department` |
+| `ACT-LEG-024` | Legal Discovery | Legal, governance and rights operations | `legal discovery`; `legal discovery services`; `legal discovery operations`; `legal discovery provider`; `we provide legal discovery`; `our legal discovery services`; `legal discovery department` |
+| `ACT-LEG-025` | Legal Document Review | Legal, governance and rights operations | `legal document review`; `legal document review services`; `legal document review operations`; `legal document review provider`; `we provide legal document review`; `our legal document review services`; `legal document review department` |
+| `ACT-PUB-001` | Public Administration | Public, community and nonprofit operations | `public administration`; `public administration services`; `public administration operations`; `public administration provider`; `we provide public administration`; `our public administration services`; `public administration department` |
+| `ACT-PUB-002` | Regulation | Public, community and nonprofit operations | `regulation`; `regulation services`; `regulation operations`; `regulation provider`; `we provide regulation`; `our regulation services`; `regulation department` |
+| `ACT-PUB-003` | Licensing Administration | Public, community and nonprofit operations | `licensing administration`; `licensing administration services`; `licensing administration operations`; `licensing administration provider`; `we provide licensing administration`; `our licensing administration services`; `licensing administration department` |
+| `ACT-PUB-004` | Permitting | Public, community and nonprofit operations | `permitting`; `permitt`; `permitting services`; `permitting operations`; `permitting provider`; `we provide permitting`; `our permitting services`; `permitting department` |
+| `ACT-PUB-005` | Enforcement | Public, community and nonprofit operations | `enforcement`; `enforcement services`; `enforcement operations`; `enforcement provider`; `we provide enforcement`; `our enforcement services`; `enforcement department` |
+| `ACT-PUB-006` | Tax Administration | Public, community and nonprofit operations | `tax administration`; `tax administration services`; `tax administration operations`; `tax administration provider`; `we provide tax administration`; `our tax administration services`; `tax administration department` |
+| `ACT-PUB-007` | Public Service Delivery | Public, community and nonprofit operations | `public service delivery`; `public service delivery services`; `public service delivery operations`; `public service delivery provider`; `we provide public service delivery`; `our public service delivery services`; `public service delivery department` |
+| `ACT-PUB-008` | Citizen Support | Public, community and nonprofit operations | `citizen support`; `citizen support services`; `citizen support operations`; `citizen support provider`; `we provide citizen support`; `our citizen support services`; `citizen support department` |
+| `ACT-PUB-009` | Program Delivery | Public, community and nonprofit operations | `program delivery`; `program delivery services`; `program delivery operations`; `program delivery provider`; `we provide program delivery`; `our program delivery services`; `program delivery department` |
+| `ACT-PUB-010` | Grantmaking | Public, community and nonprofit operations | `grantmaking`; `grantmak`; `grantmaking services`; `grantmaking operations`; `grantmaking provider`; `we provide grantmaking`; `our grantmaking services`; `grantmaking department` |
+| `ACT-PUB-011` | Fundraising | Public, community and nonprofit operations | `fundraising`; `fundrais`; `fundraising services`; `fundraising operations`; `fundraising provider`; `we provide fundraising`; `our fundraising services`; `fundraising department` |
+| `ACT-PUB-012` | Donation Collection | Public, community and nonprofit operations | `donation collection`; `donation collection services`; `donation collection operations`; `donation collection provider`; `we provide donation collection`; `our donation collection services`; `donation collection department` |
+| `ACT-PUB-013` | Zakat Collection | Public, community and nonprofit operations | `zakat collection`; `zakat collection services`; `zakat collection operations`; `zakat collection provider`; `we provide zakat collection`; `our zakat collection services`; `zakat collection department` |
+| `ACT-PUB-014` | Waqf Administration | Public, community and nonprofit operations | `waqf administration`; `waqf administration services`; `waqf administration operations`; `waqf administration provider`; `we provide waqf administration`; `our waqf administration services`; `waqf administration department` |
+| `ACT-PUB-015` | Advocacy | Public, community and nonprofit operations | `advocacy`; `advocacy services`; `advocacy operations`; `advocacy provider`; `we provide advocacy`; `our advocacy services`; `advocacy department` |
+| `ACT-PUB-016` | Campaigning | Public, community and nonprofit operations | `campaigning`; `campaign`; `campaigning services`; `campaigning operations`; `campaigning provider`; `we provide campaigning`; `our campaigning services`; `campaigning department` |
+| `ACT-PUB-017` | Volunteer Management | Public, community and nonprofit operations | `volunteer management`; `volunteer management services`; `volunteer management operations`; `volunteer management provider`; `we provide volunteer management`; `our volunteer management services`; `volunteer management department` |
+| `ACT-PUB-018` | Membership Management | Public, community and nonprofit operations | `membership management`; `membership management services`; `membership management operations`; `membership management provider`; `we provide membership management`; `our membership management services`; `membership management department` |
+| `ACT-PUB-019` | Community Development | Public, community and nonprofit operations | `community development`; `community development services`; `community development operations`; `community development provider`; `we provide community development`; `our community development services`; `community development department` |
+| `ACT-PUB-020` | Humanitarian Relief | Public, community and nonprofit operations | `humanitarian relief`; `humanitarian relief services`; `humanitarian relief operations`; `humanitarian relief provider`; `we provide humanitarian relief`; `our humanitarian relief services`; `humanitarian relief department` |
+| `ACT-PUB-021` | Disaster Response | Public, community and nonprofit operations | `disaster response`; `disaster response services`; `disaster response operations`; `disaster response provider`; `we provide disaster response`; `our disaster response services`; `disaster response department` |
+| `ACT-PUB-022` | Beneficiary Management | Public, community and nonprofit operations | `beneficiary management`; `beneficiary management services`; `beneficiary management operations`; `beneficiary management provider`; `we provide beneficiary management`; `our beneficiary management services`; `beneficiary management department` |
+| `ACT-PUB-023` | Monitoring and Evaluation | Public, community and nonprofit operations | `monitoring and evaluation`; `monitoring & evaluation`; `monitoring`; `evaluation`; `monitoring and evaluation services`; `monitoring and evaluation operations`; `monitoring and evaluation provider`; `we provide monitoring and evaluation`; `our monitoring and evaluation services`; `monitoring and evaluation department` |
+| `ACT-PUB-024` | Policy Development | Public, community and nonprofit operations | `policy development`; `policy development services`; `policy development operations`; `policy development provider`; `we provide policy development`; `our policy development services`; `policy development department` |
+| `ACT-PUB-025` | Stakeholder Engagement | Public, community and nonprofit operations | `stakeholder engagement`; `stakeholder engagement services`; `stakeholder engagement operations`; `stakeholder engagement provider`; `we provide stakeholder engagement`; `our stakeholder engagement services`; `stakeholder engagement department` |
+| `ACT-PUB-026` | Public Consultation | Public, community and nonprofit operations | `public consultation`; `public consultation services`; `public consultation operations`; `public consultation provider`; `we provide public consultation`; `our public consultation services`; `public consultation department` |
+| `ACT-PUB-027` | Constituent Services | Public, community and nonprofit operations | `constituent services`; `constituent`; `constituent services services`; `constituent services operations`; `constituent services provider`; `we provide constituent services`; `our constituent services services`; `constituent services department` |
+| `ACT-PUB-028` | Emergency Coordination | Public, community and nonprofit operations | `emergency coordination`; `emergency coordination services`; `emergency coordination operations`; `emergency coordination provider`; `we provide emergency coordination`; `our emergency coordination services`; `emergency coordination department` |
+| `ACT-PUB-029` | Social Protection Delivery | Public, community and nonprofit operations | `social protection delivery`; `social protection delivery services`; `social protection delivery operations`; `social protection delivery provider`; `we provide social protection delivery`; `our social protection delivery services`; `social protection delivery department` |
+| `ACT-PUB-030` | Relief Distribution | Public, community and nonprofit operations | `relief distribution`; `relief distribution services`; `relief distribution operations`; `relief distribution provider`; `we provide relief distribution`; `our relief distribution services`; `relief distribution department` |
+| `ACT-PUB-031` | Capacity Building | Public, community and nonprofit operations | `capacity building`; `capacity build`; `capacity building services`; `capacity building operations`; `capacity building provider`; `we provide capacity building`; `our capacity building services`; `capacity building department` |
+| `ACT-PUB-032` | Partnership Management | Public, community and nonprofit operations | `partnership management`; `partnership management services`; `partnership management operations`; `partnership management provider`; `we provide partnership management`; `our partnership management services`; `partnership management department` |
+| `ACT-HSP-001` | Accommodation Operations | Hospitality, travel and experience operations | `accommodation operations`; `accommodation`; `accommodation operations services`; `accommodation operations operations`; `accommodation operations provider`; `we provide accommodation operations`; `our accommodation operations services`; `accommodation operations department` |
+| `ACT-HSP-002` | Guest Services | Hospitality, travel and experience operations | `guest services`; `guest`; `guest services services`; `guest services operations`; `guest services provider`; `we provide guest services`; `our guest services services`; `guest services department` |
+| `ACT-HSP-003` | Reservations Management | Hospitality, travel and experience operations | `reservations management`; `reservations management services`; `reservations management operations`; `reservations management provider`; `we provide reservations management`; `our reservations management services`; `reservations management department` |
+| `ACT-HSP-004` | Housekeeping | Hospitality, travel and experience operations | `housekeeping`; `housekeep`; `housekeeping services`; `housekeeping operations`; `housekeeping provider`; `we provide housekeeping`; `our housekeeping services`; `housekeeping department` |
+| `ACT-HSP-005` | Food Service | Hospitality, travel and experience operations | `food service`; `food`; `food service services`; `food service operations`; `food service provider`; `we provide food service`; `our food service services`; `food service department` |
+| `ACT-HSP-006` | Catering | Hospitality, travel and experience operations | `catering`; `cater`; `catering services`; `catering operations`; `catering provider`; `we provide catering`; `our catering services`; `catering department` |
+| `ACT-HSP-007` | Event Management | Hospitality, travel and experience operations | `event management`; `event management services`; `event management operations`; `event management provider`; `we provide event management`; `our event management services`; `event management department` |
+| `ACT-HSP-008` | Venue Operations | Hospitality, travel and experience operations | `venue operations`; `venue`; `venue operations services`; `venue operations operations`; `venue operations provider`; `we provide venue operations`; `our venue operations services`; `venue operations department` |
+| `ACT-HSP-009` | Tour Operations | Hospitality, travel and experience operations | `tour operations`; `tour`; `tour operations services`; `tour operations operations`; `tour operations provider`; `we provide tour operations`; `our tour operations services`; `tour operations department` |
+| `ACT-HSP-010` | Travel Booking | Hospitality, travel and experience operations | `travel booking`; `travel book`; `travel booking services`; `travel booking operations`; `travel booking provider`; `we provide travel booking`; `our travel booking services`; `travel booking department` |
+| `ACT-HSP-011` | Ticketing | Hospitality, travel and experience operations | `ticketing`; `ticket`; `ticketing services`; `ticketing operations`; `ticketing provider`; `we provide ticketing`; `our ticketing services`; `ticketing department` |
+| `ACT-HSP-012` | Itinerary Planning | Hospitality, travel and experience operations | `itinerary planning`; `itinerary plann`; `itinerary planning services`; `itinerary planning operations`; `itinerary planning provider`; `we provide itinerary planning`; `our itinerary planning services`; `itinerary planning department` |
+| `ACT-HSP-013` | Destination Management | Hospitality, travel and experience operations | `destination management`; `destination management services`; `destination management operations`; `destination management provider`; `we provide destination management`; `our destination management services`; `destination management department` |
+| `ACT-HSP-014` | Passenger Transport | Hospitality, travel and experience operations | `passenger transport`; `passenger transport services`; `passenger transport operations`; `passenger transport provider`; `we provide passenger transport`; `our passenger transport services`; `passenger transport department` |
+| `ACT-HSP-015` | Pilgrimage Coordination | Hospitality, travel and experience operations | `pilgrimage coordination`; `pilgrimage coordination services`; `pilgrimage coordination operations`; `pilgrimage coordination provider`; `we provide pilgrimage coordination`; `our pilgrimage coordination services`; `pilgrimage coordination department` |
+| `ACT-HSP-016` | Visa Assistance | Hospitality, travel and experience operations | `visa assistance`; `visa assistance services`; `visa assistance operations`; `visa assistance provider`; `we provide visa assistance`; `our visa assistance services`; `visa assistance department` |
+| `ACT-HSP-017` | Travel Documentation | Hospitality, travel and experience operations | `travel documentation`; `travel documentation services`; `travel documentation operations`; `travel documentation provider`; `we provide travel documentation`; `our travel documentation services`; `travel documentation department` |
+| `ACT-HSP-018` | Concierge Services | Hospitality, travel and experience operations | `concierge services`; `concierge`; `concierge services services`; `concierge services operations`; `concierge services provider`; `we provide concierge services`; `our concierge services services`; `concierge services department` |
+| `ACT-HSP-019` | Front Desk Operations | Hospitality, travel and experience operations | `front desk operations`; `front desk`; `front desk operations services`; `front desk operations operations`; `front desk operations provider`; `we provide front desk operations`; `our front desk operations services`; `front desk operations department` |
+| `ACT-HSP-020` | Revenue Management | Hospitality, travel and experience operations | `revenue management`; `revenue management services`; `revenue management operations`; `revenue management provider`; `we provide revenue management`; `our revenue management services`; `revenue management department` |
+| `ACT-HSP-021` | Loyalty Program Management | Hospitality, travel and experience operations | `loyalty program management`; `loyalty program management services`; `loyalty program management operations`; `loyalty program management provider`; `we provide loyalty program management`; `our loyalty program management services`; `loyalty program management department` |
+| `ACT-HSP-022` | Property Reservations | Hospitality, travel and experience operations | `property reservations`; `property reservations services`; `property reservations operations`; `property reservations provider`; `we provide property reservations`; `our property reservations services`; `property reservations department` |
+| `ACT-HSP-023` | Banquet Operations | Hospitality, travel and experience operations | `banquet operations`; `banquet`; `banquet operations services`; `banquet operations operations`; `banquet operations provider`; `we provide banquet operations`; `our banquet operations services`; `banquet operations department` |
+| `ACT-HSP-024` | Recreation Operations | Hospitality, travel and experience operations | `recreation operations`; `recreation`; `recreation operations services`; `recreation operations operations`; `recreation operations provider`; `we provide recreation operations`; `our recreation operations services`; `recreation operations department` |
+| `ACT-HSP-025` | Attraction Operations | Hospitality, travel and experience operations | `attraction operations`; `attraction`; `attraction operations services`; `attraction operations operations`; `attraction operations provider`; `we provide attraction operations`; `our attraction operations services`; `attraction operations department` |
+| `ACT-HSP-026` | Tour Guiding | Hospitality, travel and experience operations | `tour guiding`; `tour guid`; `tour guiding services`; `tour guiding operations`; `tour guiding provider`; `we provide tour guiding`; `our tour guiding services`; `tour guiding department` |
+| `ACT-HSP-027` | Travel Assistance | Hospitality, travel and experience operations | `travel assistance`; `travel assistance services`; `travel assistance operations`; `travel assistance provider`; `we provide travel assistance`; `our travel assistance services`; `travel assistance department` |
+| `ACT-HSP-028` | Travel Insurance Assistance | Hospitality, travel and experience operations | `travel insurance assistance`; `travel insurance assistance services`; `travel insurance assistance operations`; `travel insurance assistance provider`; `we provide travel insurance assistance`; `our travel insurance assistance services`; `travel insurance assistance department` |
+| `ACT-HSP-029` | Travel Compliance | Hospitality, travel and experience operations | `travel compliance`; `travel compliance services`; `travel compliance operations`; `travel compliance provider`; `we provide travel compliance`; `our travel compliance services`; `travel compliance department` |
+| `ACT-HSP-030` | Group Travel Coordination | Hospitality, travel and experience operations | `group travel coordination`; `group travel coordination services`; `group travel coordination operations`; `group travel coordination provider`; `we provide group travel coordination`; `our group travel coordination services`; `group travel coordination department` |
+| `ACT-REA-001` | Property Development | Property and built-environment operations | `property development`; `property development services`; `property development operations`; `property development provider`; `we provide property development`; `our property development services`; `property development department` |
+| `ACT-REA-002` | Property Investment | Property and built-environment operations | `property investment`; `property investment services`; `property investment operations`; `property investment provider`; `we provide property investment`; `our property investment services`; `property investment department` |
+| `ACT-REA-003` | Property Acquisition | Property and built-environment operations | `property acquisition`; `property acquisition services`; `property acquisition operations`; `property acquisition provider`; `we provide property acquisition`; `our property acquisition services`; `property acquisition department` |
+| `ACT-REA-004` | Property Sales | Property and built-environment operations | `property sales`; `property sales services`; `property sales operations`; `property sales provider`; `we provide property sales`; `our property sales services`; `property sales department` |
+| `ACT-REA-005` | Property Leasing | Property and built-environment operations | `property leasing`; `property leas`; `property leasing services`; `property leasing operations`; `property leasing provider`; `we provide property leasing`; `our property leasing services`; `property leasing department` |
+| `ACT-REA-006` | Property Brokerage | Property and built-environment operations | `property brokerage`; `property brokerage services`; `property brokerage operations`; `property brokerage provider`; `we provide property brokerage`; `our property brokerage services`; `property brokerage department` |
+| `ACT-REA-007` | Property Management | Property and built-environment operations | `property management`; `property management services`; `property management operations`; `property management provider`; `we provide property management`; `our property management services`; `property management department` |
+| `ACT-REA-008` | Community Management | Property and built-environment operations | `community management`; `community management services`; `community management operations`; `community management provider`; `we provide community management`; `our community management services`; `community management department` |
+| `ACT-REA-009` | Facilities Operations | Property and built-environment operations | `facilities operations`; `facilities`; `facilities operations services`; `facilities operations operations`; `facilities operations provider`; `we provide facilities operations`; `our facilities operations services`; `facilities operations department` |
+| `ACT-REA-010` | Tenant Management | Property and built-environment operations | `tenant management`; `tenant management services`; `tenant management operations`; `tenant management provider`; `we provide tenant management`; `our tenant management services`; `tenant management department` |
+| `ACT-REA-011` | Lease Administration | Property and built-environment operations | `lease administration`; `lease administration services`; `lease administration operations`; `lease administration provider`; `we provide lease administration`; `our lease administration services`; `lease administration department` |
+| `ACT-REA-012` | Rent Collection | Property and built-environment operations | `rent collection`; `rent collection services`; `rent collection operations`; `rent collection provider`; `we provide rent collection`; `our rent collection services`; `rent collection department` |
+| `ACT-REA-013` | Property Valuation | Property and built-environment operations | `property valuation`; `property valuation services`; `property valuation operations`; `property valuation provider`; `we provide property valuation`; `our property valuation services`; `property valuation department` |
+| `ACT-REA-014` | Building Inspection | Property and built-environment operations | `building inspection`; `building inspection services`; `building inspection operations`; `building inspection provider`; `we provide building inspection`; `our building inspection services`; `building inspection department` |
+| `ACT-REA-015` | Land Surveying | Property and built-environment operations | `land surveying`; `land survey`; `land surveying services`; `land surveying operations`; `land surveying provider`; `we provide land surveying`; `our land surveying services`; `land surveying department` |
+| `ACT-REA-016` | Urban Planning | Property and built-environment operations | `urban planning`; `urban plann`; `urban planning services`; `urban planning operations`; `urban planning provider`; `we provide urban planning`; `our urban planning services`; `urban planning department` |
+| `ACT-REA-017` | Construction Management | Property and built-environment operations | `construction management`; `construction management services`; `construction management operations`; `construction management provider`; `we provide construction management`; `our construction management services`; `construction management department` |
+| `ACT-REA-018` | Design Management | Property and built-environment operations | `design management`; `design management services`; `design management operations`; `design management provider`; `we provide design management`; `our design management services`; `design management department` |
+| `ACT-REA-019` | Cost Estimation | Property and built-environment operations | `cost estimation`; `cost estimation services`; `cost estimation operations`; `cost estimation provider`; `we provide cost estimation`; `our cost estimation services`; `cost estimation department` |
+| `ACT-REA-020` | Building Maintenance | Property and built-environment operations | `building maintenance`; `building maintenance services`; `building maintenance operations`; `building maintenance provider`; `we provide building maintenance`; `our building maintenance services`; `building maintenance department` |
+| `ACT-REA-021` | Space Management | Property and built-environment operations | `space management`; `space management services`; `space management operations`; `space management provider`; `we provide space management`; `our space management services`; `space management department` |
+| `ACT-REA-022` | Asset Operations | Property and built-environment operations | `asset operations`; `asset`; `asset operations services`; `asset operations operations`; `asset operations provider`; `we provide asset operations`; `our asset operations services`; `asset operations department` |
+| `ACT-REA-023` | Occupancy Management | Property and built-environment operations | `occupancy management`; `occupancy management services`; `occupancy management operations`; `occupancy management provider`; `we provide occupancy management`; `our occupancy management services`; `occupancy management department` |
+| `ACT-REA-024` | Handover Management | Property and built-environment operations | `handover management`; `handover management services`; `handover management operations`; `handover management provider`; `we provide handover management`; `our handover management services`; `handover management department` |
+| `ACT-REA-025` | Defect Management | Property and built-environment operations | `defect management`; `defect management services`; `defect management operations`; `defect management provider`; `we provide defect management`; `our defect management services`; `defect management department` |
+| `ACT-END-001` | Collecting | Recovery, recycling and end-of-life | `collecting`; `collect`; `collecting services`; `collecting operations`; `collecting provider`; `we provide collecting`; `our collecting services`; `collecting department` |
+| `ACT-END-002` | Sorting Recovered Materials | Recovery, recycling and end-of-life | `sorting recovered materials`; `sorting recovered materials services`; `sorting recovered materials operations`; `sorting recovered materials provider`; `we provide sorting recovered materials`; `our sorting recovered materials services`; `sorting recovered materials department` |
+| `ACT-END-003` | Dismantling | Recovery, recycling and end-of-life | `dismantling`; `dismantl`; `dismantling services`; `dismantling operations`; `dismantling provider`; `we provide dismantling`; `our dismantling services`; `dismantling department` |
+| `ACT-END-004` | Scrap Trading | Recovery, recycling and end-of-life | `scrap trading`; `scrap trad`; `scrap trading services`; `scrap trading operations`; `scrap trading provider`; `we provide scrap trading`; `our scrap trading services`; `scrap trading department` |
+| `ACT-END-005` | Material Recovery | Recovery, recycling and end-of-life | `material recovery`; `material recovery services`; `material recovery operations`; `material recovery provider`; `we provide material recovery`; `our material recovery services`; `material recovery department` |
+| `ACT-END-006` | Recycling | Recovery, recycling and end-of-life | `recycling`; `recycl`; `recycling services`; `recycling operations`; `recycling provider`; `we provide recycling`; `our recycling services`; `recycling department` |
+| `ACT-END-007` | Reprocessing | Recovery, recycling and end-of-life | `reprocessing`; `reprocess`; `reprocessing services`; `reprocessing operations`; `reprocessing provider`; `we provide reprocessing`; `our reprocessing services`; `reprocessing department` |
+| `ACT-END-008` | Waste Treatment | Recovery, recycling and end-of-life | `waste treatment`; `waste treatment services`; `waste treatment operations`; `waste treatment provider`; `we provide waste treatment`; `our waste treatment services`; `waste treatment department` |
+| `ACT-END-009` | Hazardous Waste Handling | Recovery, recycling and end-of-life | `hazardous waste handling`; `hazardous waste handl`; `hazardous waste handling services`; `hazardous waste handling operations`; `hazardous waste handling provider`; `we provide hazardous waste handling`; `our hazardous waste handling services`; `hazardous waste handling department` |
+| `ACT-END-010` | Medical Waste Handling | Recovery, recycling and end-of-life | `medical waste handling`; `medical waste handl`; `medical waste handling services`; `medical waste handling operations`; `medical waste handling provider`; `we provide medical waste handling`; `our medical waste handling services`; `medical waste handling department` |
+| `ACT-END-011` | Composting | Recovery, recycling and end-of-life | `composting`; `compost`; `composting services`; `composting operations`; `composting provider`; `we provide composting`; `our composting services`; `composting department` |
+| `ACT-END-012` | Disposal | Recovery, recycling and end-of-life | `disposal`; `disposal services`; `disposal operations`; `disposal provider`; `we provide disposal`; `our disposal services`; `disposal department` |
+| `ACT-END-013` | Destruction | Recovery, recycling and end-of-life | `destruction`; `destruction services`; `destruction operations`; `destruction provider`; `we provide destruction`; `our destruction services`; `destruction department` |
+| `ACT-END-014` | Take-Back Management | Recovery, recycling and end-of-life | `take-back management`; `take back management`; `take-back management services`; `take-back management operations`; `take-back management provider`; `we provide take-back management`; `our take-back management services`; `take-back management department` |
+| `ACT-END-015` | Reuse | Recovery, recycling and end-of-life | `reuse`; `reuse services`; `reuse operations`; `reuse provider`; `we provide reuse`; `our reuse services`; `reuse department` |
+| `ACT-END-016` | Selling Recovered Materials | Recovery, recycling and end-of-life | `selling recovered materials`; `selling recovered materials services`; `selling recovered materials operations`; `selling recovered materials provider`; `we provide selling recovered materials`; `our selling recovered materials services`; `selling recovered materials department` |
+| `ACT-END-017` | Waste Auditing | Recovery, recycling and end-of-life | `waste auditing`; `waste audit`; `waste auditing services`; `waste auditing operations`; `waste auditing provider`; `we provide waste auditing`; `our waste auditing services`; `waste auditing department` |
+| `ACT-END-018` | E-Waste Processing | Recovery, recycling and end-of-life | `e-waste processing`; `e waste processing`; `e-waste process`; `e-waste processing services`; `e-waste processing operations`; `e-waste processing provider`; `we provide e-waste processing`; `our e-waste processing services`; `e-waste processing department` |
+| `ACT-END-019` | Waste Transport | Recovery, recycling and end-of-life | `waste transport`; `waste transport services`; `waste transport operations`; `waste transport provider`; `we provide waste transport`; `our waste transport services`; `waste transport department` |
 
-Activities absent from a domain profile are not eligible merely because a keyword matched elsewhere.
+## Interpretation rule
+
+An activity term should normally be evaluated with a selected domain term, organization identity, source reliability, and negative context. A phrase such as ‘manufacturing course’ is not evidence that the publisher manufactures anything.

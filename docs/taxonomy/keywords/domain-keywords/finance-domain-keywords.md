@@ -5,7 +5,7 @@ Version: **1.0**
 Date: **4 August 2026**  
 Implementation status: **Not implemented**
 
-This file defines default domain-identification terms for all **109** canonical domains in `Finance`. Domain keywords identify what an organization deals with; activity keywords identify what it does. The two profiles are composed only after the user selects and approves the domain–activity combination.
+This file defines default domain-identification terms for all **109** canonical domains in `Finance`. Domain keywords identify what an organization deals with; activity keywords identify what it does.
 
 | Domain code | Domain | Primary domain terms and aliases | Default ambiguity controls |
 | --- | --- | --- | --- |
@@ -96,9 +96,9 @@ This file defines default domain-identification terms for all **109** canonical 
 | `FIN-RISK-009` | Enterprise Risk Management | `enterprise risk management` | `jobs`; `course`; `definition`; `consumer-only result` |
 | `FIN-RISK-010` | Fraud Detection | `fraud detection` | `jobs`; `course`; `definition`; `consumer-only result` |
 | `FIN-RISK-011` | Regulatory Reporting | `regulatory reporting` | `jobs`; `course`; `definition`; `consumer-only result` |
-| `FIN-RISK-012` | Capital and Liquidity Management | `capital and liquidity management`; `capital & liquidity management` | `jobs`; `course`; `definition`; `consumer-only result` |
+| `FIN-RISK-012` | Capital and Liquidity Management | `capital and liquidity management`; `capital & liquidity management`; `capital`; `liquidity management`; `capital liquidity management` | `jobs`; `course`; `definition`; `consumer-only result` |
 | `FIN-RISK-013` | Model Risk Management | `model risk management` | `jobs`; `course`; `definition`; `consumer-only result` |
-| `FIN-RISK-014` | Governance, Risk and Compliance | `governance, risk and compliance`; `governance, risk & compliance` | `jobs`; `course`; `definition`; `consumer-only result` |
+| `FIN-RISK-014` | Governance, Risk and Compliance | `governance, risk and compliance`; `governance, risk & compliance`; `governance, risk`; `compliance`; `governance risk compliance` | `jobs`; `course`; `definition`; `consumer-only result` |
 | `FIN-RISK-015` | Financial Due Diligence | `financial due diligence` | `jobs`; `course`; `definition`; `consumer-only result` |
 | `FIN-DIG-001` | Core Banking Systems | `core banking systems`; `core banking` | `jobs`; `course`; `definition`; `consumer-only result` |
 | `FIN-DIG-002` | Islamic Banking Systems | `islamic banking systems`; `islamic banking` | `jobs`; `course`; `definition`; `consumer-only result` |
@@ -121,8 +121,8 @@ This file defines default domain-identification terms for all **109** canonical 
 
 ## Composition rule
 
-A domain match alone does not establish the target activity. Harvester must combine the domain profile with the separately approved activity profile and inspect the source context.
+A domain match alone does not establish the target activity. Harvester must combine the domain profile with the separately approved activity profile and inspect source context.
 
 ## Local terminology
 
-Urdu, Roman Urdu, abbreviations, local trade names, spelling variants, and jurisdiction-specific terminology must be maintained in separately versioned locale overlays. They are not silently generated into the canonical English profile.
+Urdu, Roman Urdu, abbreviations, local trade names, spelling variants, and jurisdiction-specific terminology must be maintained in separately versioned locale overlays.
