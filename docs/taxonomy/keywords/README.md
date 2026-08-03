@@ -1,11 +1,13 @@
 # Harvester Keyword Taxonomy Index
 
 Status: **Proposed**  
-Version: **1.0**  
-Date: **3 August 2026**  
+Version: **1.1**  
+Date: **4 August 2026**  
 Implementation status: **Not implemented**
 
 This directory defines the controlled discovery-keyword layer for the Harvester sector, domain, and activity taxonomy.
+
+Version 1.1 replaces the first generated baseline with reviewed lexical forms, corrected whole-phrase handling, stricter organization-cue classification, and removal of malformed automatic stems. These files remain documentation datasets, not production search configuration.
 
 ## Coverage
 
@@ -48,32 +50,29 @@ Domain and activity keywords classify what an organization is and what it appear
 ## Canonical activity keyword registries
 
 - [Activity keywords, part 1](activity-keywords-part-1.md)
-  - Research, production, sourcing, quality, logistics, commerce, and initial marketing activities
 - [Activity keywords, part 2](activity-keywords-part-2.md)
-  - Marketing, operations, digital, professional, healthcare, education, and initial finance activities
 - [Activity keywords, part 3](activity-keywords-part-3.md)
-  - Finance, legal, public, hospitality, real-estate, recycling, recovery, and disposal activities
 
 ## Sector-specific domain keyword registries
 
 | Sector code | Broad sector | Canonical domains | Registry |
 | --- | --- | ---: | --- |
 | `BS-001` | Healthcare | 142 | [Part 1](healthcare-domain-keywords-part-1.md) and [Part 2](healthcare-domain-keywords-part-2.md) |
-| `BS-002` | Education | 95 | [Education domain keywords](education-domain-keywords.md) |
-| `BS-003` | Food and Agriculture | 103 | [Food and Agriculture domain keywords](food-agriculture-domain-keywords.md) |
-| `BS-004` | Real Estate | 88 | [Real Estate domain keywords](real-estate-domain-keywords.md) |
-| `BS-005` | Construction | 93 | [Construction domain keywords](construction-domain-keywords.md) |
-| `BS-006` | Legal | 97 | [Legal domain keywords](legal-domain-keywords.md) |
-| `BS-007` | Finance | 109 | [Finance domain keywords](finance-domain-keywords.md) |
-| `BS-008` | Retail | 84 | [Retail domain keywords](retail-domain-keywords.md) |
-| `BS-009` | Hospitality | 79 | [Hospitality domain keywords](hospitality-domain-keywords.md) |
-| `BS-010` | Travel | 75 | [Travel domain keywords](travel-domain-keywords.md) |
-| `BS-011` | Manufacturing and Industry | 111 | [Manufacturing and Industry domain keywords](manufacturing-industry-domain-keywords.md) |
-| `BS-012` | Logistics | 101 | [Logistics domain keywords](logistics-domain-keywords.md) |
-| `BS-013` | Energy | 94 | [Energy domain keywords](energy-domain-keywords.md) |
+| `BS-002` | Education | 95 | [Education](education-domain-keywords.md) |
+| `BS-003` | Food and Agriculture | 103 | [Food and Agriculture](food-agriculture-domain-keywords.md) |
+| `BS-004` | Real Estate | 88 | [Real Estate](real-estate-domain-keywords.md) |
+| `BS-005` | Construction | 93 | [Construction](construction-domain-keywords.md) |
+| `BS-006` | Legal | 97 | [Legal](legal-domain-keywords.md) |
+| `BS-007` | Finance | 109 | [Finance](finance-domain-keywords.md) |
+| `BS-008` | Retail | 84 | [Retail](retail-domain-keywords.md) |
+| `BS-009` | Hospitality | 79 | [Hospitality](hospitality-domain-keywords.md) |
+| `BS-010` | Travel | 75 | [Travel](travel-domain-keywords.md) |
+| `BS-011` | Manufacturing and Industry | 111 | [Manufacturing and Industry](manufacturing-industry-domain-keywords.md) |
+| `BS-012` | Logistics | 101 | [Logistics](logistics-domain-keywords.md) |
+| `BS-013` | Energy | 94 | [Energy](energy-domain-keywords.md) |
 | `BS-014` | Technology | 127 | [Part 1](technology-domain-keywords-part-1.md) and [Part 2](technology-domain-keywords-part-2.md) |
-| `BS-015` | Government | 96 | [Government domain keywords](government-domain-keywords.md) |
-| `BS-016` | Nonprofit | 92 | [Nonprofit domain keywords](nonprofit-domain-keywords.md) |
+| `BS-015` | Government | 96 | [Government](government-domain-keywords.md) |
+| `BS-016` | Nonprofit | 92 | [Nonprofit](nonprofit-domain-keywords.md) |
 |  | **Total** | **1,586** | **All canonical domains separately profiled** |
 
 ## Match modes required by implementation
@@ -86,7 +85,17 @@ ENTITY
 REGEX
 ```
 
-A future implementation must preserve match mode, source, language, profile version, timestamp, and the exact text or entity that matched. A semantic match cannot be presented as an exact phrase match, because explainability should survive contact with the interface.
+A future implementation must preserve match mode, source, language, profile version, timestamp, and the exact text or entity that matched.
+
+## Version 1.1 quality corrections
+
+- Whole phrases are transformed only at word boundaries.
+- Malformed stems such as truncated `formulat`, `manufactur`, or `franchis` are prohibited.
+- Digital and software domain families use software-provider cues unless a reviewed physical-system exception applies.
+- Physical systems such as fire-safety, solar mounting, aluminium, embedded, and control systems are not automatically classified as software.
+- Broad aliases cannot qualify a target without corroborating organization, sector, activity, or entity evidence.
+- Service-gap, buying-intent, problem, competitor, and existing-solution terms remain outside this baseline until an active provider offering is selected.
+- Locale-specific aliases require separately reviewed language packs.
 
 ## Non-negotiable rules
 
