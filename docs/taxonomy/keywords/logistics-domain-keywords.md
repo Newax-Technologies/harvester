@@ -1,5 +1,6 @@
 # Harvester Logistics Domain Keyword Registry
 
+
 Status: **Proposed**  
 Version: **1.0**  
 Date: **3 August 2026**  
@@ -111,6 +112,6 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-LOG-DIG-014-V1` | Logistics Analytics | logistics analytics; freight analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-LOG-DIG-015-V1` | Barcode and RFID Systems | barcode and rfid systems; barcode & rfid systems; barcode and rfid system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-LOG-DIG-016-V1` | Logistics Payment and Settlement | logistics payment and settlement; logistics payment & settlement; freight payment and settlement | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-LOG-DIG-017-V1` | Packaging and Pallet Services | packaging and pallet services; packaging & pallet services; packaging and pallet service; packaging and pallet providers | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-LOG-DIG-017-V1` | Packaging and Pallet Services | packaging and pallet services; packaging & pallet services; packaging and pallet service; packaging and pallet providers | `ORG-SOFTWARE` | `EX-PHRASE` |
 
 A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.

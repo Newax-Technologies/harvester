@@ -1,11 +1,13 @@
 # Harvester Travel Domain Keyword Registry
 
+
+
 Status: **Proposed**  
 Version: **1.0**  
 Date: **3 August 2026**  
 Implementation status: **Not implemented**
 
-This file defines separate discovery keyword profiles for all **75** canonical domains in `BS-010 Travel`.
+This file defines separate discovery keyword profiles for **75** of the **75** canonical domains in `BS-010 Travel`.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
 

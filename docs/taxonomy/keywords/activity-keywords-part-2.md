@@ -1,190 +1,195 @@
-# Harvester Canonical Activity Keywords — Part 2
+# Harvester Canonical Activity Keyword Registry
+
+Part **2 of 3**
 
 Status: **Proposed**  
 Version: **1.0**  
-Date: **4 August 2026**  
+Date: **3 August 2026**  
 Implementation status: **Not implemented**
 
-This file defines default discovery terms for canonical business activities. Terms identify possible activity evidence only. They do not prove that an organization performs the activity.
+These keyword aliases describe canonical business activities. They support discovery and evidence retrieval; they do not prove that a target performs an activity.
 
-| Activity code | Activity | Family | Default activity terms and phrases |
-| --- | --- | --- | --- |
-| `ACT-MKT-004` | Brand Management | Marketing, promotion and demand generation | `brand management`; `brand management services`; `brand management operations`; `brand management provider`; `provides brand management`; `offers brand management`; `brand management department` |
-| `ACT-MKT-005` | Campaign Management | Marketing, promotion and demand generation | `campaign management`; `campaign management services`; `campaign management operations`; `campaign management provider`; `provides campaign management`; `offers campaign management`; `campaign management department` |
-| `ACT-MKT-006` | Media Buying | Marketing, promotion and demand generation | `media buying`; `media buy`; `media buying services`; `media buying operations`; `media buying provider`; `provides media buying`; `offers media buying`; `media buying department` |
-| `ACT-MKT-007` | Public Relations | Marketing, promotion and demand generation | `public relations`; `public relations services`; `public relations operations`; `public relations provider`; `provides public relations`; `offers public relations`; `public relations department` |
-| `ACT-MKT-008` | Lead Generation | Marketing, promotion and demand generation | `lead generation`; `lead generation services`; `lead generation operations`; `lead generation provider`; `provides lead generation`; `offers lead generation`; `lead generation department` |
-| `ACT-MKT-009` | Sales Development | Marketing, promotion and demand generation | `sales development`; `sales development services`; `sales development operations`; `sales development provider`; `provides sales development`; `offers sales development`; `sales development department` |
-| `ACT-MKT-010` | Product Demonstration | Marketing, promotion and demand generation | `product demonstration`; `product demonstration services`; `product demonstration operations`; `product demonstration provider`; `provides product demonstration`; `offers product demonstration`; `product demonstration department` |
-| `ACT-MKT-011` | Event Promotion | Marketing, promotion and demand generation | `event promotion`; `event promotion services`; `event promotion operations`; `event promotion provider`; `provides event promotion`; `offers event promotion`; `event promotion department` |
-| `ACT-MKT-012` | Sponsorship Management | Marketing, promotion and demand generation | `sponsorship management`; `sponsorship management services`; `sponsorship management operations`; `sponsorship management provider`; `provides sponsorship management`; `offers sponsorship management`; `sponsorship management department` |
-| `ACT-MKT-013` | Community Outreach | Marketing, promotion and demand generation | `community outreach`; `community outreach services`; `community outreach operations`; `community outreach provider`; `provides community outreach`; `offers community outreach`; `community outreach department` |
-| `ACT-MKT-014` | Donor Acquisition | Marketing, promotion and demand generation | `donor acquisition`; `donor acquisition services`; `donor acquisition operations`; `donor acquisition provider`; `provides donor acquisition`; `offers donor acquisition`; `donor acquisition department` |
-| `ACT-MKT-015` | Content Marketing | Marketing, promotion and demand generation | `content marketing`; `content market`; `content marketing services`; `content marketing operations`; `content marketing provider`; `provides content marketing`; `offers content marketing`; `content marketing department` |
-| `ACT-MKT-016` | Social Media Marketing | Marketing, promotion and demand generation | `social media marketing`; `social media market`; `social media marketing services`; `social media marketing operations`; `social media marketing provider`; `provides social media marketing`; `offers social media marketing`; `social media marketing department` |
-| `ACT-MKT-017` | Market Education | Marketing, promotion and demand generation | `market education`; `market education services`; `market education operations`; `market education provider`; `provides market education`; `offers market education`; `market education department` |
-| `ACT-MKT-018` | Trade Marketing | Marketing, promotion and demand generation | `trade marketing`; `trade market`; `trade marketing services`; `trade marketing operations`; `trade marketing provider`; `provides trade marketing`; `offers trade marketing`; `trade marketing department` |
-| `ACT-MKT-019` | Influencer Marketing | Marketing, promotion and demand generation | `influencer marketing`; `influencer market`; `influencer marketing services`; `influencer marketing operations`; `influencer marketing provider`; `provides influencer marketing`; `offers influencer marketing`; `influencer marketing department` |
-| `ACT-MKT-020` | Customer Engagement | Marketing, promotion and demand generation | `customer engagement`; `customer engagement services`; `customer engagement operations`; `customer engagement provider`; `provides customer engagement`; `offers customer engagement`; `customer engagement department` |
-| `ACT-OPS-001` | Installing | Installation, operations and lifecycle services | `installing`; `instal`; `installing services`; `installing operations`; `installing provider`; `provides installing`; `offers installing`; `installing department` |
-| `ACT-OPS-002` | Commissioning | Installation, operations and lifecycle services | `commissioning`; `commission`; `commissioning services`; `commissioning operations`; `commissioning provider`; `provides commissioning`; `offers commissioning`; `commissioning department` |
-| `ACT-OPS-003` | Deploying | Installation, operations and lifecycle services | `deploying`; `deploy`; `deploying services`; `deploying operations`; `deploying provider`; `provides deploying`; `offers deploying`; `deploying department` |
-| `ACT-OPS-004` | Implementing | Installation, operations and lifecycle services | `implementing`; `implement`; `implementing services`; `implementing operations`; `implementing provider`; `provides implementing`; `offers implementing`; `implementing department` |
-| `ACT-OPS-005` | Integrating | Installation, operations and lifecycle services | `integrating`; `integrate`; `integrating services`; `integrating operations`; `integrating provider`; `provides integrating`; `offers integrating`; `integrating department` |
-| `ACT-OPS-006` | Configuring | Installation, operations and lifecycle services | `configuring`; `configur`; `configuring services`; `configuring operations`; `configuring provider`; `provides configuring`; `offers configuring`; `configuring department` |
-| `ACT-OPS-007` | Customizing | Installation, operations and lifecycle services | `customizing`; `customize`; `customizing services`; `customizing operations`; `customizing provider`; `provides customizing`; `offers customizing`; `customizing department` |
-| `ACT-OPS-008` | Operating Facilities | Installation, operations and lifecycle services | `operating facilities`; `operating facilities services`; `operating facilities operations`; `operating facilities provider`; `provides operating facilities`; `offers operating facilities`; `operating facilities department` |
-| `ACT-OPS-009` | Operating Equipment | Installation, operations and lifecycle services | `operating equipment`; `operating`; `operating equipment services`; `operating equipment operations`; `operating equipment provider`; `provides operating equipment`; `offers operating equipment`; `operating equipment department` |
-| `ACT-OPS-010` | Operating Networks | Installation, operations and lifecycle services | `operating networks`; `operating networks services`; `operating networks operations`; `operating networks provider`; `provides operating networks`; `offers operating networks`; `operating networks department` |
-| `ACT-OPS-011` | Monitoring | Installation, operations and lifecycle services | `monitoring`; `monitor`; `monitoring services`; `monitoring operations`; `monitoring provider`; `provides monitoring`; `offers monitoring`; `monitoring department` |
-| `ACT-OPS-012` | Maintaining | Installation, operations and lifecycle services | `maintaining`; `maintain`; `maintaining services`; `maintaining operations`; `maintaining provider`; `provides maintaining`; `offers maintaining`; `maintaining department` |
-| `ACT-OPS-013` | Preventive Maintenance | Installation, operations and lifecycle services | `preventive maintenance`; `preventive maintenance services`; `preventive maintenance operations`; `preventive maintenance provider`; `provides preventive maintenance`; `offers preventive maintenance`; `preventive maintenance department` |
-| `ACT-OPS-014` | Repairing | Installation, operations and lifecycle services | `repairing`; `repair`; `repairing services`; `repairing operations`; `repairing provider`; `provides repairing`; `offers repairing`; `repairing department` |
-| `ACT-OPS-015` | Servicing | Installation, operations and lifecycle services | `servicing`; `servic`; `servicing services`; `servicing operations`; `servicing provider`; `provides servicing`; `offers servicing`; `servicing department` |
-| `ACT-OPS-016` | Calibrating | Installation, operations and lifecycle services | `calibrating`; `calibrate`; `calibrating services`; `calibrating operations`; `calibrating provider`; `provides calibrating`; `offers calibrating`; `calibrating department` |
-| `ACT-OPS-017` | Technical Support | Installation, operations and lifecycle services | `technical support`; `technical support services`; `technical support operations`; `technical support provider`; `provides technical support`; `offers technical support`; `technical support department` |
-| `ACT-OPS-018` | Customer Support | Installation, operations and lifecycle services | `customer support`; `customer support services`; `customer support operations`; `customer support provider`; `provides customer support`; `offers customer support`; `customer support department` |
-| `ACT-OPS-019` | Refurbishing | Installation, operations and lifecycle services | `refurbishing`; `refurbish`; `refurbishing services`; `refurbishing operations`; `refurbishing provider`; `provides refurbishing`; `offers refurbishing`; `refurbishing department` |
-| `ACT-OPS-020` | Remanufacturing | Installation, operations and lifecycle services | `remanufacturing`; `remanufactur`; `remanufacturing services`; `remanufacturing operations`; `remanufacturing provider`; `provides remanufacturing`; `offers remanufacturing`; `remanufacturing department` |
-| `ACT-OPS-021` | Upgrading | Installation, operations and lifecycle services | `upgrading`; `upgrad`; `upgrading services`; `upgrading operations`; `upgrading provider`; `provides upgrading`; `offers upgrading`; `upgrading department` |
-| `ACT-OPS-022` | Decommissioning | Installation, operations and lifecycle services | `decommissioning`; `decommission`; `decommissioning services`; `decommissioning operations`; `decommissioning provider`; `provides decommissioning`; `offers decommissioning`; `decommissioning department` |
-| `ACT-OPS-023` | Facility Management | Installation, operations and lifecycle services | `facility management`; `facility management services`; `facility management operations`; `facility management provider`; `provides facility management`; `offers facility management`; `facility management department` |
-| `ACT-OPS-024` | Asset Management | Installation, operations and lifecycle services | `asset management`; `asset management services`; `asset management operations`; `asset management provider`; `provides asset management`; `offers asset management`; `asset management department` |
-| `ACT-OPS-025` | Equipment Management | Installation, operations and lifecycle services | `equipment management`; `equipment management services`; `equipment management operations`; `equipment management provider`; `provides equipment management`; `offers equipment management`; `equipment management department` |
-| `ACT-OPS-026` | Project Management | Installation, operations and lifecycle services | `project management`; `project management services`; `project management operations`; `project management provider`; `provides project management`; `offers project management`; `project management department` |
-| `ACT-OPS-027` | Construction | Installation, operations and lifecycle services | `construction`; `construction services`; `construction operations`; `construction provider`; `provides construction`; `offers construction`; `construction department` |
-| `ACT-OPS-028` | Fitting Out | Installation, operations and lifecycle services | `fitting out`; `fitting out services`; `fitting out operations`; `fitting out provider`; `provides fitting out`; `offers fitting out`; `fitting out department` |
-| `ACT-OPS-029` | Site Supervision | Installation, operations and lifecycle services | `site supervision`; `site supervision services`; `site supervision operations`; `site supervision provider`; `provides site supervision`; `offers site supervision`; `site supervision department` |
-| `ACT-OPS-030` | Workforce Scheduling | Installation, operations and lifecycle services | `workforce scheduling`; `workforce schedul`; `workforce scheduling services`; `workforce scheduling operations`; `workforce scheduling provider`; `provides workforce scheduling`; `offers workforce scheduling`; `workforce scheduling department` |
-| `ACT-OPS-031` | Capacity Planning | Installation, operations and lifecycle services | `capacity planning`; `capacity plan`; `capacity planning services`; `capacity planning operations`; `capacity planning provider`; `provides capacity planning`; `offers capacity planning`; `capacity planning department` |
-| `ACT-OPS-032` | Resource Planning | Installation, operations and lifecycle services | `resource planning`; `resource plan`; `resource planning services`; `resource planning operations`; `resource planning provider`; `provides resource planning`; `offers resource planning`; `resource planning department` |
-| `ACT-OPS-033` | Business Continuity Management | Installation, operations and lifecycle services | `business continuity management`; `business continuity management services`; `business continuity management operations`; `business continuity management provider`; `provides business continuity management`; `offers business continuity management`; `business continuity management department` |
-| `ACT-OPS-034` | Emergency Response | Installation, operations and lifecycle services | `emergency response`; `emergency response services`; `emergency response operations`; `emergency response provider`; `provides emergency response`; `offers emergency response`; `emergency response department` |
-| `ACT-OPS-035` | Field Service | Installation, operations and lifecycle services | `field service`; `field`; `field service services`; `field service operations`; `field service provider`; `provides field service`; `offers field service`; `field service department` |
-| `ACT-OPS-036` | Remote Support | Installation, operations and lifecycle services | `remote support`; `remote support services`; `remote support operations`; `remote support provider`; `provides remote support`; `offers remote support`; `remote support department` |
-| `ACT-OPS-037` | Help Desk Operations | Installation, operations and lifecycle services | `help desk operations`; `help desk`; `help desk operations services`; `help desk operations operations`; `help desk operations provider`; `provides help desk operations`; `offers help desk operations`; `help desk operations department` |
-| `ACT-DIG-001` | Publishing Software | Digital product, platform and data operations | `publishing software`; `publishing software services`; `publishing software operations`; `publishing software provider`; `provides publishing software`; `offers publishing software`; `publishing software department` |
-| `ACT-DIG-002` | Hosting | Digital product, platform and data operations | `hosting`; `host`; `hosting services`; `hosting operations`; `hosting provider`; `provides hosting`; `offers hosting`; `hosting department` |
-| `ACT-DIG-003` | Cloud Operations | Digital product, platform and data operations | `cloud operations`; `cloud`; `cloud operations services`; `cloud operations operations`; `cloud operations provider`; `provides cloud operations`; `offers cloud operations`; `cloud operations department` |
-| `ACT-DIG-004` | Platform Operations | Digital product, platform and data operations | `platform operations`; `platform`; `platform operations services`; `platform operations operations`; `platform operations provider`; `provides platform operations`; `offers platform operations`; `platform operations department` |
-| `ACT-DIG-005` | Data Processing | Digital product, platform and data operations | `data processing`; `data proces`; `data processing services`; `data processing operations`; `data processing provider`; `provides data processing`; `offers data processing`; `data processing department` |
-| `ACT-DIG-006` | Data Hosting | Digital product, platform and data operations | `data hosting`; `data host`; `data hosting services`; `data hosting operations`; `data hosting provider`; `provides data hosting`; `offers data hosting`; `data hosting department` |
-| `ACT-DIG-007` | Analytics | Digital product, platform and data operations | `analytics`; `analytics services`; `analytics operations`; `analytics provider`; `provides analytics`; `offers analytics`; `analytics department` |
-| `ACT-DIG-008` | Reporting | Digital product, platform and data operations | `reporting`; `report`; `reporting services`; `reporting operations`; `reporting provider`; `provides reporting`; `offers reporting`; `reporting department` |
-| `ACT-DIG-009` | Automation | Digital product, platform and data operations | `automation`; `automation services`; `automation operations`; `automation provider`; `provides automation`; `offers automation`; `automation department` |
-| `ACT-DIG-010` | Cybersecurity Monitoring | Digital product, platform and data operations | `cybersecurity monitoring`; `cybersecurity monitor`; `cybersecurity monitoring services`; `cybersecurity monitoring operations`; `cybersecurity monitoring provider`; `provides cybersecurity monitoring`; `offers cybersecurity monitoring`; `cybersecurity monitoring department` |
-| `ACT-DIG-011` | Identity Management | Digital product, platform and data operations | `identity management`; `identity management services`; `identity management operations`; `identity management provider`; `provides identity management`; `offers identity management`; `identity management department` |
-| `ACT-DIG-012` | System Administration | Digital product, platform and data operations | `system administration`; `system administration services`; `system administration operations`; `system administration provider`; `provides system administration`; `offers system administration`; `system administration department` |
-| `ACT-DIG-013` | API Operations | Digital product, platform and data operations | `api operations`; `api`; `api operations services`; `api operations operations`; `api operations provider`; `provides api operations`; `offers api operations`; `api operations department` |
-| `ACT-DIG-014` | Content Moderation | Digital product, platform and data operations | `content moderation`; `content moderation services`; `content moderation operations`; `content moderation provider`; `provides content moderation`; `offers content moderation`; `content moderation department` |
-| `ACT-DIG-015` | Digital Delivery | Digital product, platform and data operations | `digital delivery`; `digital delivery services`; `digital delivery operations`; `digital delivery provider`; `provides digital delivery`; `offers digital delivery`; `digital delivery department` |
-| `ACT-DIG-016` | Digital Payments | Digital product, platform and data operations | `digital payments`; `digital payments services`; `digital payments operations`; `digital payments provider`; `provides digital payments`; `offers digital payments`; `digital payments department` |
-| `ACT-DIG-017` | Telecommunications Operations | Digital product, platform and data operations | `telecommunications operations`; `telecommunications`; `telecommunications operations services`; `telecommunications operations operations`; `telecommunications operations provider`; `provides telecommunications operations`; `offers telecommunications operations`; `telecommunications operations department` |
-| `ACT-DIG-018` | Database Administration | Digital product, platform and data operations | `database administration`; `database administration services`; `database administration operations`; `database administration provider`; `provides database administration`; `offers database administration`; `database administration department` |
-| `ACT-DIG-019` | Application Management | Digital product, platform and data operations | `application management`; `application management services`; `application management operations`; `application management provider`; `provides application management`; `offers application management`; `application management department` |
-| `ACT-DIG-020` | Network Administration | Digital product, platform and data operations | `network administration`; `network administration services`; `network administration operations`; `network administration provider`; `provides network administration`; `offers network administration`; `network administration department` |
-| `ACT-DIG-021` | Data Integration | Digital product, platform and data operations | `data integration`; `data integration services`; `data integration operations`; `data integration provider`; `provides data integration`; `offers data integration`; `data integration department` |
-| `ACT-DIG-022` | Data Governance | Digital product, platform and data operations | `data governance`; `data governance services`; `data governance operations`; `data governance provider`; `provides data governance`; `offers data governance`; `data governance department` |
-| `ACT-DIG-023` | Data Visualization | Digital product, platform and data operations | `data visualization`; `data visualization services`; `data visualization operations`; `data visualization provider`; `provides data visualization`; `offers data visualization`; `data visualization department` |
-| `ACT-DIG-024` | Machine-Learning Operations | Digital product, platform and data operations | `machine-learning operations`; `machine learning operations`; `machine-learning`; `machine-learning operations services`; `machine-learning operations operations`; `machine-learning operations provider`; `provides machine-learning operations`; `offers machine-learning operations`; `machine-learning operations department` |
-| `ACT-DIG-025` | Model Monitoring | Digital product, platform and data operations | `model monitoring`; `model monitor`; `model monitoring services`; `model monitoring operations`; `model monitoring provider`; `provides model monitoring`; `offers model monitoring`; `model monitoring department` |
-| `ACT-DIG-026` | Backup and Recovery | Digital product, platform and data operations | `backup and recovery`; `backup & recovery`; `backup`; `recovery`; `backup and recovery services`; `backup and recovery operations`; `backup and recovery provider`; `provides backup and recovery`; `offers backup and recovery`; `backup and recovery department` |
-| `ACT-DIG-027` | Digital Identity Services | Digital product, platform and data operations | `digital identity services`; `digital identity`; `digital identity services services`; `digital identity services operations`; `digital identity services provider`; `provides digital identity services`; `offers digital identity services`; `digital identity services department` |
-| `ACT-DIG-028` | Electronic Records Management | Digital product, platform and data operations | `electronic records management`; `electronic records management services`; `electronic records management operations`; `electronic records management provider`; `provides electronic records management`; `offers electronic records management`; `electronic records management department` |
-| `ACT-DIG-029` | Workflow Management | Digital product, platform and data operations | `workflow management`; `workflow management services`; `workflow management operations`; `workflow management provider`; `provides workflow management`; `offers workflow management`; `workflow management department` |
-| `ACT-DIG-030` | Portal Operations | Digital product, platform and data operations | `portal operations`; `portal`; `portal operations services`; `portal operations operations`; `portal operations provider`; `provides portal operations`; `offers portal operations`; `portal operations department` |
-| `ACT-DIG-031` | Search Operations | Digital product, platform and data operations | `search operations`; `search`; `search operations services`; `search operations operations`; `search operations provider`; `provides search operations`; `offers search operations`; `search operations department` |
-| `ACT-PRF-001` | Consulting | Professional, technical and advisory services | `consulting`; `consult`; `consulting services`; `consulting operations`; `consulting provider`; `provides consulting`; `offers consulting`; `consulting department` |
-| `ACT-PRF-002` | Advising | Professional, technical and advisory services | `advising`; `advis`; `advising services`; `advising operations`; `advising provider`; `provides advising`; `offers advising`; `advising department` |
-| `ACT-PRF-003` | Assessing | Professional, technical and advisory services | `assessing`; `asses`; `assessing services`; `assessing operations`; `assessing provider`; `provides assessing`; `offers assessing`; `assessing department` |
-| `ACT-PRF-004` | Planning | Professional, technical and advisory services | `planning`; `plan`; `planning services`; `planning operations`; `planning provider`; `provides planning`; `offers planning`; `planning department` |
-| `ACT-PRF-005` | Surveying | Professional, technical and advisory services | `surveying`; `survey`; `surveying services`; `surveying operations`; `surveying provider`; `provides surveying`; `offers surveying`; `surveying department` |
-| `ACT-PRF-006` | Valuation | Professional, technical and advisory services | `valuation`; `valuation services`; `valuation operations`; `valuation provider`; `provides valuation`; `offers valuation`; `valuation department` |
-| `ACT-PRF-007` | Appraisal | Professional, technical and advisory services | `appraisal`; `appraisal services`; `appraisal operations`; `appraisal provider`; `provides appraisal`; `offers appraisal`; `appraisal department` |
-| `ACT-PRF-008` | Due Diligence | Professional, technical and advisory services | `due diligence`; `due diligence services`; `due diligence operations`; `due diligence provider`; `provides due diligence`; `offers due diligence`; `due diligence department` |
-| `ACT-PRF-009` | Representation | Professional, technical and advisory services | `representation`; `representation services`; `representation operations`; `representation provider`; `provides representation`; `offers representation`; `representation department` |
-| `ACT-PRF-010` | Mediation | Professional, technical and advisory services | `mediation`; `mediation services`; `mediation operations`; `mediation provider`; `provides mediation`; `offers mediation`; `mediation department` |
-| `ACT-PRF-011` | Arbitration | Professional, technical and advisory services | `arbitration`; `arbitration services`; `arbitration operations`; `arbitration provider`; `provides arbitration`; `offers arbitration`; `arbitration department` |
-| `ACT-PRF-012` | Documentation | Professional, technical and advisory services | `documentation`; `documentation services`; `documentation operations`; `documentation provider`; `provides documentation`; `offers documentation`; `documentation department` |
-| `ACT-PRF-013` | Drafting | Professional, technical and advisory services | `drafting`; `draft`; `drafting services`; `drafting operations`; `drafting provider`; `provides drafting`; `offers drafting`; `drafting department` |
-| `ACT-PRF-014` | Reviewing | Professional, technical and advisory services | `reviewing`; `review`; `reviewing services`; `reviewing operations`; `reviewing provider`; `provides reviewing`; `offers reviewing`; `reviewing department` |
-| `ACT-PRF-015` | Filing | Professional, technical and advisory services | `filing`; `fil`; `filing services`; `filing operations`; `filing provider`; `provides filing`; `offers filing`; `filing department` |
-| `ACT-PRF-016` | Registration Services | Professional, technical and advisory services | `registration services`; `registration`; `registration services services`; `registration services operations`; `registration services provider`; `provides registration services`; `offers registration services`; `registration services department` |
-| `ACT-PRF-017` | Case Management | Professional, technical and advisory services | `case management`; `case management services`; `case management operations`; `case management provider`; `provides case management`; `offers case management`; `case management department` |
-| `ACT-PRF-018` | Claims Management | Professional, technical and advisory services | `claims management`; `claims management services`; `claims management operations`; `claims management provider`; `provides claims management`; `offers claims management`; `claims management department` |
-| `ACT-PRF-019` | Recruitment | Professional, technical and advisory services | `recruitment`; `recruitment services`; `recruitment operations`; `recruitment provider`; `provides recruitment`; `offers recruitment`; `recruitment department` |
-| `ACT-PRF-020` | Staffing | Professional, technical and advisory services | `staffing`; `staf`; `staffing services`; `staffing operations`; `staffing provider`; `provides staffing`; `offers staffing`; `staffing department` |
-| `ACT-PRF-021` | Outsourcing | Professional, technical and advisory services | `outsourcing`; `outsourc`; `outsourcing services`; `outsourcing operations`; `outsourcing provider`; `provides outsourcing`; `offers outsourcing`; `outsourcing department` |
-| `ACT-PRF-022` | Managed Services | Professional, technical and advisory services | `managed services`; `managed`; `managed services services`; `managed services operations`; `managed services provider`; `provides managed services`; `offers managed services`; `managed services department` |
-| `ACT-PRF-023` | Architecture Services | Professional, technical and advisory services | `architecture services`; `architecture`; `architecture services services`; `architecture services operations`; `architecture services provider`; `provides architecture services`; `offers architecture services`; `architecture services department` |
-| `ACT-PRF-024` | Engineering Services | Professional, technical and advisory services | `engineering services`; `engineering`; `engineering services services`; `engineering services operations`; `engineering services provider`; `provides engineering services`; `offers engineering services`; `engineering services department` |
-| `ACT-PRF-025` | Quantity Surveying | Professional, technical and advisory services | `quantity surveying`; `quantity survey`; `quantity surveying services`; `quantity surveying operations`; `quantity surveying provider`; `provides quantity surveying`; `offers quantity surveying`; `quantity surveying department` |
-| `ACT-PRF-026` | Project Advisory | Professional, technical and advisory services | `project advisory`; `project advisory services`; `project advisory operations`; `project advisory provider`; `provides project advisory`; `offers project advisory`; `project advisory department` |
-| `ACT-PRF-027` | Transaction Advisory | Professional, technical and advisory services | `transaction advisory`; `transaction advisory services`; `transaction advisory operations`; `transaction advisory provider`; `provides transaction advisory`; `offers transaction advisory`; `transaction advisory department` |
-| `ACT-PRF-028` | Change Management | Professional, technical and advisory services | `change management`; `change management services`; `change management operations`; `change management provider`; `provides change management`; `offers change management`; `change management department` |
-| `ACT-PRF-029` | Business Process Management | Professional, technical and advisory services | `business process management`; `business process management services`; `business process management operations`; `business process management provider`; `provides business process management`; `offers business process management`; `business process management department` |
-| `ACT-PRF-030` | Secretarial Services | Professional, technical and advisory services | `secretarial services`; `secretarial`; `secretarial services services`; `secretarial services operations`; `secretarial services provider`; `provides secretarial services`; `offers secretarial services`; `secretarial services department` |
-| `ACT-PRF-031` | Translation | Professional, technical and advisory services | `translation`; `translation services`; `translation operations`; `translation provider`; `provides translation`; `offers translation`; `translation department` |
-| `ACT-PRF-032` | Interpretation | Professional, technical and advisory services | `interpretation`; `interpretation services`; `interpretation operations`; `interpretation provider`; `provides interpretation`; `offers interpretation`; `interpretation department` |
-| `ACT-PRF-033` | Verification Services | Professional, technical and advisory services | `verification services`; `verification`; `verification services services`; `verification services operations`; `verification services provider`; `provides verification services`; `offers verification services`; `verification services department` |
-| `ACT-HLT-001` | Diagnosing | Healthcare and care delivery | `diagnosing`; `diagnos`; `diagnosing services`; `diagnosing operations`; `diagnosing provider`; `provides diagnosing`; `offers diagnosing`; `diagnosing department` |
-| `ACT-HLT-002` | Treating | Healthcare and care delivery | `treating`; `treate`; `treating services`; `treating operations`; `treating provider`; `provides treating`; `offers treating`; `treating department` |
-| `ACT-HLT-003` | Prescribing | Healthcare and care delivery | `prescribing`; `prescrib`; `prescribing services`; `prescribing operations`; `prescribing provider`; `provides prescribing`; `offers prescribing`; `prescribing department` |
-| `ACT-HLT-004` | Dispensing | Healthcare and care delivery | `dispensing`; `dispens`; `dispensing services`; `dispensing operations`; `dispensing provider`; `provides dispensing`; `offers dispensing`; `dispensing department` |
-| `ACT-HLT-005` | Nursing | Healthcare and care delivery | `nursing`; `nurs`; `nursing services`; `nursing operations`; `nursing provider`; `provides nursing`; `offers nursing`; `nursing department` |
-| `ACT-HLT-006` | Performing Surgery | Healthcare and care delivery | `performing surgery`; `performing surgery services`; `performing surgery operations`; `performing surgery provider`; `provides performing surgery`; `offers performing surgery`; `performing surgery department` |
-| `ACT-HLT-007` | Rehabilitation | Healthcare and care delivery | `rehabilitation`; `rehabilitation services`; `rehabilitation operations`; `rehabilitation provider`; `provides rehabilitation`; `offers rehabilitation`; `rehabilitation department` |
-| `ACT-HLT-008` | Therapy | Healthcare and care delivery | `therapy`; `therapy services`; `therapy operations`; `therapy provider`; `provides therapy`; `offers therapy`; `therapy department` |
-| `ACT-HLT-009` | Counselling | Healthcare and care delivery | `counselling`; `counsel`; `counselling services`; `counselling operations`; `counselling provider`; `provides counselling`; `offers counselling`; `counselling department` |
-| `ACT-HLT-010` | Patient Monitoring | Healthcare and care delivery | `patient monitoring`; `patient monitor`; `patient monitoring services`; `patient monitoring operations`; `patient monitoring provider`; `provides patient monitoring`; `offers patient monitoring`; `patient monitoring department` |
-| `ACT-HLT-011` | Emergency Care | Healthcare and care delivery | `emergency care`; `emergency care services`; `emergency care operations`; `emergency care provider`; `provides emergency care`; `offers emergency care`; `emergency care department` |
-| `ACT-HLT-012` | Inpatient Care | Healthcare and care delivery | `inpatient care`; `inpatient care services`; `inpatient care operations`; `inpatient care provider`; `provides inpatient care`; `offers inpatient care`; `inpatient care department` |
-| `ACT-HLT-013` | Outpatient Care | Healthcare and care delivery | `outpatient care`; `outpatient care services`; `outpatient care operations`; `outpatient care provider`; `provides outpatient care`; `offers outpatient care`; `outpatient care department` |
-| `ACT-HLT-014` | Home Care | Healthcare and care delivery | `home care`; `home care services`; `home care operations`; `home care provider`; `provides home care`; `offers home care`; `home care department` |
-| `ACT-HLT-015` | Laboratory Diagnosis | Healthcare and care delivery | `laboratory diagnosis`; `laboratory diagnosis services`; `laboratory diagnosis operations`; `laboratory diagnosis provider`; `provides laboratory diagnosis`; `offers laboratory diagnosis`; `laboratory diagnosis department` |
-| `ACT-HLT-016` | Medical Imaging | Healthcare and care delivery | `medical imaging`; `medical imag`; `medical imaging services`; `medical imaging operations`; `medical imaging provider`; `provides medical imaging`; `offers medical imaging`; `medical imaging department` |
-| `ACT-HLT-017` | Screening | Healthcare and care delivery | `screening`; `screen`; `screening services`; `screening operations`; `screening provider`; `provides screening`; `offers screening`; `screening department` |
-| `ACT-HLT-018` | Vaccination | Healthcare and care delivery | `vaccination`; `vaccination services`; `vaccination operations`; `vaccination provider`; `provides vaccination`; `offers vaccination`; `vaccination department` |
-| `ACT-HLT-019` | Referral Management | Healthcare and care delivery | `referral management`; `referral management services`; `referral management operations`; `referral management provider`; `provides referral management`; `offers referral management`; `referral management department` |
-| `ACT-HLT-020` | Appointment Scheduling | Healthcare and care delivery | `appointment scheduling`; `appointment schedul`; `appointment scheduling services`; `appointment scheduling operations`; `appointment scheduling provider`; `provides appointment scheduling`; `offers appointment scheduling`; `appointment scheduling department` |
-| `ACT-HLT-021` | Patient Admission | Healthcare and care delivery | `patient admission`; `patient admission services`; `patient admission operations`; `patient admission provider`; `provides patient admission`; `offers patient admission`; `patient admission department` |
-| `ACT-HLT-022` | Patient Discharge | Healthcare and care delivery | `patient discharge`; `patient discharge services`; `patient discharge operations`; `patient discharge provider`; `provides patient discharge`; `offers patient discharge`; `patient discharge department` |
-| `ACT-HLT-023` | Care Coordination | Healthcare and care delivery | `care coordination`; `care coordination services`; `care coordination operations`; `care coordination provider`; `provides care coordination`; `offers care coordination`; `care coordination department` |
-| `ACT-HLT-024` | Public Health Surveillance | Healthcare and care delivery | `public health surveillance`; `public health surveillance services`; `public health surveillance operations`; `public health surveillance provider`; `provides public health surveillance`; `offers public health surveillance`; `public health surveillance department` |
-| `ACT-HLT-025` | Triage | Healthcare and care delivery | `triage`; `triage services`; `triage operations`; `triage provider`; `provides triage`; `offers triage`; `triage department` |
-| `ACT-HLT-026` | Clinical Documentation | Healthcare and care delivery | `clinical documentation`; `clinical documentation services`; `clinical documentation operations`; `clinical documentation provider`; `provides clinical documentation`; `offers clinical documentation`; `clinical documentation department` |
-| `ACT-HLT-027` | Medication Management | Healthcare and care delivery | `medication management`; `medication management services`; `medication management operations`; `medication management provider`; `provides medication management`; `offers medication management`; `medication management department` |
-| `ACT-HLT-028` | Sample Collection | Healthcare and care delivery | `sample collection`; `sample collection services`; `sample collection operations`; `sample collection provider`; `provides sample collection`; `offers sample collection`; `sample collection department` |
-| `ACT-HLT-029` | Blood Collection | Healthcare and care delivery | `blood collection`; `blood collection services`; `blood collection operations`; `blood collection provider`; `provides blood collection`; `offers blood collection`; `blood collection department` |
-| `ACT-HLT-030` | Transfusion Services | Healthcare and care delivery | `transfusion services`; `transfusion`; `transfusion services services`; `transfusion services operations`; `transfusion services provider`; `provides transfusion services`; `offers transfusion services`; `transfusion services department` |
-| `ACT-HLT-031` | Medical Transport | Healthcare and care delivery | `medical transport`; `medical transport services`; `medical transport operations`; `medical transport provider`; `provides medical transport`; `offers medical transport`; `medical transport department` |
-| `ACT-HLT-032` | Elder Care | Healthcare and care delivery | `elder care`; `elder care services`; `elder care operations`; `elder care provider`; `provides elder care`; `offers elder care`; `elder care department` |
-| `ACT-HLT-033` | Maternal Care | Healthcare and care delivery | `maternal care`; `maternal care services`; `maternal care operations`; `maternal care provider`; `provides maternal care`; `offers maternal care`; `maternal care department` |
-| `ACT-HLT-034` | Child Health Services | Healthcare and care delivery | `child health services`; `child health`; `child health services services`; `child health services operations`; `child health services provider`; `provides child health services`; `offers child health services`; `child health services department` |
-| `ACT-HLT-035` | Occupational Health Services | Healthcare and care delivery | `occupational health services`; `occupational health`; `occupational health services services`; `occupational health services operations`; `occupational health services provider`; `provides occupational health services`; `offers occupational health services`; `occupational health services department` |
-| `ACT-EDU-001` | Teaching | Education and knowledge delivery | `teaching`; `teach`; `teaching services`; `teaching operations`; `teaching provider`; `provides teaching`; `offers teaching`; `teaching department` |
-| `ACT-EDU-002` | Training | Education and knowledge delivery | `training`; `train`; `training services`; `training operations`; `training provider`; `provides training`; `offers training`; `training department` |
-| `ACT-EDU-003` | Coaching | Education and knowledge delivery | `coaching`; `coach`; `coaching services`; `coaching operations`; `coaching provider`; `provides coaching`; `offers coaching`; `coaching department` |
-| `ACT-EDU-004` | Tutoring | Education and knowledge delivery | `tutoring`; `tutor`; `tutoring services`; `tutoring operations`; `tutoring provider`; `provides tutoring`; `offers tutoring`; `tutoring department` |
-| `ACT-EDU-005` | Assessing Learners | Education and knowledge delivery | `assessing learners`; `assessing learners services`; `assessing learners operations`; `assessing learners provider`; `provides assessing learners`; `offers assessing learners`; `assessing learners department` |
-| `ACT-EDU-006` | Examining | Education and knowledge delivery | `examining`; `examin`; `examining services`; `examining operations`; `examining provider`; `provides examining`; `offers examining`; `examining department` |
-| `ACT-EDU-007` | Certifying Learners | Education and knowledge delivery | `certifying learners`; `certifying learners services`; `certifying learners operations`; `certifying learners provider`; `provides certifying learners`; `offers certifying learners`; `certifying learners department` |
-| `ACT-EDU-008` | Admissions | Education and knowledge delivery | `admissions`; `admissions services`; `admissions operations`; `admissions provider`; `provides admissions`; `offers admissions`; `admissions department` |
-| `ACT-EDU-009` | Enrollment | Education and knowledge delivery | `enrollment`; `enrollment services`; `enrollment operations`; `enrollment provider`; `provides enrollment`; `offers enrollment`; `enrollment department` |
-| `ACT-EDU-010` | Academic Scheduling | Education and knowledge delivery | `academic scheduling`; `academic schedul`; `academic scheduling services`; `academic scheduling operations`; `academic scheduling provider`; `provides academic scheduling`; `offers academic scheduling`; `academic scheduling department` |
-| `ACT-EDU-011` | Student Support | Education and knowledge delivery | `student support`; `student support services`; `student support operations`; `student support provider`; `provides student support`; `offers student support`; `student support department` |
-| `ACT-EDU-012` | Research Supervision | Education and knowledge delivery | `research supervision`; `research supervision services`; `research supervision operations`; `research supervision provider`; `provides research supervision`; `offers research supervision`; `research supervision department` |
-| `ACT-EDU-013` | Library Services | Education and knowledge delivery | `library services`; `library`; `library services services`; `library services operations`; `library services provider`; `provides library services`; `offers library services`; `library services department` |
-| `ACT-EDU-014` | Publishing Educational Content | Education and knowledge delivery | `publishing educational content`; `publishing educational content services`; `publishing educational content operations`; `publishing educational content provider`; `provides publishing educational content`; `offers publishing educational content`; `publishing educational content department` |
-| `ACT-EDU-015` | Credentialing | Education and knowledge delivery | `credentialing`; `credential`; `credentialing services`; `credentialing operations`; `credentialing provider`; `provides credentialing`; `offers credentialing`; `credentialing department` |
-| `ACT-EDU-016` | Proctoring | Education and knowledge delivery | `proctoring`; `proctor`; `proctoring services`; `proctoring operations`; `proctoring provider`; `provides proctoring`; `offers proctoring`; `proctoring department` |
-| `ACT-EDU-017` | Curriculum Delivery | Education and knowledge delivery | `curriculum delivery`; `curriculum delivery services`; `curriculum delivery operations`; `curriculum delivery provider`; `provides curriculum delivery`; `offers curriculum delivery`; `curriculum delivery department` |
-| `ACT-EDU-018` | Career Guidance | Education and knowledge delivery | `career guidance`; `career guidance services`; `career guidance operations`; `career guidance provider`; `provides career guidance`; `offers career guidance`; `career guidance department` |
-| `ACT-EDU-019` | Learning Support | Education and knowledge delivery | `learning support`; `learning support services`; `learning support operations`; `learning support provider`; `provides learning support`; `offers learning support`; `learning support department` |
-| `ACT-EDU-020` | Faculty Management | Education and knowledge delivery | `faculty management`; `faculty management services`; `faculty management operations`; `faculty management provider`; `provides faculty management`; `offers faculty management`; `faculty management department` |
-| `ACT-EDU-021` | Alumni Management | Education and knowledge delivery | `alumni management`; `alumni management services`; `alumni management operations`; `alumni management provider`; `provides alumni management`; `offers alumni management`; `alumni management department` |
-| `ACT-EDU-022` | Academic Administration | Education and knowledge delivery | `academic administration`; `academic administration services`; `academic administration operations`; `academic administration provider`; `provides academic administration`; `offers academic administration`; `academic administration department` |
+| Activity code | Activity | Primary phrase and reviewed aliases |
+| --- | --- | --- |
+| `ACT-MKT-009` | Sales Development | sales development |
+| `ACT-MKT-010` | Product Demonstration | product demonstration |
+| `ACT-MKT-011` | Event Promotion | event promotion |
+| `ACT-MKT-012` | Sponsorship Management | sponsorship management |
+| `ACT-MKT-013` | Community Outreach | community outreach |
+| `ACT-MKT-014` | Donor Acquisition | donor acquisition |
+| `ACT-MKT-015` | Content Marketing | content marketing |
+| `ACT-MKT-016` | Social Media Marketing | social media marketing |
+| `ACT-MKT-017` | Market Education | market education |
+| `ACT-MKT-018` | Trade Marketing | trade marketing |
+| `ACT-MKT-019` | Influencer Marketing | influencer marketing |
+| `ACT-MKT-020` | Customer Engagement | customer engagement |
+| `ACT-OPS-001` | Installing | installing |
+| `ACT-OPS-002` | Commissioning | commissioning |
+| `ACT-OPS-003` | Deploying | deploying |
+| `ACT-OPS-004` | Implementing | implementing |
+| `ACT-OPS-005` | Integrating | integrating |
+| `ACT-OPS-006` | Configuring | configuring |
+| `ACT-OPS-007` | Customizing | customizing |
+| `ACT-OPS-008` | Operating Facilities | operating facilities |
+| `ACT-OPS-009` | Operating Equipment | operating equipment |
+| `ACT-OPS-010` | Operating Networks | operating networks |
+| `ACT-OPS-011` | Monitoring | monitoring |
+| `ACT-OPS-012` | Maintaining | maintaining |
+| `ACT-OPS-013` | Preventive Maintenance | preventive maintenance |
+| `ACT-OPS-014` | Repairing | repairing |
+| `ACT-OPS-015` | Servicing | servicing |
+| `ACT-OPS-016` | Calibrating | calibrating |
+| `ACT-OPS-017` | Technical Support | technical support |
+| `ACT-OPS-018` | Customer Support | customer support |
+| `ACT-OPS-019` | Refurbishing | refurbishing |
+| `ACT-OPS-020` | Remanufacturing | remanufacturing |
+| `ACT-OPS-021` | Upgrading | upgrading |
+| `ACT-OPS-022` | Decommissioning | decommissioning |
+| `ACT-OPS-023` | Facility Management | facility management |
+| `ACT-OPS-024` | Asset Management | asset management |
+| `ACT-OPS-025` | Equipment Management | equipment management |
+| `ACT-OPS-026` | Project Management | project management |
+| `ACT-OPS-027` | Construction | construction |
+| `ACT-OPS-028` | Fitting Out | fitting out |
+| `ACT-OPS-029` | Site Supervision | site supervision |
+| `ACT-OPS-030` | Workforce Scheduling | workforce scheduling |
+| `ACT-OPS-031` | Capacity Planning | capacity planning |
+| `ACT-OPS-032` | Resource Planning | resource planning |
+| `ACT-OPS-033` | Business Continuity Management | business continuity management |
+| `ACT-OPS-034` | Emergency Response | emergency response |
+| `ACT-OPS-035` | Field Service | field service |
+| `ACT-OPS-036` | Remote Support | remote support |
+| `ACT-OPS-037` | Help Desk Operations | help desk operations |
+| `ACT-DIG-001` | Publishing Software | publishing software |
+| `ACT-DIG-002` | Hosting | hosting |
+| `ACT-DIG-003` | Cloud Operations | cloud operations |
+| `ACT-DIG-004` | Platform Operations | platform operations |
+| `ACT-DIG-005` | Data Processing | data processing |
+| `ACT-DIG-006` | Data Hosting | data hosting |
+| `ACT-DIG-007` | Analytics | analytics |
+| `ACT-DIG-008` | Reporting | reporting |
+| `ACT-DIG-009` | Automation | automation |
+| `ACT-DIG-010` | Cybersecurity Monitoring | cybersecurity monitoring |
+| `ACT-DIG-011` | Identity Management | identity management |
+| `ACT-DIG-012` | System Administration | system administration |
+| `ACT-DIG-013` | API Operations | api operations |
+| `ACT-DIG-014` | Content Moderation | content moderation |
+| `ACT-DIG-015` | Digital Delivery | digital delivery |
+| `ACT-DIG-016` | Digital Payments | digital payments |
+| `ACT-DIG-017` | Telecommunications Operations | telecommunications operations |
+| `ACT-DIG-018` | Database Administration | database administration |
+| `ACT-DIG-019` | Application Management | application management |
+| `ACT-DIG-020` | Network Administration | network administration |
+| `ACT-DIG-021` | Data Integration | data integration |
+| `ACT-DIG-022` | Data Governance | data governance |
+| `ACT-DIG-023` | Data Visualization | data visualization |
+| `ACT-DIG-024` | Machine-Learning Operations | machine-learning operations |
+| `ACT-DIG-025` | Model Monitoring | model monitoring |
+| `ACT-DIG-026` | Backup and Recovery | backup and recovery |
+| `ACT-DIG-027` | Digital Identity Services | digital identity services |
+| `ACT-DIG-028` | Electronic Records Management | electronic records management |
+| `ACT-DIG-029` | Workflow Management | workflow management |
+| `ACT-DIG-030` | Portal Operations | portal operations |
+| `ACT-DIG-031` | Search Operations | search operations |
+| `ACT-PRF-001` | Consulting | consulting; consultancy; consultant; advisory |
+| `ACT-PRF-002` | Advising | advising; advisory; advisor; consultation |
+| `ACT-PRF-003` | Assessing | assessing |
+| `ACT-PRF-004` | Planning | planning |
+| `ACT-PRF-005` | Surveying | surveying |
+| `ACT-PRF-006` | Valuation | valuation |
+| `ACT-PRF-007` | Appraisal | appraisal |
+| `ACT-PRF-008` | Due Diligence | due diligence |
+| `ACT-PRF-009` | Representation | representation |
+| `ACT-PRF-010` | Mediation | mediation |
+| `ACT-PRF-011` | Arbitration | arbitration |
+| `ACT-PRF-012` | Documentation | documentation |
+| `ACT-PRF-013` | Drafting | drafting |
+| `ACT-PRF-014` | Reviewing | reviewing |
+| `ACT-PRF-015` | Filing | filing |
+| `ACT-PRF-016` | Registration Services | registration services |
+| `ACT-PRF-017` | Case Management | case management |
+| `ACT-PRF-018` | Claims Management | claims management |
+| `ACT-PRF-019` | Recruitment | recruitment |
+| `ACT-PRF-020` | Staffing | staffing |
+| `ACT-PRF-021` | Outsourcing | outsourcing |
+| `ACT-PRF-022` | Managed Services | managed services |
+| `ACT-PRF-023` | Architecture Services | architecture services |
+| `ACT-PRF-024` | Engineering Services | engineering services |
+| `ACT-PRF-025` | Quantity Surveying | quantity surveying |
+| `ACT-PRF-026` | Project Advisory | project advisory |
+| `ACT-PRF-027` | Transaction Advisory | transaction advisory |
+| `ACT-PRF-028` | Change Management | change management |
+| `ACT-PRF-029` | Business Process Management | business process management |
+| `ACT-PRF-030` | Secretarial Services | secretarial services |
+| `ACT-PRF-031` | Translation | translation |
+| `ACT-PRF-032` | Interpretation | interpretation |
+| `ACT-PRF-033` | Verification Services | verification services |
+| `ACT-HLT-001` | Diagnosing | diagnosing |
+| `ACT-HLT-002` | Treating | treating |
+| `ACT-HLT-003` | Prescribing | prescribing |
+| `ACT-HLT-004` | Dispensing | dispensing |
+| `ACT-HLT-005` | Nursing | nursing |
+| `ACT-HLT-006` | Performing Surgery | performing surgery |
+| `ACT-HLT-007` | Rehabilitation | rehabilitation |
+| `ACT-HLT-008` | Therapy | therapy |
+| `ACT-HLT-009` | Counselling | counselling |
+| `ACT-HLT-010` | Patient Monitoring | patient monitoring |
+| `ACT-HLT-011` | Emergency Care | emergency care |
+| `ACT-HLT-012` | Inpatient Care | inpatient care |
+| `ACT-HLT-013` | Outpatient Care | outpatient care |
+| `ACT-HLT-014` | Home Care | home care |
+| `ACT-HLT-015` | Laboratory Diagnosis | laboratory diagnosis |
+| `ACT-HLT-016` | Medical Imaging | medical imaging |
+| `ACT-HLT-017` | Screening | screening |
+| `ACT-HLT-018` | Vaccination | vaccination |
+| `ACT-HLT-019` | Referral Management | referral management |
+| `ACT-HLT-020` | Appointment Scheduling | appointment scheduling |
+| `ACT-HLT-021` | Patient Admission | patient admission |
+| `ACT-HLT-022` | Patient Discharge | patient discharge |
+| `ACT-HLT-023` | Care Coordination | care coordination |
+| `ACT-HLT-024` | Public Health Surveillance | public health surveillance |
+| `ACT-HLT-025` | Triage | triage |
+| `ACT-HLT-026` | Clinical Documentation | clinical documentation |
+| `ACT-HLT-027` | Medication Management | medication management |
+| `ACT-HLT-028` | Sample Collection | sample collection |
+| `ACT-HLT-029` | Blood Collection | blood collection |
+| `ACT-HLT-030` | Transfusion Services | transfusion services |
+| `ACT-HLT-031` | Medical Transport | medical transport |
+| `ACT-HLT-032` | Elder Care | elder care |
+| `ACT-HLT-033` | Maternal Care | maternal care |
+| `ACT-HLT-034` | Child Health Services | child health services |
+| `ACT-HLT-035` | Occupational Health Services | occupational health services |
+| `ACT-EDU-001` | Teaching | teaching; teacher; education delivery; instruction |
+| `ACT-EDU-002` | Training | training; trainer; training provider; instruction |
+| `ACT-EDU-003` | Coaching | coaching |
+| `ACT-EDU-004` | Tutoring | tutoring |
+| `ACT-EDU-005` | Assessing Learners | assessing learners |
+| `ACT-EDU-006` | Examining | examining |
+| `ACT-EDU-007` | Certifying Learners | certifying learners |
+| `ACT-EDU-008` | Admissions | admissions |
+| `ACT-EDU-009` | Enrollment | enrollment |
+| `ACT-EDU-010` | Academic Scheduling | academic scheduling |
+| `ACT-EDU-011` | Student Support | student support |
+| `ACT-EDU-012` | Research Supervision | research supervision |
+| `ACT-EDU-013` | Library Services | library services |
+| `ACT-EDU-014` | Publishing Educational Content | publishing educational content |
+| `ACT-EDU-015` | Credentialing | credentialing |
+| `ACT-EDU-016` | Proctoring | proctoring |
+| `ACT-EDU-017` | Curriculum Delivery | curriculum delivery |
+| `ACT-EDU-018` | Career Guidance | career guidance |
+| `ACT-EDU-019` | Learning Support | learning support |
+| `ACT-EDU-020` | Faculty Management | faculty management |
+| `ACT-EDU-021` | Alumni Management | alumni management |
+| `ACT-EDU-022` | Academic Administration | academic administration |
+| `ACT-EDU-023` | Knowledge Management | knowledge management |
+| `ACT-EDU-024` | Conference Delivery | conference delivery |
+| `ACT-EDU-025` | Workshop Delivery | workshop delivery |
+| `ACT-FIN-001` | Banking | banking |
+| `ACT-FIN-002` | Financing | financing |
+| `ACT-FIN-003` | Lending | lending |
+| `ACT-FIN-004` | Islamic Financing | islamic financing |
+| `ACT-FIN-005` | Deposits Management | deposits management |
+| `ACT-FIN-006` | Payments Processing | payments processing |
+| `ACT-FIN-007` | Money Transfer | money transfer |
 
-## Interpretation rule
-
-An activity term should normally be evaluated with a selected domain term, organization identity, source reliability, and negative context. A phrase such as ‘manufacturing course’ is not evidence that the publisher manufactures anything.
+Activities absent from a domain profile are not eligible merely because a keyword matched elsewhere.

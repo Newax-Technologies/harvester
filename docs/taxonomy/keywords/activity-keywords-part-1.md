@@ -1,190 +1,195 @@
-# Harvester Canonical Activity Keywords — Part 1
+# Harvester Canonical Activity Keyword Registry
+
+Part **1 of 3**
 
 Status: **Proposed**  
 Version: **1.0**  
-Date: **4 August 2026**  
+Date: **3 August 2026**  
 Implementation status: **Not implemented**
 
-This file defines default discovery terms for canonical business activities. Terms identify possible activity evidence only. They do not prove that an organization performs the activity.
+These keyword aliases describe canonical business activities. They support discovery and evidence retrieval; they do not prove that a target performs an activity.
 
-| Activity code | Activity | Family | Default activity terms and phrases |
-| --- | --- | --- | --- |
-| `ACT-RND-001` | Researching | Research, design and development | `researching`; `research`; `researching services`; `researching operations`; `researching provider`; `provides researching`; `offers researching`; `researching department` |
-| `ACT-RND-002` | Market Research | Research, design and development | `market research`; `market research services`; `market research operations`; `market research provider`; `provides market research`; `offers market research`; `market research department` |
-| `ACT-RND-003` | Field Research | Research, design and development | `field research`; `field research services`; `field research operations`; `field research provider`; `provides field research`; `offers field research`; `field research department` |
-| `ACT-RND-004` | Clinical Research | Research, design and development | `clinical research`; `clinical research services`; `clinical research operations`; `clinical research provider`; `provides clinical research`; `offers clinical research`; `clinical research department` |
-| `ACT-RND-005` | Scientific Research | Research, design and development | `scientific research`; `scientific research services`; `scientific research operations`; `scientific research provider`; `provides scientific research`; `offers scientific research`; `scientific research department` |
-| `ACT-RND-006` | Policy Research | Research, design and development | `policy research`; `policy research services`; `policy research operations`; `policy research provider`; `provides policy research`; `offers policy research`; `policy research department` |
-| `ACT-RND-007` | Data Collection | Research, design and development | `data collection`; `data collection services`; `data collection operations`; `data collection provider`; `provides data collection`; `offers data collection`; `data collection department` |
-| `ACT-RND-008` | Experimenting | Research, design and development | `experimenting`; `experiment`; `experimenting services`; `experimenting operations`; `experimenting provider`; `provides experimenting`; `offers experimenting`; `experimenting department` |
-| `ACT-RND-009` | Designing | Research, design and development | `designing`; `design`; `designing services`; `designing operations`; `designing provider`; `provides designing`; `offers designing`; `designing department` |
-| `ACT-RND-010` | Engineering | Research, design and development | `engineering`; `engineer`; `engineering services`; `engineering operations`; `engineering provider`; `provides engineering`; `offers engineering`; `engineering department` |
-| `ACT-RND-011` | Formulating | Research, design and development | `formulating`; `formulate`; `formulating services`; `formulating operations`; `formulating provider`; `provides formulating`; `offers formulating`; `formulating department` |
-| `ACT-RND-012` | Prototyping | Research, design and development | `prototyping`; `prototype`; `prototyping services`; `prototyping operations`; `prototyping provider`; `provides prototyping`; `offers prototyping`; `prototyping department` |
-| `ACT-RND-013` | Piloting | Research, design and development | `piloting`; `pilot`; `piloting services`; `piloting operations`; `piloting provider`; `provides piloting`; `offers piloting`; `piloting department` |
-| `ACT-RND-014` | Product Development | Research, design and development | `product development`; `product development services`; `product development operations`; `product development provider`; `provides product development`; `offers product development`; `product development department` |
-| `ACT-RND-015` | Service Design | Research, design and development | `service design`; `service design services`; `service design operations`; `service design provider`; `provides service design`; `offers service design`; `service design department` |
-| `ACT-RND-016` | Curriculum Design | Research, design and development | `curriculum design`; `curriculum design services`; `curriculum design operations`; `curriculum design provider`; `provides curriculum design`; `offers curriculum design`; `curriculum design department` |
-| `ACT-RND-017` | Content Development | Research, design and development | `content development`; `content development services`; `content development operations`; `content development provider`; `provides content development`; `offers content development`; `content development department` |
-| `ACT-RND-018` | Software Development | Research, design and development | `software development`; `software development services`; `software development operations`; `software development provider`; `provides software development`; `offers software development`; `software development department` |
-| `ACT-RND-019` | Model Development | Research, design and development | `model development`; `model development services`; `model development operations`; `model development provider`; `provides model development`; `offers model development`; `model development department` |
-| `ACT-RND-020` | Simulation | Research, design and development | `simulation`; `simulation services`; `simulation operations`; `simulation provider`; `provides simulation`; `offers simulation`; `simulation department` |
-| `ACT-RND-021` | Testing | Research, design and development | `testing`; `test`; `testing services`; `testing operations`; `testing provider`; `provides testing`; `offers testing`; `testing department` |
-| `ACT-RND-022` | Validating | Research, design and development | `validating`; `validate`; `validating services`; `validating operations`; `validating provider`; `provides validating`; `offers validating`; `validating department` |
-| `ACT-RND-023` | User Research | Research, design and development | `user research`; `user research services`; `user research operations`; `user research provider`; `provides user research`; `offers user research`; `user research department` |
-| `ACT-RND-024` | Feasibility Assessment | Research, design and development | `feasibility assessment`; `feasibility assessment services`; `feasibility assessment operations`; `feasibility assessment provider`; `provides feasibility assessment`; `offers feasibility assessment`; `feasibility assessment department` |
-| `ACT-PRD-001` | Cultivating | Production and transformation | `cultivating`; `cultivate`; `cultivating services`; `cultivating operations`; `cultivating provider`; `provides cultivating`; `offers cultivating`; `cultivating department` |
-| `ACT-PRD-002` | Growing | Production and transformation | `growing`; `grow`; `growing services`; `growing operations`; `growing provider`; `provides growing`; `offers growing`; `growing department` |
-| `ACT-PRD-003` | Breeding | Production and transformation | `breeding`; `breed`; `breeding services`; `breeding operations`; `breeding provider`; `provides breeding`; `offers breeding`; `breeding department` |
-| `ACT-PRD-004` | Hatching | Production and transformation | `hatching`; `hatch`; `hatching services`; `hatching operations`; `hatching provider`; `provides hatching`; `offers hatching`; `hatching department` |
-| `ACT-PRD-005` | Harvesting | Production and transformation | `harvesting`; `harvest`; `harvesting services`; `harvesting operations`; `harvesting provider`; `provides harvesting`; `offers harvesting`; `harvesting department` |
-| `ACT-PRD-006` | Extracting | Production and transformation | `extracting`; `extract`; `extracting services`; `extracting operations`; `extracting provider`; `provides extracting`; `offers extracting`; `extracting department` |
-| `ACT-PRD-007` | Mining | Production and transformation | `mining`; `min`; `mining services`; `mining operations`; `mining provider`; `provides mining`; `offers mining`; `mining department` |
-| `ACT-PRD-008` | Processing | Production and transformation | `processing`; `proces`; `processing services`; `processing operations`; `processing provider`; `provides processing`; `offers processing`; `processing department` |
-| `ACT-PRD-009` | Refining | Production and transformation | `refining`; `refin`; `refining services`; `refining operations`; `refining provider`; `provides refining`; `offers refining`; `refining department` |
-| `ACT-PRD-010` | Milling | Production and transformation | `milling`; `mil`; `milling services`; `milling operations`; `milling provider`; `provides milling`; `offers milling`; `milling department` |
-| `ACT-PRD-011` | Slaughtering | Production and transformation | `slaughtering`; `slaughter`; `slaughtering services`; `slaughtering operations`; `slaughtering provider`; `provides slaughtering`; `offers slaughtering`; `slaughtering department` |
-| `ACT-PRD-012` | Pasteurizing | Production and transformation | `pasteurizing`; `pasteurize`; `pasteurizing services`; `pasteurizing operations`; `pasteurizing provider`; `provides pasteurizing`; `offers pasteurizing`; `pasteurizing department` |
-| `ACT-PRD-013` | Blending | Production and transformation | `blending`; `blend`; `blending services`; `blending operations`; `blending provider`; `provides blending`; `offers blending`; `blending department` |
-| `ACT-PRD-014` | Mixing | Production and transformation | `mixing`; `mix`; `mixing services`; `mixing operations`; `mixing provider`; `provides mixing`; `offers mixing`; `mixing department` |
-| `ACT-PRD-015` | Compounding | Production and transformation | `compounding`; `compound`; `compounding services`; `compounding operations`; `compounding provider`; `provides compounding`; `offers compounding`; `compounding department` |
-| `ACT-PRD-016` | Manufacturing | Production and transformation | `manufacturing`; `manufactur`; `manufacturing services`; `manufacturing operations`; `manufacturing provider`; `provides manufacturing`; `offers manufacturing`; `manufacturing department` |
-| `ACT-PRD-017` | Fabricating | Production and transformation | `fabricating`; `fabricate`; `fabricating services`; `fabricating operations`; `fabricating provider`; `provides fabricating`; `offers fabricating`; `fabricating department` |
-| `ACT-PRD-018` | Machining | Production and transformation | `machining`; `machin`; `machining services`; `machining operations`; `machining provider`; `provides machining`; `offers machining`; `machining department` |
-| `ACT-PRD-019` | Casting | Production and transformation | `casting`; `cast`; `casting services`; `casting operations`; `casting provider`; `provides casting`; `offers casting`; `casting department` |
-| `ACT-PRD-020` | Moulding | Production and transformation | `moulding`; `mould`; `moulding services`; `moulding operations`; `moulding provider`; `provides moulding`; `offers moulding`; `moulding department` |
-| `ACT-PRD-021` | Forging | Production and transformation | `forging`; `forg`; `forging services`; `forging operations`; `forging provider`; `provides forging`; `offers forging`; `forging department` |
-| `ACT-PRD-022` | Weaving | Production and transformation | `weaving`; `weav`; `weaving services`; `weaving operations`; `weaving provider`; `provides weaving`; `offers weaving`; `weaving department` |
-| `ACT-PRD-023` | Knitting | Production and transformation | `knitting`; `knit`; `knitting services`; `knitting operations`; `knitting provider`; `provides knitting`; `offers knitting`; `knitting department` |
-| `ACT-PRD-024` | Dyeing | Production and transformation | `dyeing`; `dye`; `dyeing services`; `dyeing operations`; `dyeing provider`; `provides dyeing`; `offers dyeing`; `dyeing department` |
-| `ACT-PRD-025` | Tanning | Production and transformation | `tanning`; `tan`; `tanning services`; `tanning operations`; `tanning provider`; `provides tanning`; `offers tanning`; `tanning department` |
-| `ACT-PRD-026` | Printing | Production and transformation | `printing`; `print`; `printing services`; `printing operations`; `printing provider`; `provides printing`; `offers printing`; `printing department` |
-| `ACT-PRD-027` | Assembling | Production and transformation | `assembling`; `assembl`; `assembling services`; `assembling operations`; `assembling provider`; `provides assembling`; `offers assembling`; `assembling department` |
-| `ACT-PRD-028` | Sterilizing | Production and transformation | `sterilizing`; `sterilize`; `sterilizing services`; `sterilizing operations`; `sterilizing provider`; `provides sterilizing`; `offers sterilizing`; `sterilizing department` |
-| `ACT-PRD-029` | Bottling | Production and transformation | `bottling`; `bottl`; `bottling services`; `bottling operations`; `bottling provider`; `provides bottling`; `offers bottling`; `bottling department` |
-| `ACT-PRD-030` | Packaging | Production and transformation | `packaging`; `packag`; `packaging services`; `packaging operations`; `packaging provider`; `provides packaging`; `offers packaging`; `packaging department` |
-| `ACT-PRD-031` | Labelling | Production and transformation | `labelling`; `label`; `labelling services`; `labelling operations`; `labelling provider`; `provides labelling`; `offers labelling`; `labelling department` |
-| `ACT-PRD-032` | Kitting | Production and transformation | `kitting`; `kit`; `kitting services`; `kitting operations`; `kitting provider`; `provides kitting`; `offers kitting`; `kitting department` |
-| `ACT-PRD-033` | Custom Production | Production and transformation | `custom production`; `custom production services`; `custom production operations`; `custom production provider`; `provides custom production`; `offers custom production`; `custom production department` |
-| `ACT-PRD-034` | Contract Manufacturing | Production and transformation | `contract manufacturing`; `contract manufactur`; `contract manufacturing services`; `contract manufacturing operations`; `contract manufacturing provider`; `provides contract manufacturing`; `offers contract manufacturing`; `contract manufacturing department` |
-| `ACT-PRD-035` | Mass Production | Production and transformation | `mass production`; `mass production services`; `mass production operations`; `mass production provider`; `provides mass production`; `offers mass production`; `mass production department` |
-| `ACT-PRD-036` | Batch Production | Production and transformation | `batch production`; `batch production services`; `batch production operations`; `batch production provider`; `provides batch production`; `offers batch production`; `batch production department` |
-| `ACT-PRD-037` | Small-Batch Production | Production and transformation | `small-batch production`; `small batch production`; `small-batch production services`; `small-batch production operations`; `small-batch production provider`; `provides small-batch production`; `offers small-batch production`; `small-batch production department` |
-| `ACT-PRD-038` | Prefabricating | Production and transformation | `prefabricating`; `prefabricate`; `prefabricating services`; `prefabricating operations`; `prefabricating provider`; `provides prefabricating`; `offers prefabricating`; `prefabricating department` |
-| `ACT-PRD-039` | Modular Production | Production and transformation | `modular production`; `modular production services`; `modular production operations`; `modular production provider`; `provides modular production`; `offers modular production`; `modular production department` |
-| `ACT-PRD-040` | Food Preparation | Production and transformation | `food preparation`; `food preparation services`; `food preparation operations`; `food preparation provider`; `provides food preparation`; `offers food preparation`; `food preparation department` |
-| `ACT-PRD-041` | Baking | Production and transformation | `baking`; `bak`; `baking services`; `baking operations`; `baking provider`; `provides baking`; `offers baking`; `baking department` |
-| `ACT-PRD-042` | Brewing | Production and transformation | `brewing`; `brew`; `brewing services`; `brewing operations`; `brewing provider`; `provides brewing`; `offers brewing`; `brewing department` |
-| `ACT-SRC-001` | Sourcing | Sourcing, procurement and supply | `sourcing`; `sourc`; `sourcing services`; `sourcing operations`; `sourcing provider`; `provides sourcing`; `offers sourcing`; `sourcing department` |
-| `ACT-SRC-002` | Procurement | Sourcing, procurement and supply | `procurement`; `procurement services`; `procurement operations`; `procurement provider`; `provides procurement`; `offers procurement`; `procurement department` |
-| `ACT-SRC-003` | Purchasing | Sourcing, procurement and supply | `purchasing`; `purchas`; `purchasing services`; `purchasing operations`; `purchasing provider`; `provides purchasing`; `offers purchasing`; `purchasing department` |
-| `ACT-SRC-004` | Supplier Management | Sourcing, procurement and supply | `supplier management`; `supplier management services`; `supplier management operations`; `supplier management provider`; `provides supplier management`; `offers supplier management`; `supplier management department` |
-| `ACT-SRC-005` | Vendor Management | Sourcing, procurement and supply | `vendor management`; `vendor management services`; `vendor management operations`; `vendor management provider`; `provides vendor management`; `offers vendor management`; `vendor management department` |
-| `ACT-SRC-006` | Tendering | Sourcing, procurement and supply | `tendering`; `tender`; `tendering services`; `tendering operations`; `tendering provider`; `provides tendering`; `offers tendering`; `tendering department` |
-| `ACT-SRC-007` | Importing | Sourcing, procurement and supply | `importing`; `import`; `importing services`; `importing operations`; `importing provider`; `provides importing`; `offers importing`; `importing department` |
-| `ACT-SRC-008` | Exporting | Sourcing, procurement and supply | `exporting`; `export`; `exporting services`; `exporting operations`; `exporting provider`; `provides exporting`; `offers exporting`; `exporting department` |
-| `ACT-SRC-009` | Contract Sourcing | Sourcing, procurement and supply | `contract sourcing`; `contract sourc`; `contract sourcing services`; `contract sourcing operations`; `contract sourcing provider`; `provides contract sourcing`; `offers contract sourcing`; `contract sourcing department` |
-| `ACT-SRC-010` | Inventory Replenishment | Sourcing, procurement and supply | `inventory replenishment`; `inventory replenishment services`; `inventory replenishment operations`; `inventory replenishment provider`; `provides inventory replenishment`; `offers inventory replenishment`; `inventory replenishment department` |
-| `ACT-SRC-011` | Consignment Management | Sourcing, procurement and supply | `consignment management`; `consignment management services`; `consignment management operations`; `consignment management provider`; `provides consignment management`; `offers consignment management`; `consignment management department` |
-| `ACT-SRC-012` | Commodity Trading | Sourcing, procurement and supply | `commodity trading`; `commodity trad`; `commodity trading services`; `commodity trading operations`; `commodity trading provider`; `provides commodity trading`; `offers commodity trading`; `commodity trading department` |
-| `ACT-SRC-013` | Raw Material Supply | Sourcing, procurement and supply | `raw material supply`; `raw material supply services`; `raw material supply operations`; `raw material supply provider`; `provides raw material supply`; `offers raw material supply`; `raw material supply department` |
-| `ACT-SRC-014` | Equipment Supply | Sourcing, procurement and supply | `equipment supply`; `equipment supply services`; `equipment supply operations`; `equipment supply provider`; `provides equipment supply`; `offers equipment supply`; `equipment supply department` |
-| `ACT-SRC-015` | Parts Supply | Sourcing, procurement and supply | `parts supply`; `parts supply services`; `parts supply operations`; `parts supply provider`; `provides parts supply`; `offers parts supply`; `parts supply department` |
-| `ACT-SRC-016` | Procurement Administration | Sourcing, procurement and supply | `procurement administration`; `procurement administration services`; `procurement administration operations`; `procurement administration provider`; `provides procurement administration`; `offers procurement administration`; `procurement administration department` |
-| `ACT-QLT-001` | Quality Control | Quality, safety and regulatory assurance | `quality control`; `quality control services`; `quality control operations`; `quality control provider`; `provides quality control`; `offers quality control`; `quality control department` |
-| `ACT-QLT-002` | Quality Assurance | Quality, safety and regulatory assurance | `quality assurance`; `quality assurance services`; `quality assurance operations`; `quality assurance provider`; `provides quality assurance`; `offers quality assurance`; `quality assurance department` |
-| `ACT-QLT-003` | Laboratory Testing | Quality, safety and regulatory assurance | `laboratory testing`; `laboratory test`; `laboratory testing services`; `laboratory testing operations`; `laboratory testing provider`; `provides laboratory testing`; `offers laboratory testing`; `laboratory testing department` |
-| `ACT-QLT-004` | Inspection | Quality, safety and regulatory assurance | `inspection`; `inspection services`; `inspection operations`; `inspection provider`; `provides inspection`; `offers inspection`; `inspection department` |
-| `ACT-QLT-005` | Auditing | Quality, safety and regulatory assurance | `auditing`; `audit`; `auditing services`; `auditing operations`; `auditing provider`; `provides auditing`; `offers auditing`; `auditing department` |
-| `ACT-QLT-006` | Certification | Quality, safety and regulatory assurance | `certification`; `certification services`; `certification operations`; `certification provider`; `provides certification`; `offers certification`; `certification department` |
-| `ACT-QLT-007` | Accreditation | Quality, safety and regulatory assurance | `accreditation`; `accreditation services`; `accreditation operations`; `accreditation provider`; `provides accreditation`; `offers accreditation`; `accreditation department` |
-| `ACT-QLT-008` | Licensing | Quality, safety and regulatory assurance | `licensing`; `licens`; `licensing services`; `licensing operations`; `licensing provider`; `provides licensing`; `offers licensing`; `licensing department` |
-| `ACT-QLT-009` | Registration | Quality, safety and regulatory assurance | `registration`; `registration services`; `registration operations`; `registration provider`; `provides registration`; `offers registration`; `registration department` |
-| `ACT-QLT-010` | Compliance Management | Quality, safety and regulatory assurance | `compliance management`; `compliance management services`; `compliance management operations`; `compliance management provider`; `provides compliance management`; `offers compliance management`; `compliance management department` |
-| `ACT-QLT-011` | Traceability Management | Quality, safety and regulatory assurance | `traceability management`; `traceability management services`; `traceability management operations`; `traceability management provider`; `provides traceability management`; `offers traceability management`; `traceability management department` |
-| `ACT-QLT-012` | Verification | Quality, safety and regulatory assurance | `verification`; `verification services`; `verification operations`; `verification provider`; `provides verification`; `offers verification`; `verification department` |
-| `ACT-QLT-013` | Risk Assessment | Quality, safety and regulatory assurance | `risk assessment`; `risk assessment services`; `risk assessment operations`; `risk assessment provider`; `provides risk assessment`; `offers risk assessment`; `risk assessment department` |
-| `ACT-QLT-014` | Safety Management | Quality, safety and regulatory assurance | `safety management`; `safety management services`; `safety management operations`; `safety management provider`; `provides safety management`; `offers safety management`; `safety management department` |
-| `ACT-QLT-015` | Environmental Monitoring | Quality, safety and regulatory assurance | `environmental monitoring`; `environmental monitor`; `environmental monitoring services`; `environmental monitoring operations`; `environmental monitoring provider`; `provides environmental monitoring`; `offers environmental monitoring`; `environmental monitoring department` |
-| `ACT-QLT-016` | Food Safety Management | Quality, safety and regulatory assurance | `food safety management`; `food safety management services`; `food safety management operations`; `food safety management provider`; `provides food safety management`; `offers food safety management`; `food safety management department` |
-| `ACT-QLT-017` | Pharmacovigilance | Quality, safety and regulatory assurance | `pharmacovigilance`; `pharmacovigilance services`; `pharmacovigilance operations`; `pharmacovigilance provider`; `provides pharmacovigilance`; `offers pharmacovigilance`; `pharmacovigilance department` |
-| `ACT-QLT-018` | Clinical Governance | Quality, safety and regulatory assurance | `clinical governance`; `clinical governance services`; `clinical governance operations`; `clinical governance provider`; `provides clinical governance`; `offers clinical governance`; `clinical governance department` |
-| `ACT-QLT-019` | Standards Management | Quality, safety and regulatory assurance | `standards management`; `standards management services`; `standards management operations`; `standards management provider`; `provides standards management`; `offers standards management`; `standards management department` |
-| `ACT-QLT-020` | Document Control | Quality, safety and regulatory assurance | `document control`; `document control services`; `document control operations`; `document control provider`; `provides document control`; `offers document control`; `document control department` |
-| `ACT-QLT-021` | Regulatory Reporting | Quality, safety and regulatory assurance | `regulatory reporting`; `regulatory report`; `regulatory reporting services`; `regulatory reporting operations`; `regulatory reporting provider`; `provides regulatory reporting`; `offers regulatory reporting`; `regulatory reporting department` |
-| `ACT-QLT-022` | Incident Investigation | Quality, safety and regulatory assurance | `incident investigation`; `incident investigation services`; `incident investigation operations`; `incident investigation provider`; `provides incident investigation`; `offers incident investigation`; `incident investigation department` |
-| `ACT-QLT-023` | Fraud Monitoring | Quality, safety and regulatory assurance | `fraud monitoring`; `fraud monitor`; `fraud monitoring services`; `fraud monitoring operations`; `fraud monitoring provider`; `provides fraud monitoring`; `offers fraud monitoring`; `fraud monitoring department` |
-| `ACT-QLT-024` | Anti-Money-Laundering Monitoring | Quality, safety and regulatory assurance | `anti-money-laundering monitoring`; `anti money laundering monitoring`; `anti-money-laundering monitor`; `anti-money-laundering monitoring services`; `anti-money-laundering monitoring operations`; `anti-money-laundering monitoring provider`; `provides anti-money-laundering monitoring`; `offers anti-money-laundering monitoring`; `anti-money-laundering monitoring department` |
-| `ACT-QLT-025` | Know-Your-Customer Verification | Quality, safety and regulatory assurance | `know-your-customer verification`; `know your customer verification`; `know-your-customer verification services`; `know-your-customer verification operations`; `know-your-customer verification provider`; `provides know-your-customer verification`; `offers know-your-customer verification`; `know-your-customer verification department` |
-| `ACT-QLT-026` | Sanctions Screening | Quality, safety and regulatory assurance | `sanctions screening`; `sanctions screen`; `sanctions screening services`; `sanctions screening operations`; `sanctions screening provider`; `provides sanctions screening`; `offers sanctions screening`; `sanctions screening department` |
-| `ACT-LOG-001` | Warehousing | Storage, logistics and fulfilment | `warehousing`; `warehous`; `warehousing services`; `warehousing operations`; `warehousing provider`; `provides warehousing`; `offers warehousing`; `warehousing department` |
-| `ACT-LOG-002` | Cold Storage | Storage, logistics and fulfilment | `cold storage`; `cold storage services`; `cold storage operations`; `cold storage provider`; `provides cold storage`; `offers cold storage`; `cold storage department` |
-| `ACT-LOG-003` | Inventory Management | Storage, logistics and fulfilment | `inventory management`; `inventory management services`; `inventory management operations`; `inventory management provider`; `provides inventory management`; `offers inventory management`; `inventory management department` |
-| `ACT-LOG-004` | Stock Management | Storage, logistics and fulfilment | `stock management`; `stock management services`; `stock management operations`; `stock management provider`; `provides stock management`; `offers stock management`; `stock management department` |
-| `ACT-LOG-005` | Materials Handling | Storage, logistics and fulfilment | `materials handling`; `materials handl`; `materials handling services`; `materials handling operations`; `materials handling provider`; `provides materials handling`; `offers materials handling`; `materials handling department` |
-| `ACT-LOG-006` | Order Processing | Storage, logistics and fulfilment | `order processing`; `order proces`; `order processing services`; `order processing operations`; `order processing provider`; `provides order processing`; `offers order processing`; `order processing department` |
-| `ACT-LOG-007` | Order Fulfilment | Storage, logistics and fulfilment | `order fulfilment`; `order fulfilment services`; `order fulfilment operations`; `order fulfilment provider`; `provides order fulfilment`; `offers order fulfilment`; `order fulfilment department` |
-| `ACT-LOG-008` | Sorting | Storage, logistics and fulfilment | `sorting`; `sort`; `sorting services`; `sorting operations`; `sorting provider`; `provides sorting`; `offers sorting`; `sorting department` |
-| `ACT-LOG-009` | Grading | Storage, logistics and fulfilment | `grading`; `grad`; `grading services`; `grading operations`; `grading provider`; `provides grading`; `offers grading`; `grading department` |
-| `ACT-LOG-010` | Consolidation | Storage, logistics and fulfilment | `consolidation`; `consolidation services`; `consolidation operations`; `consolidation provider`; `provides consolidation`; `offers consolidation`; `consolidation department` |
-| `ACT-LOG-011` | Cross-Docking | Storage, logistics and fulfilment | `cross-docking`; `cross docking`; `cross-dock`; `cross-docking services`; `cross-docking operations`; `cross-docking provider`; `provides cross-docking`; `offers cross-docking`; `cross-docking department` |
-| `ACT-LOG-012` | Freight Forwarding | Storage, logistics and fulfilment | `freight forwarding`; `freight forward`; `freight forwarding services`; `freight forwarding operations`; `freight forwarding provider`; `provides freight forwarding`; `offers freight forwarding`; `freight forwarding department` |
-| `ACT-LOG-013` | Transportation | Storage, logistics and fulfilment | `transportation`; `transportation services`; `transportation operations`; `transportation provider`; `provides transportation`; `offers transportation`; `transportation department` |
-| `ACT-LOG-014` | Shipping | Storage, logistics and fulfilment | `shipping`; `ship`; `shipping services`; `shipping operations`; `shipping provider`; `provides shipping`; `offers shipping`; `shipping department` |
-| `ACT-LOG-015` | Haulage | Storage, logistics and fulfilment | `haulage`; `haulage services`; `haulage operations`; `haulage provider`; `provides haulage`; `offers haulage`; `haulage department` |
-| `ACT-LOG-016` | Postal Sorting | Storage, logistics and fulfilment | `postal sorting`; `postal sort`; `postal sorting services`; `postal sorting operations`; `postal sorting provider`; `provides postal sorting`; `offers postal sorting`; `postal sorting department` |
-| `ACT-LOG-017` | Postal Delivery | Storage, logistics and fulfilment | `postal delivery`; `postal delivery services`; `postal delivery operations`; `postal delivery provider`; `provides postal delivery`; `offers postal delivery`; `postal delivery department` |
-| `ACT-LOG-018` | Courier Delivery | Storage, logistics and fulfilment | `courier delivery`; `courier delivery services`; `courier delivery operations`; `courier delivery provider`; `provides courier delivery`; `offers courier delivery`; `courier delivery department` |
-| `ACT-LOG-019` | Parcel Delivery | Storage, logistics and fulfilment | `parcel delivery`; `parcel delivery services`; `parcel delivery operations`; `parcel delivery provider`; `provides parcel delivery`; `offers parcel delivery`; `parcel delivery department` |
-| `ACT-LOG-020` | Last-Mile Delivery | Storage, logistics and fulfilment | `last-mile delivery`; `last mile delivery`; `last-mile delivery services`; `last-mile delivery operations`; `last-mile delivery provider`; `provides last-mile delivery`; `offers last-mile delivery`; `last-mile delivery department` |
-| `ACT-LOG-021` | Route Planning | Storage, logistics and fulfilment | `route planning`; `route plan`; `route planning services`; `route planning operations`; `route planning provider`; `provides route planning`; `offers route planning`; `route planning department` |
-| `ACT-LOG-022` | Fleet Operations | Storage, logistics and fulfilment | `fleet operations`; `fleet`; `fleet operations services`; `fleet operations operations`; `fleet operations provider`; `provides fleet operations`; `offers fleet operations`; `fleet operations department` |
-| `ACT-LOG-023` | Dispatching | Storage, logistics and fulfilment | `dispatching`; `dispatch`; `dispatching services`; `dispatching operations`; `dispatching provider`; `provides dispatching`; `offers dispatching`; `dispatching department` |
-| `ACT-LOG-024` | Shipment Tracking | Storage, logistics and fulfilment | `shipment tracking`; `shipment track`; `shipment tracking services`; `shipment tracking operations`; `shipment tracking provider`; `provides shipment tracking`; `offers shipment tracking`; `shipment tracking department` |
-| `ACT-LOG-025` | Customs Clearance | Storage, logistics and fulfilment | `customs clearance`; `customs clearance services`; `customs clearance operations`; `customs clearance provider`; `provides customs clearance`; `offers customs clearance`; `customs clearance department` |
-| `ACT-LOG-026` | Returns Handling | Storage, logistics and fulfilment | `returns handling`; `returns handl`; `returns handling services`; `returns handling operations`; `returns handling provider`; `provides returns handling`; `offers returns handling`; `returns handling department` |
-| `ACT-LOG-027` | Reverse Logistics | Storage, logistics and fulfilment | `reverse logistics`; `reverse logistics services`; `reverse logistics operations`; `reverse logistics provider`; `provides reverse logistics`; `offers reverse logistics`; `reverse logistics department` |
-| `ACT-LOG-028` | Cargo Handling | Storage, logistics and fulfilment | `cargo handling`; `cargo handl`; `cargo handling services`; `cargo handling operations`; `cargo handling provider`; `provides cargo handling`; `offers cargo handling`; `cargo handling department` |
-| `ACT-LOG-029` | Port Operations | Storage, logistics and fulfilment | `port operations`; `port`; `port operations services`; `port operations operations`; `port operations provider`; `provides port operations`; `offers port operations`; `port operations department` |
-| `ACT-LOG-030` | Airport Cargo Operations | Storage, logistics and fulfilment | `airport cargo operations`; `airport cargo`; `airport cargo operations services`; `airport cargo operations operations`; `airport cargo operations provider`; `provides airport cargo operations`; `offers airport cargo operations`; `airport cargo operations department` |
-| `ACT-LOG-031` | Container Handling | Storage, logistics and fulfilment | `container handling`; `container handl`; `container handling services`; `container handling operations`; `container handling provider`; `provides container handling`; `offers container handling`; `container handling department` |
-| `ACT-LOG-032` | Delivery Scheduling | Storage, logistics and fulfilment | `delivery scheduling`; `delivery schedul`; `delivery scheduling services`; `delivery scheduling operations`; `delivery scheduling provider`; `provides delivery scheduling`; `offers delivery scheduling`; `delivery scheduling department` |
-| `ACT-LOG-033` | Proof-of-Delivery Management | Storage, logistics and fulfilment | `proof-of-delivery management`; `proof of delivery management`; `proof-of-delivery management services`; `proof-of-delivery management operations`; `proof-of-delivery management provider`; `provides proof-of-delivery management`; `offers proof-of-delivery management`; `proof-of-delivery management department` |
-| `ACT-LOG-034` | Temperature Monitoring | Storage, logistics and fulfilment | `temperature monitoring`; `temperature monitor`; `temperature monitoring services`; `temperature monitoring operations`; `temperature monitoring provider`; `provides temperature monitoring`; `offers temperature monitoring`; `temperature monitoring department` |
-| `ACT-LOG-035` | Chain-of-Custody Management | Storage, logistics and fulfilment | `chain-of-custody management`; `chain of custody management`; `chain-of-custody management services`; `chain-of-custody management operations`; `chain-of-custody management provider`; `provides chain-of-custody management`; `offers chain-of-custody management`; `chain-of-custody management department` |
-| `ACT-COM-001` | Distributing | Commerce, sales and channels | `distributing`; `distribut`; `distributing services`; `distributing operations`; `distributing provider`; `provides distributing`; `offers distributing`; `distributing department` |
-| `ACT-COM-002` | Wholesaling | Commerce, sales and channels | `wholesaling`; `wholesal`; `wholesaling services`; `wholesaling operations`; `wholesaling provider`; `provides wholesaling`; `offers wholesaling`; `wholesaling department` |
-| `ACT-COM-003` | Retailing | Commerce, sales and channels | `retailing`; `retail`; `retailing services`; `retailing operations`; `retailing provider`; `provides retailing`; `offers retailing`; `retailing department` |
-| `ACT-COM-004` | Selling | Commerce, sales and channels | `selling`; `sel`; `selling services`; `selling operations`; `selling provider`; `provides selling`; `offers selling`; `selling department` |
-| `ACT-COM-005` | Reselling | Commerce, sales and channels | `reselling`; `resel`; `reselling services`; `reselling operations`; `reselling provider`; `provides reselling`; `offers reselling`; `reselling department` |
-| `ACT-COM-006` | Dealership Operations | Commerce, sales and channels | `dealership operations`; `dealership`; `dealership operations services`; `dealership operations operations`; `dealership operations provider`; `provides dealership operations`; `offers dealership operations`; `dealership operations department` |
-| `ACT-COM-007` | Brokerage | Commerce, sales and channels | `brokerage`; `brokerage services`; `brokerage operations`; `brokerage provider`; `provides brokerage`; `offers brokerage`; `brokerage department` |
-| `ACT-COM-008` | Marketplace Operations | Commerce, sales and channels | `marketplace operations`; `marketplace`; `marketplace operations services`; `marketplace operations operations`; `marketplace operations provider`; `provides marketplace operations`; `offers marketplace operations`; `marketplace operations department` |
-| `ACT-COM-009` | E-Commerce Selling | Commerce, sales and channels | `e-commerce selling`; `e commerce selling`; `e-commerce sel`; `e-commerce selling services`; `e-commerce selling operations`; `e-commerce selling provider`; `provides e-commerce selling`; `offers e-commerce selling`; `e-commerce selling department` |
-| `ACT-COM-010` | Subscription Sales | Commerce, sales and channels | `subscription sales`; `subscription sales services`; `subscription sales operations`; `subscription sales provider`; `provides subscription sales`; `offers subscription sales`; `subscription sales department` |
-| `ACT-COM-011` | Licensing Products | Commerce, sales and channels | `licensing products`; `licensing`; `licensing products services`; `licensing products operations`; `licensing products provider`; `provides licensing products`; `offers licensing products`; `licensing products department` |
-| `ACT-COM-012` | Leasing | Commerce, sales and channels | `leasing`; `leas`; `leasing services`; `leasing operations`; `leasing provider`; `provides leasing`; `offers leasing`; `leasing department` |
-| `ACT-COM-013` | Renting | Commerce, sales and channels | `renting`; `rent`; `renting services`; `renting operations`; `renting provider`; `provides renting`; `offers renting`; `renting department` |
-| `ACT-COM-014` | Auctioning | Commerce, sales and channels | `auctioning`; `auction`; `auctioning services`; `auctioning operations`; `auctioning provider`; `provides auctioning`; `offers auctioning`; `auctioning department` |
-| `ACT-COM-015` | Franchising | Commerce, sales and channels | `franchising`; `franchis`; `franchising services`; `franchising operations`; `franchising provider`; `provides franchising`; `offers franchising`; `franchising department` |
-| `ACT-COM-016` | Channel Management | Commerce, sales and channels | `channel management`; `channel management services`; `channel management operations`; `channel management provider`; `provides channel management`; `offers channel management`; `channel management department` |
-| `ACT-COM-017` | Territory Management | Commerce, sales and channels | `territory management`; `territory management services`; `territory management operations`; `territory management provider`; `provides territory management`; `offers territory management`; `territory management department` |
-| `ACT-COM-018` | Merchandising | Commerce, sales and channels | `merchandising`; `merchandis`; `merchandising services`; `merchandising operations`; `merchandising provider`; `provides merchandising`; `offers merchandising`; `merchandising department` |
-| `ACT-COM-019` | Trade Facilitation | Commerce, sales and channels | `trade facilitation`; `trade facilitation services`; `trade facilitation operations`; `trade facilitation provider`; `provides trade facilitation`; `offers trade facilitation`; `trade facilitation department` |
-| `ACT-COM-020` | Customer Account Management | Commerce, sales and channels | `customer account management`; `customer account management services`; `customer account management operations`; `customer account management provider`; `provides customer account management`; `offers customer account management`; `customer account management department` |
-| `ACT-COM-021` | Quotation Management | Commerce, sales and channels | `quotation management`; `quotation management services`; `quotation management operations`; `quotation management provider`; `provides quotation management`; `offers quotation management`; `quotation management department` |
-| `ACT-COM-022` | Contracting Sales | Commerce, sales and channels | `contracting sales`; `contracting sales services`; `contracting sales operations`; `contracting sales provider`; `provides contracting sales`; `offers contracting sales`; `contracting sales department` |
-| `ACT-COM-023` | Tender Sales | Commerce, sales and channels | `tender sales`; `tender sales services`; `tender sales operations`; `tender sales provider`; `provides tender sales`; `offers tender sales`; `tender sales department` |
-| `ACT-COM-024` | Point-of-Sale Operations | Commerce, sales and channels | `point-of-sale operations`; `point of sale operations`; `point-of-sale`; `point-of-sale operations services`; `point-of-sale operations operations`; `point-of-sale operations provider`; `provides point-of-sale operations`; `offers point-of-sale operations`; `point-of-sale operations department` |
-| `ACT-COM-025` | Dealer Network Management | Commerce, sales and channels | `dealer network management`; `dealer network management services`; `dealer network management operations`; `dealer network management provider`; `provides dealer network management`; `offers dealer network management`; `dealer network management department` |
-| `ACT-COM-026` | Customer Onboarding | Commerce, sales and channels | `customer onboarding`; `customer onboard`; `customer onboarding services`; `customer onboarding operations`; `customer onboarding provider`; `provides customer onboarding`; `offers customer onboarding`; `customer onboarding department` |
-| `ACT-COM-027` | Renewals Management | Commerce, sales and channels | `renewals management`; `renewals management services`; `renewals management operations`; `renewals management provider`; `provides renewals management`; `offers renewals management`; `renewals management department` |
-| `ACT-COM-028` | Collections Management | Commerce, sales and channels | `collections management`; `collections management services`; `collections management operations`; `collections management provider`; `provides collections management`; `offers collections management`; `collections management department` |
-| `ACT-COM-029` | Trade-In Management | Commerce, sales and channels | `trade-in management`; `trade in management`; `trade-in management services`; `trade-in management operations`; `trade-in management provider`; `provides trade-in management`; `offers trade-in management`; `trade-in management department` |
-| `ACT-MKT-001` | Marketing | Marketing, promotion and demand generation | `marketing`; `market`; `marketing services`; `marketing operations`; `marketing provider`; `provides marketing`; `offers marketing`; `marketing department` |
-| `ACT-MKT-002` | Advertising | Marketing, promotion and demand generation | `advertising`; `advertis`; `advertising services`; `advertising operations`; `advertising provider`; `provides advertising`; `offers advertising`; `advertising department` |
-| `ACT-MKT-003` | Promoting | Marketing, promotion and demand generation | `promoting`; `promot`; `promoting services`; `promoting operations`; `promoting provider`; `provides promoting`; `offers promoting`; `promoting department` |
+| Activity code | Activity | Primary phrase and reviewed aliases |
+| --- | --- | --- |
+| `ACT-RND-001` | Researching | researching; research; R&D; research activity |
+| `ACT-RND-002` | Market Research | market research |
+| `ACT-RND-003` | Field Research | field research |
+| `ACT-RND-004` | Clinical Research | clinical research |
+| `ACT-RND-005` | Scientific Research | scientific research |
+| `ACT-RND-006` | Policy Research | policy research |
+| `ACT-RND-007` | Data Collection | data collection |
+| `ACT-RND-008` | Experimenting | experimenting |
+| `ACT-RND-009` | Designing | designing |
+| `ACT-RND-010` | Engineering | engineering |
+| `ACT-RND-011` | Formulating | formulating |
+| `ACT-RND-012` | Prototyping | prototyping |
+| `ACT-RND-013` | Piloting | piloting |
+| `ACT-RND-014` | Product Development | product development |
+| `ACT-RND-015` | Service Design | service design |
+| `ACT-RND-016` | Curriculum Design | curriculum design |
+| `ACT-RND-017` | Content Development | content development |
+| `ACT-RND-018` | Software Development | software development; software engineering; application development; developer |
+| `ACT-RND-019` | Model Development | model development |
+| `ACT-RND-020` | Simulation | simulation |
+| `ACT-RND-021` | Testing | testing |
+| `ACT-RND-022` | Validating | validating |
+| `ACT-RND-023` | User Research | user research |
+| `ACT-RND-024` | Feasibility Assessment | feasibility assessment |
+| `ACT-PRD-001` | Cultivating | cultivating |
+| `ACT-PRD-002` | Growing | growing |
+| `ACT-PRD-003` | Breeding | breeding |
+| `ACT-PRD-004` | Hatching | hatching |
+| `ACT-PRD-005` | Harvesting | harvesting |
+| `ACT-PRD-006` | Extracting | extracting |
+| `ACT-PRD-007` | Mining | mining |
+| `ACT-PRD-008` | Processing | processing; process; processor; processing facility |
+| `ACT-PRD-009` | Refining | refining |
+| `ACT-PRD-010` | Milling | milling |
+| `ACT-PRD-011` | Slaughtering | slaughtering |
+| `ACT-PRD-012` | Pasteurizing | pasteurizing |
+| `ACT-PRD-013` | Blending | blending |
+| `ACT-PRD-014` | Mixing | mixing |
+| `ACT-PRD-015` | Compounding | compounding |
+| `ACT-PRD-016` | Manufacturing | manufacturing; manufacture; manufacturer; production |
+| `ACT-PRD-017` | Fabricating | fabricating |
+| `ACT-PRD-018` | Machining | machining |
+| `ACT-PRD-019` | Casting | casting |
+| `ACT-PRD-020` | Moulding | moulding |
+| `ACT-PRD-021` | Forging | forging |
+| `ACT-PRD-022` | Weaving | weaving |
+| `ACT-PRD-023` | Knitting | knitting |
+| `ACT-PRD-024` | Dyeing | dyeing |
+| `ACT-PRD-025` | Tanning | tanning |
+| `ACT-PRD-026` | Printing | printing |
+| `ACT-PRD-027` | Assembling | assembling |
+| `ACT-PRD-028` | Sterilizing | sterilizing |
+| `ACT-PRD-029` | Bottling | bottling |
+| `ACT-PRD-030` | Packaging | packaging; package; packaging line; packaging services |
+| `ACT-PRD-031` | Labelling | labelling |
+| `ACT-PRD-032` | Kitting | kitting |
+| `ACT-PRD-033` | Custom Production | custom production |
+| `ACT-PRD-034` | Contract Manufacturing | contract manufacturing |
+| `ACT-PRD-035` | Mass Production | mass production |
+| `ACT-PRD-036` | Batch Production | batch production |
+| `ACT-PRD-037` | Small-Batch Production | small-batch production |
+| `ACT-PRD-038` | Prefabricating | prefabricating |
+| `ACT-PRD-039` | Modular Production | modular production |
+| `ACT-PRD-040` | Food Preparation | food preparation |
+| `ACT-PRD-041` | Baking | baking |
+| `ACT-PRD-042` | Brewing | brewing |
+| `ACT-SRC-001` | Sourcing | sourcing |
+| `ACT-SRC-002` | Procurement | procurement |
+| `ACT-SRC-003` | Purchasing | purchasing |
+| `ACT-SRC-004` | Supplier Management | supplier management |
+| `ACT-SRC-005` | Vendor Management | vendor management |
+| `ACT-SRC-006` | Tendering | tendering |
+| `ACT-SRC-007` | Importing | importing; import; importer; imports |
+| `ACT-SRC-008` | Exporting | exporting; export; exporter; exports |
+| `ACT-SRC-009` | Contract Sourcing | contract sourcing |
+| `ACT-SRC-010` | Inventory Replenishment | inventory replenishment |
+| `ACT-SRC-011` | Consignment Management | consignment management |
+| `ACT-SRC-012` | Commodity Trading | commodity trading |
+| `ACT-SRC-013` | Raw Material Supply | raw material supply |
+| `ACT-SRC-014` | Equipment Supply | equipment supply |
+| `ACT-SRC-015` | Parts Supply | parts supply |
+| `ACT-SRC-016` | Procurement Administration | procurement administration |
+| `ACT-QLT-001` | Quality Control | quality control; QC; quality inspection; quality testing |
+| `ACT-QLT-002` | Quality Assurance | quality assurance; QA; quality system |
+| `ACT-QLT-003` | Laboratory Testing | laboratory testing |
+| `ACT-QLT-004` | Inspection | inspection |
+| `ACT-QLT-005` | Auditing | auditing |
+| `ACT-QLT-006` | Certification | certification |
+| `ACT-QLT-007` | Accreditation | accreditation |
+| `ACT-QLT-008` | Licensing | licensing |
+| `ACT-QLT-009` | Registration | registration |
+| `ACT-QLT-010` | Compliance Management | compliance management |
+| `ACT-QLT-011` | Traceability Management | traceability management |
+| `ACT-QLT-012` | Verification | verification |
+| `ACT-QLT-013` | Risk Assessment | risk assessment |
+| `ACT-QLT-014` | Safety Management | safety management |
+| `ACT-QLT-015` | Environmental Monitoring | environmental monitoring |
+| `ACT-QLT-016` | Food Safety Management | food safety management |
+| `ACT-QLT-017` | Pharmacovigilance | pharmacovigilance |
+| `ACT-QLT-018` | Clinical Governance | clinical governance |
+| `ACT-QLT-019` | Standards Management | standards management |
+| `ACT-QLT-020` | Document Control | document control |
+| `ACT-QLT-021` | Regulatory Reporting | regulatory reporting |
+| `ACT-QLT-022` | Incident Investigation | incident investigation |
+| `ACT-QLT-023` | Fraud Monitoring | fraud monitoring |
+| `ACT-QLT-024` | Anti-Money-Laundering Monitoring | anti-money-laundering monitoring |
+| `ACT-QLT-025` | Know-Your-Customer Verification | know-your-customer verification |
+| `ACT-QLT-026` | Sanctions Screening | sanctions screening |
+| `ACT-LOG-001` | Warehousing | warehousing; warehouse; storage facility; warehouse operator |
+| `ACT-LOG-002` | Cold Storage | cold storage |
+| `ACT-LOG-003` | Inventory Management | inventory management |
+| `ACT-LOG-004` | Stock Management | stock management |
+| `ACT-LOG-005` | Materials Handling | materials handling |
+| `ACT-LOG-006` | Order Processing | order processing |
+| `ACT-LOG-007` | Order Fulfilment | order fulfilment |
+| `ACT-LOG-008` | Sorting | sorting |
+| `ACT-LOG-009` | Grading | grading |
+| `ACT-LOG-010` | Consolidation | consolidation |
+| `ACT-LOG-011` | Cross-Docking | cross-docking |
+| `ACT-LOG-012` | Freight Forwarding | freight forwarding |
+| `ACT-LOG-013` | Transportation | transportation |
+| `ACT-LOG-014` | Shipping | shipping |
+| `ACT-LOG-015` | Haulage | haulage |
+| `ACT-LOG-016` | Postal Sorting | postal sorting |
+| `ACT-LOG-017` | Postal Delivery | postal delivery |
+| `ACT-LOG-018` | Courier Delivery | courier delivery |
+| `ACT-LOG-019` | Parcel Delivery | parcel delivery |
+| `ACT-LOG-020` | Last-Mile Delivery | last-mile delivery |
+| `ACT-LOG-021` | Route Planning | route planning |
+| `ACT-LOG-022` | Fleet Operations | fleet operations |
+| `ACT-LOG-023` | Dispatching | dispatching |
+| `ACT-LOG-024` | Shipment Tracking | shipment tracking |
+| `ACT-LOG-025` | Customs Clearance | customs clearance |
+| `ACT-LOG-026` | Returns Handling | returns handling |
+| `ACT-LOG-027` | Reverse Logistics | reverse logistics |
+| `ACT-LOG-028` | Cargo Handling | cargo handling |
+| `ACT-LOG-029` | Port Operations | port operations |
+| `ACT-LOG-030` | Airport Cargo Operations | airport cargo operations |
+| `ACT-LOG-031` | Container Handling | container handling |
+| `ACT-LOG-032` | Delivery Scheduling | delivery scheduling |
+| `ACT-LOG-033` | Proof-of-Delivery Management | proof-of-delivery management |
+| `ACT-LOG-034` | Temperature Monitoring | temperature monitoring |
+| `ACT-LOG-035` | Chain-of-Custody Management | chain-of-custody management |
+| `ACT-COM-001` | Distributing | distributing |
+| `ACT-COM-002` | Wholesaling | wholesaling; wholesale; wholesaler; bulk sales |
+| `ACT-COM-003` | Retailing | retailing |
+| `ACT-COM-004` | Selling | selling; sell; seller; sales |
+| `ACT-COM-005` | Reselling | reselling |
+| `ACT-COM-006` | Dealership Operations | dealership operations |
+| `ACT-COM-007` | Brokerage | brokerage |
+| `ACT-COM-008` | Marketplace Operations | marketplace operations |
+| `ACT-COM-009` | E-Commerce Selling | e-commerce selling |
+| `ACT-COM-010` | Subscription Sales | subscription sales |
+| `ACT-COM-011` | Licensing Products | licensing products |
+| `ACT-COM-012` | Leasing | leasing |
+| `ACT-COM-013` | Renting | renting |
+| `ACT-COM-014` | Auctioning | auctioning |
+| `ACT-COM-015` | Franchising | franchising |
+| `ACT-COM-016` | Channel Management | channel management |
+| `ACT-COM-017` | Territory Management | territory management |
+| `ACT-COM-018` | Merchandising | merchandising |
+| `ACT-COM-019` | Trade Facilitation | trade facilitation |
+| `ACT-COM-020` | Customer Account Management | customer account management |
+| `ACT-COM-021` | Quotation Management | quotation management |
+| `ACT-COM-022` | Contracting Sales | contracting sales |
+| `ACT-COM-023` | Tender Sales | tender sales |
+| `ACT-COM-024` | Point-of-Sale Operations | point-of-sale operations |
+| `ACT-COM-025` | Dealer Network Management | dealer network management |
+| `ACT-COM-026` | Customer Onboarding | customer onboarding |
+| `ACT-COM-027` | Renewals Management | renewals management |
+| `ACT-COM-028` | Collections Management | collections management |
+| `ACT-COM-029` | Trade-In Management | trade-in management |
+| `ACT-MKT-001` | Marketing | marketing; market; marketing services; promotion |
+| `ACT-MKT-002` | Advertising | advertising |
+| `ACT-MKT-003` | Promoting | promoting; promotion; promotional activity; brand promotion |
+| `ACT-MKT-004` | Brand Management | brand management |
+| `ACT-MKT-005` | Campaign Management | campaign management |
+| `ACT-MKT-006` | Media Buying | media buying |
+| `ACT-MKT-007` | Public Relations | public relations |
+| `ACT-MKT-008` | Lead Generation | lead generation |
 
-## Interpretation rule
-
-An activity term should normally be evaluated with a selected domain term, organization identity, source reliability, and negative context. A phrase such as ‘manufacturing course’ is not evidence that the publisher manufactures anything.
+Activities absent from a domain profile are not eligible merely because a keyword matched elsewhere.

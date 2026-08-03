@@ -1,5 +1,6 @@
 # Harvester Energy Domain Keyword Registry
 
+
 Status: **Proposed**  
 Version: **1.0**  
 Date: **3 August 2026**  

@@ -1,5 +1,6 @@
 # Harvester Finance Domain Keyword Registry
 
+
 Status: **Proposed**  
 Version: **1.0**  
 Date: **3 August 2026**  
@@ -13,7 +14,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | --- | --- | --- | --- | --- |
 | `KW-FIN-ACC-001-V1` | Accounting Services | accounting services; accounting service; accounting providers | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-FIN-ACC-002-V1` | Bookkeeping | bookkeeping | `ORG-GENERIC` | `EX-BROAD` |
-| `KW-FIN-ACC-003-V1` | Financial Reporting | financial reporting; finance reporting | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-FIN-ACC-003-V1` | Financial Reporting | financial reporting | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FIN-ACC-004-V1` | Management Accounting | management accounting | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-FIN-ACC-005-V1` | External Audit | external audit | `ORG-GENERIC` | `EX-AUDIT` |
 | `KW-FIN-ACC-006-V1` | Internal Audit | internal audit | `ORG-GENERIC` | `EX-AUDIT` |
@@ -26,9 +27,9 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-FIN-ACC-013-V1` | Accounts Payable Services | accounts payable services; accounts payable service; accounts payable providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-FIN-ACC-014-V1` | Accounts Receivable Services | accounts receivable services; accounts receivable service; accounts receivable providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-FIN-ACC-015-V1` | Revenue Assurance | revenue assurance | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-FIN-ACC-016-V1` | Financial Controls | financial controls; financial control; finance controls | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-FIN-ACC-016-V1` | Financial Controls | financial controls; financial control | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FIN-BNK-001-V1` | Islamic Banking | islamic banking | `ORG-INSTITUTION` | `EX-BANK` |
-| `KW-FIN-BNK-002-V1` | Retail Banking | retail banking; retailer banking | `ORG-INSTITUTION` | `EX-BANK` |
+| `KW-FIN-BNK-002-V1` | Retail Banking | retail banking | `ORG-INSTITUTION` | `EX-BANK` |
 | `KW-FIN-BNK-003-V1` | Corporate Banking | corporate banking | `ORG-INSTITUTION` | `EX-BANK` |
 | `KW-FIN-BNK-004-V1` | Commercial Banking | commercial banking | `ORG-INSTITUTION` | `EX-BANK` |
 | `KW-FIN-BNK-005-V1` | SME Banking | sme banking | `ORG-INSTITUTION` | `EX-BANK` |
@@ -94,7 +95,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-FIN-PAY-014-V1` | Government Payment Services | government payment services; government payment service; public sector payment services; government payment providers | `ORG-PUBLIC` | `EX-PHRASE` |
 | `KW-FIN-PAY-015-V1` | Payment Fraud Prevention | payment fraud prevention | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FIN-RISK-001-V1` | Shariah Governance | shariah governance | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-FIN-RISK-002-V1` | Financial Crime Compliance | financial crime compliance; finance crime compliance | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-FIN-RISK-002-V1` | Financial Crime Compliance | financial crime compliance | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FIN-RISK-003-V1` | Anti-Money-Laundering | anti-money-laundering; AML; financial crime controls | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FIN-RISK-004-V1` | Know Your Customer | know your customer; KYC; customer identity verification | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FIN-RISK-005-V1` | Sanctions Screening | sanctions screening | `ORG-GENERIC` | `EX-PHRASE` |
@@ -107,7 +108,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-FIN-RISK-012-V1` | Capital and Liquidity Management | capital and liquidity management; capital & liquidity management | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-FIN-RISK-013-V1` | Model Risk Management | model risk management | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-FIN-RISK-014-V1` | Governance, Risk and Compliance | governance, risk and compliance; governance, risk & compliance; GRC; governance risk compliance | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-FIN-RISK-015-V1` | Financial Due Diligence | financial due diligence; finance due diligence | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-FIN-RISK-015-V1` | Financial Due Diligence | financial due diligence | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FIN-TAK-001-V1` | Family Takaful | family takaful | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FIN-TAK-002-V1` | General Takaful | general takaful | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-FIN-TAK-003-V1` | Health Takaful | health takaful | `ORG-GENERIC` | `EX-PHRASE` |
