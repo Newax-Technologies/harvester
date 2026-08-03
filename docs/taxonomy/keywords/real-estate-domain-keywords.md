@@ -24,19 +24,19 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-REA-RES-011-V1` | Vacation Homes | vacation homes; vacation home | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-RES-012-V1` | Mixed Residential Communities | mixed residential communities; mixed residential community | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-001-V1` | Office Buildings | office buildings; office building | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-COM-002-V1` | Retail Property | retail property; retailer property | `ORG-COMMERCE` | `EX-PHRASE` |
+| `KW-REA-COM-002-V1` | Retail Property | retail property | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-003-V1` | Shopping Centres and Malls | shopping centres and malls; shopping centres & malls; shopping centers and malls; shopping centres and mall | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-REA-COM-004-V1` | Hospitality Property | hospitality property; accommodation property | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-005-V1` | Healthcare Property | healthcare property; health care property; medical property | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-006-V1` | Education Property | education property; learning property | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-COM-007-V1` | Warehouses and Logistics Property | warehouses and logistics property; warehouses & logistics property; warehouses and freight property | `ORG-INSTITUTION` | `EX-PHRASE` |
-| `KW-REA-COM-008-V1` | Data Centre Property | data centre property; data center property | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-REA-COM-007-V1` | Warehouses and Logistics Property | warehouses and logistics property; warehouses & logistics property; warehouses and freight property | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-REA-COM-008-V1` | Data Centre Property | data centre property; data center property | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-009-V1` | Co-Working Spaces | co-working spaces; co-working space | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-010-V1` | Business Parks | business parks; business park | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-011-V1` | Industrial Estates | industrial estates; industrial estate | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-012-V1` | Special Economic Zones | special economic zones; special economic zone | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-IND-001-V1` | Industrial Property | industrial property | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-IND-002-V1` | Factories and Production Sites | factories and production sites; factories & production sites; factories and production site | `ORG-INSTITUTION` | `EX-PHRASE` |
+| `KW-REA-IND-002-V1` | Factories and Production Sites | factories and production sites; factories & production sites; factories and production site | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-IND-003-V1` | Agricultural Land | agricultural land | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-IND-004-V1` | Development Land | development land | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-IND-005-V1` | Plots and Subdivisions | plots and subdivisions; plots & subdivisions; plots and subdivision | `ORG-GENERIC` | `EX-PHRASE` |
@@ -58,20 +58,20 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-REA-DEV-011-V1` | Public-Private Property Development | public-private property development | `ORG-PUBLIC` | `EX-PHRASE` |
 | `KW-REA-DEV-012-V1` | Master-Planned Communities | master-planned communities; master-planned community | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-TRN-001-V1` | Real Estate Brokerage | real estate brokerage; property brokerage | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-TRN-002-V1` | Property Sales | property sales; property sale | `ORG-COMMERCE` | `EX-PHRASE` |
+| `KW-REA-TRN-002-V1` | Property Sales | property sales; property sale | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-TRN-003-V1` | Property Leasing | property leasing | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-TRN-004-V1` | Tenant Representation | tenant representation | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-TRN-005-V1` | Buyer Representation | buyer representation | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-TRN-006-V1` | Property Valuation | property valuation | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-TRN-007-V1` | Property Appraisal | property appraisal | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-TRN-008-V1` | Real Estate Advisory | real estate advisory; property advisory | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-REA-TRN-008-V1` | Real Estate Advisory | real estate advisory; property advisory | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-TRN-009-V1` | Investment Advisory | investment advisory | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-REA-TRN-010-V1` | Market Research | market research | `ORG-SERVICE` | `EX-MARKET` |
 | `KW-REA-TRN-011-V1` | Title and Ownership Services | title and ownership services; title & ownership services; title and ownership service; title and ownership providers | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-REA-TRN-012-V1` | Property Auction Services | property auction services; property auction service; property auction providers | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-REA-TRN-012-V1` | Property Auction Services | property auction services; property auction service; property auction providers | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-TRN-013-V1` | Mortgage and Financing Brokerage | mortgage and financing brokerage; mortgage & financing brokerage | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-TRN-014-V1` | Real Estate Legal Support | real estate legal support; property legal support; real estate law support | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-MGT-001-V1` | Property Management | property management | `ORG-SERVICE` | `EX-BROAD` |
+| `KW-REA-TRN-014-V1` | Real Estate Legal Support | real estate legal support; property legal support | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-REA-MGT-001-V1` | Property Management | property management | `ORG-GENERIC` | `EX-BROAD` |
 | `KW-REA-MGT-002-V1` | Community and Society Management | community and society management; community & society management | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-REA-MGT-003-V1` | Tenant Management | tenant management | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-REA-MGT-004-V1` | Lease Administration | lease administration | `ORG-SERVICE` | `EX-PHRASE` |
@@ -87,7 +87,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-REA-MGT-014-V1` | Utility Billing | utility billing | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-MGT-015-V1` | Property Inspection | property inspection | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-DIG-001-V1` | Property Listing Platforms | property listing platforms; property listing platform | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-REA-DIG-002-V1` | Real Estate Marketplaces | real estate marketplaces; real estate marketplace; property marketplaces | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-REA-DIG-002-V1` | Real Estate Marketplaces | real estate marketplaces; real estate marketplace; property marketplaces | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-REA-DIG-003-V1` | Brokerage CRM Systems | brokerage crm systems; brokerage crm system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-REA-DIG-004-V1` | Property Management Systems | property management systems; property management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-REA-DIG-005-V1` | Lease Management Systems | lease management systems; lease management system | `ORG-SOFTWARE` | `EX-BROAD` |
@@ -97,7 +97,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-REA-DIG-009-V1` | Property Analytics | property analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-REA-DIG-010-V1` | Building Information Platforms | building information platforms; building information platform | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-REA-DIG-011-V1` | Digital Title and Registry Systems | digital title and registry systems; digital title & registry systems; digital title and registry system | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-REA-DIG-012-V1` | Real Estate Document Management | real estate document management; property document management | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-REA-DIG-012-V1` | Real Estate Document Management | real estate document management; property document management | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-REA-DIG-013-V1` | Smart Property Systems | smart property systems; smart property system | `ORG-SOFTWARE` | `EX-PHRASE` |
 
 A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
