@@ -50,12 +50,18 @@ def name_variants(name: str) -> list[str]:
 def activity_keywords(name: str) -> list[str]:
     low = ascii_text(name).lower()
     values = [v.lower() for v in name_variants(name)]
-    if low.endswith("ing") and len(low) > 5:
+    if low.endswith("ying") and len(low) > 6:
+        values.append(low[:-4] + "y")
+    elif low.endswith("ing") and len(low) > 5:
         stem = low[:-3]
-        values.append(stem + "e" if stem.endswith("at") else stem)
+        if len(stem) > 2 and stem[-1] == stem[-2]:
+            stem = stem[:-1]
+        if stem.endswith(("at", "iz", "typ")):
+            stem += "e"
+        values.append(stem)
     values.extend([
         f"{low} services", f"{low} operations", f"{low} provider",
-        f"we provide {low}", f"our {low} services", f"{low} department",
+        f"provides {low}", f"offers {low}", f"{low} department",
     ])
     return unique(values, 10)
 
