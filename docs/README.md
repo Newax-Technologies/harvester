@@ -37,6 +37,11 @@ When documents overlap, use this order:
 
 Taxonomy documents define controlled registries and mappings used by the Services and Opportunity Model. They remain subordinate to `SERVICES.md` and cannot independently create an eligible service, gap, opportunity, or lead.
 
+- [Sector and Domain Taxonomy Index](taxonomy/README.md)
+  - Links all 16 broad-sector domain registries
+  - Covers 1,586 canonical product and service domains
+  - Preserves multi-sector selection, independent domain activity groups, canonical identity reuse, and duplicate prevention
+
 - [Broad Sector Registry and Selection Framework](taxonomy/broad-sector-registry.md)
   - Defines the first-stage registry of 16 broad sectors
   - Supports multiple sectors, multiple domains per sector, and separate activity groups per selected domain
@@ -99,7 +104,7 @@ No product shares private database tables, database-owner credentials, migration
 - Operating-model and decision-invariant changes belong in the intelligence operating model.
 - Provider types, service offerings, customer markets, lead-subject types, opportunity signals, qualification boundaries, first-page configuration, and universal generation rules belong in `SERVICES.md`.
 - Broad-sector registry, sector-to-domain applicability, and first-stage market-selection changes belong in `taxonomy/broad-sector-registry.md`, subordinate to `SERVICES.md`.
-- Healthcare domain definitions, family assignments, first-release visibility, cross-sector mappings, and Healthcare domain-to-activity applicability belong in `taxonomy/healthcare-domain-registry.md`, subordinate to the broad-sector registry and `SERVICES.md`.
+- Sector-specific domain definitions, family assignments, first-release visibility, cross-sector mappings, and domain-to-activity applicability belong in the registries listed by `taxonomy/README.md`.
 - Provider-specific opportunity weights, rubrics, confidence, risk, and recommendations belong in an explicitly scoped scoring profile.
 - The NEWAX Opportunity Scoring Model applies only to selected NEWAX business-infrastructure offerings and must not be treated as the universal Harvester score.
 - Source query, extraction, field-mask, coverage, retention, attribution, failure, cost, and source-specific compliance changes belong in the relevant source model.
