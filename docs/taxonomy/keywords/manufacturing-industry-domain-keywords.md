@@ -1,9 +1,12 @@
 # Harvester Manufacturing and Industry Domain Keyword Registry
 
+
 Status: **Proposed**  
-Version: **1.0**  
-Date: **3 August 2026**  
+Version: **1.1**  
+Date: **4 August 2026**  
 Implementation status: **Not implemented**
+
+Review boundary: **Controlled discovery baseline. Human sector review and source-level validation are required before runtime activation.**
 
 This file defines separate discovery keyword profiles for all **111** canonical domains in `BS-011 Manufacturing and Industry`.
 
@@ -69,7 +72,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-MFG-MET-010-V1` | Valves and Piping Equipment | valves and piping equipment; valves & piping equipment | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-MFG-MET-011-V1` | Electrical Equipment | electrical equipment | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-MFG-MET-012-V1` | Transformers and Switchgear | transformers and switchgear; transformers & switchgear | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-MFG-MET-013-V1` | Industrial Automation Equipment | industrial automation equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-MFG-MET-013-V1` | Industrial Automation Equipment | industrial automation equipment | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-MFG-MET-014-V1` | Tools and Hardware | tools and hardware; tools & hardware | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-MFG-MET-015-V1` | Fasteners and Components | fasteners and components; fasteners & components; fasteners and component | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-MFG-AUT-001-V1` | Automobile Manufacturing | automobile manufacturing; automobile production | `ORG-PRODUCT` | `EX-PHRASE` |
