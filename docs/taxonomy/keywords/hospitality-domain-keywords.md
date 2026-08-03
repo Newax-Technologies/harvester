@@ -1,11 +1,15 @@
 # Harvester Hospitality Domain Keyword Registry
 
+
+
 Status: **Proposed**  
-Version: **1.0**  
-Date: **3 August 2026**  
+Version: **1.1**  
+Date: **4 August 2026**  
 Implementation status: **Not implemented**
 
-This file defines separate discovery keyword profiles for all **79** canonical domains in `BS-009 Hospitality`.
+Review boundary: **Controlled discovery baseline. Human sector review and source-level validation are required before runtime activation.**
+
+This file defines separate discovery keyword profiles for **79** of the **79** canonical domains in `BS-009 Hospitality`.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
 
