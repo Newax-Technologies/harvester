@@ -2,7 +2,7 @@
 
 This directory contains the authoritative product, architecture, source, and delivery documentation for NEWAX Harvester.
 
-Harvester is standalone lead-intelligence infrastructure. It converts a governed market definition into evidence-backed, reviewable, and operationally usable opportunities while preserving customer ownership and control.
+Harvester is standalone lead-intelligence infrastructure. It converts a governed, provider-defined service market into evidence-backed, reviewable, and operationally usable opportunities while preserving customer ownership and control.
 
 ## Authority order
 
@@ -16,19 +16,26 @@ When documents overlap, use this order:
    - Normative operating, evidence, data, decision, confidence, learning, economics, and authority model
    - Strengthens the existing 64 modules without creating a second roadmap
 
-3. [NEWAX Harvester Opportunity Scoring Model v3](architecture/opportunity-scoring-model-v3.md)
-   - Normative planned opportunity-value, pursuit-readiness, infrastructure-gap, coverage, confidence, risk, and recommendation model
-   - Prioritizes confirmed absence and severe weakness of relevant business infrastructure while keeping eligibility and evidence authority separate from points
+3. [Harvester Services and Opportunity Model](SERVICES.md)
+   - Universal provider, service-offering, customer-market, lead-subject, opportunity-signal, qualification, and first-page generation model
+   - Requires the complete service and target definition before **Generate Leads**
+   - Supports B2B, B2C, referral, professional, healthcare, legal, local, remote, appointment, project, and recurring services
+   - Establishes service gap as one signal type rather than the universal product model
 
-4. [Standalone Product and Integration Framework](architecture/standalone-product-and-integration-framework.md)
+4. [NEWAX Harvester Opportunity Scoring Model v3](architecture/opportunity-scoring-model-v3.md)
+   - NEWAX-specific provider scoring profile for business-infrastructure opportunities
+   - Defines opportunity value, pursuit readiness, infrastructure-gap, coverage, confidence, risk, and recommendation behavior for NEWAX offerings
+   - Remains subordinate to the universal services model and must not be applied to unrelated providers or unselected services
+
+5. [Standalone Product and Integration Framework](architecture/standalone-product-and-integration-framework.md)
    - Product boundaries, connector framework, credentials, mappings, synchronization, destinations, tenancy, and recovery
 
-5. [Optional NEWAX Core Synchronization](architecture/newax-core-automatic-sync.md)
+6. [Optional NEWAX Core Synchronization](architecture/newax-core-automatic-sync.md)
    - Optional Harvester-to-Core streams, application identity, credentials, delivery, links, reconciliation, and failure behavior
 
 ## Source-specific models
 
-Source-specific models define how one external source is planned, queried, extracted, governed, retained, and connected to Harvester evidence. They remain subordinate to the roadmap, operating model, scoring model, and integration framework.
+Source-specific models define how one external source is planned, queried, extracted, governed, retained, and connected to Harvester evidence. They remain subordinate to the roadmap, operating model, services model, applicable scoring profile, and integration framework.
 
 - [Google API Source and Extraction Model](sources/google-api-source-model.md)
   - Normative planned Google Places public-discovery and Google Business Profile authorized-data architecture
@@ -51,9 +58,10 @@ Previous versions remain available through Git history and pull-request history 
 
 ```text
 Harvester
-Owns market definition, source intake, observations, evidence,
-local resolution, lead profiles, qualification, opportunity intelligence,
-research, dossiers, selection, exports, publishing rules, and operations.
+Owns provider and service definition, market definition, source intake,
+observations, evidence, local resolution, lead profiles, qualification,
+opportunity intelligence, research, dossiers, selection, exports,
+publishing rules, and operations.
 
 Communicator
 Optionally receives approved lead and context packages.
@@ -73,9 +81,11 @@ No product shares private database tables, database-owner credentials, migration
 
 - Product delivery changes belong in `ROADMAP.md`.
 - Operating-model and decision-invariant changes belong in the intelligence operating model.
-- Opportunity weights, rubrics, infrastructure-gap rules, coverage, confidence, risk, and recommendation changes belong in the Opportunity Scoring Model and require a new approved model version when behavior changes.
+- Provider types, service offerings, customer markets, lead-subject types, opportunity signals, qualification boundaries, first-page configuration, and universal generation rules belong in `SERVICES.md`.
+- Provider-specific opportunity weights, rubrics, confidence, risk, and recommendations belong in an explicitly scoped scoring profile.
+- The NEWAX Opportunity Scoring Model applies only to selected NEWAX business-infrastructure offerings and must not be treated as the universal Harvester score.
 - Source query, extraction, field-mask, coverage, retention, attribution, failure, cost, and source-specific compliance changes belong in the relevant source model.
-- Source-specific models cannot override product boundaries, evidence invariants, scoring separation, security requirements, or current provider terms.
+- Source-specific models cannot override product boundaries, service eligibility, evidence invariants, scoring separation, security requirements, or current provider terms.
 - Integration-boundary changes belong in the integration framework or the relevant adapter document.
 - Superseded versions remain in Git history rather than duplicate active documentation.
-- Do not create parallel roadmaps, duplicate module counts, hidden product dependencies, competing opportunity-score definitions, or undocumented source behavior.
+- Do not create parallel roadmaps, duplicate module counts, hidden product dependencies, competing universal opportunity definitions, or undocumented source behavior.
