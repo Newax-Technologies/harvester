@@ -40,9 +40,7 @@ def upgrade() -> None:
         ),
         sa.Column("provider", sa.String(length=64), nullable=False),
         sa.Column("provider_message_id", sa.String(length=255), nullable=False),
-        sa.Column(
-            "evidence_metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=False
-        ),
+        sa.Column("evidence_metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("suppression_entry_id", sa.UUID(), nullable=False),
         sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("received_at", sa.DateTime(timezone=True), nullable=False),
