@@ -3,9 +3,11 @@
 Part **1 of 2**
 
 Status: **Proposed**  
-Version: **1.0**  
-Date: **3 August 2026**  
+Version: **1.1**  
+Date: **4 August 2026**  
 Implementation status: **Not implemented**
+
+Review boundary: **Controlled discovery baseline. Human sector review and source-level validation are required before runtime activation.**
 
 This file defines separate discovery keyword profiles for **80** of the **127** canonical domains in `BS-014 Technology`.
 
@@ -29,11 +31,11 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-TEC-SFW-014-V1` | Vertical Industry Software | vertical industry software; vertical industry application | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-SFW-015-V1` | Developer Tools | developer tools; developer tool | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-SFW-016-V1` | Low-Code and No-Code Platforms | low-code and no-code platforms; low-code & no-code platforms; low-code and no-code platform | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-TEC-DAT-001-V1` | Business Intelligence | business intelligence | `ORG-SOFTWARE` | `EX-AI` |
+| `KW-TEC-DAT-001-V1` | Business Intelligence | business intelligence | `ORG-GENERIC` | `EX-AI` |
 | `KW-TEC-DAT-002-V1` | Data Warehousing | data warehousing; data warehouse | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-DAT-003-V1` | Data Engineering | data engineering | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-TEC-DAT-004-V1` | Data Integration | data integration | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-TEC-DAT-005-V1` | Master Data Management | master data management | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-TEC-DAT-004-V1` | Data Integration | data integration | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-TEC-DAT-005-V1` | Master Data Management | master data management | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-TEC-DAT-006-V1` | Data Governance | data governance | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-DAT-007-V1` | Analytics Platforms | analytics platforms; analytics platform | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-DAT-008-V1` | Artificial Intelligence Systems | artificial intelligence systems; artificial intelligence system; AI; machine intelligence | `ORG-SOFTWARE` | `EX-AI` |
@@ -44,10 +46,10 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-TEC-DAT-013-V1` | Search and Knowledge Systems | search and knowledge systems; search & knowledge systems; search and knowledge system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-DAT-014-V1` | Geospatial Analytics | geospatial analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-DAT-015-V1` | Data Quality Tools | data quality tools; data quality tool | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-TEC-DAT-016-V1` | Database Products | database products; database product | `ORG-SOFTWARE` | `EX-BROAD` |
+| `KW-TEC-DAT-016-V1` | Database Products | database products; database product | `ORG-PRODUCT` | `EX-BROAD` |
 | `KW-TEC-CLD-001-V1` | Cloud Computing | cloud computing | `ORG-SOFTWARE` | `EX-CLOUD` |
 | `KW-TEC-CLD-002-V1` | Cloud Platforms | cloud platforms; cloud platform | `ORG-SOFTWARE` | `EX-CLOUD` |
-| `KW-TEC-CLD-003-V1` | Managed Cloud Services | managed cloud services; managed cloud service; managed cloud providers | `ORG-SERVICE` | `EX-CLOUD` |
+| `KW-TEC-CLD-003-V1` | Managed Cloud Services | managed cloud services; managed cloud service; managed cloud providers | `ORG-SOFTWARE` | `EX-CLOUD` |
 | `KW-TEC-CLD-004-V1` | Web Hosting | web hosting | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-CLD-005-V1` | Application Hosting | application hosting | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-CLD-006-V1` | Data Centres | data centres; data centers; data centre | `ORG-INSTITUTION` | `EX-PHRASE` |
@@ -71,12 +73,12 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-TEC-SEC-007-V1` | Application Security | application security | `ORG-SOFTWARE` | `EX-SECURITY` |
 | `KW-TEC-SEC-008-V1` | Data Security | data security | `ORG-GENERIC` | `EX-SECURITY` |
 | `KW-TEC-SEC-009-V1` | Email Security | email security | `ORG-GENERIC` | `EX-SECURITY` |
-| `KW-TEC-SEC-010-V1` | Security Information and Event Management | security information and event management; security information & event management | `ORG-SOFTWARE` | `EX-SECURITY` |
+| `KW-TEC-SEC-010-V1` | Security Information and Event Management | security information and event management; security information & event management | `ORG-SERVICE` | `EX-SECURITY` |
 | `KW-TEC-SEC-011-V1` | Vulnerability Management | vulnerability management | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-TEC-SEC-012-V1` | Penetration Testing | penetration testing | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-SEC-013-V1` | Governance, Risk and Compliance | governance, risk and compliance; governance, risk & compliance; GRC; governance risk compliance | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-SEC-014-V1` | Digital Identity | digital identity | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-TEC-SEC-015-V1` | Electronic Signatures | electronic signatures; electronic signature | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-TEC-SEC-015-V1` | Electronic Signatures | electronic signatures; electronic signature | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-SEC-016-V1` | Fraud and Threat Intelligence | fraud and threat intelligence; fraud & threat intelligence | `ORG-GENERIC` | `EX-AI` |
 | `KW-TEC-TEL-001-V1` | Mobile Network Operators | mobile network operators; mobile network operator | `ORG-GENERIC` | `EX-NETWORK` |
 | `KW-TEC-TEL-002-V1` | Fixed-Line Telecommunications | fixed-line telecommunications; fixed-line telecommunication | `ORG-GENERIC` | `EX-PHRASE` |
