@@ -72,6 +72,16 @@ The first release provides the following 16 broad sectors. They are market-entry
 | BS-015 | Government | Public authorities and institutions responsible for administration, regulation, municipal operations, public services, and public safety. | Federal; provincial; local government; municipal services; regulators; public safety |
 | BS-016 | Nonprofit | Mission-led organizations operating for public benefit, membership, charity, development, relief, professional representation, or community service. | NGOs; charities; foundations; Zakat; Waqf; associations; chambers; professional bodies |
 
+### 3.1 Sector-specific domain registries
+
+Broad-sector rows define market entry points, not the complete domain datasets. Detailed domain definitions belong in controlled sector-specific registries.
+
+- [Healthcare Product and Service Domain Registry](healthcare-domain-registry.md)
+  - Defines all 142 canonical product and service domains for `BS-001 Healthcare`
+  - Groups them across medicines, devices, supplies, clinical services, digital health, operations, research, education, and public health
+  - Provides the 40-domain first-release presentation shortlist
+  - Defines Healthcare-specific activity separation, cross-sector reuse, safeguards, and acceptance criteria
+
 ## 4. Multi-sector and reusable-domain rules
 
 Broad sectors are deliberately non-exclusive. A target business may operate across several markets, and one canonical domain may be relevant to several sectors.
@@ -244,6 +254,6 @@ Keywords discover evidence. They do not independently establish a service gap.
 
 This document defines the broad-sector layer only.
 
-Product-domain registries, domain-specific activity mappings, provider service catalogues, keyword profiles, evidence rules, and gap scoring require separate controlled datasets and implementation phases.
+Sector-specific product-domain registries, domain-specific activity mappings, provider service catalogues, keyword profiles, evidence rules, and gap scoring require separate controlled datasets and implementation phases. The Healthcare domain registry is defined in [Healthcare Product and Service Domain Registry](healthcare-domain-registry.md).
 
 The broad-sector registry and selection rules are **defined**, but they are not **implemented**, **integrated**, or **verified** until corresponding schema, migration, API, interface, test, and release work is complete.
