@@ -1,9 +1,12 @@
 # Harvester Retail Domain Keyword Registry
 
+
 Status: **Proposed**  
-Version: **1.0**  
-Date: **3 August 2026**  
+Version: **1.1**  
+Date: **4 August 2026**  
 Implementation status: **Not implemented**
+
+Review boundary: **Controlled discovery baseline. Human sector review and source-level validation are required before runtime activation.**
 
 This file defines separate discovery keyword profiles for all **84** canonical domains in `BS-008 Retail`.
 
