@@ -18,7 +18,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-CON-BLD-005-V1` | Healthcare Facility Construction | healthcare facility construction; health care facility construction; medical facility construction; healthcare facility building | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-BLD-006-V1` | Education Facility Construction | education facility construction; learning facility construction; education facility building | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-BLD-007-V1` | Hospitality Construction | hospitality construction; hospitality building; accommodation construction | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-CON-BLD-008-V1` | Retail Construction | retail construction; retail building; retailer construction | `ORG-COMMERCE` | `EX-PHRASE` |
+| `KW-CON-BLD-008-V1` | Retail Construction | retail construction; retail building | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-CON-BLD-009-V1` | Warehouse Construction | warehouse construction; warehouse building | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-CON-BLD-010-V1` | High-Rise Construction | high-rise construction; high-rise building | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-BLD-011-V1` | Low-Rise Construction | low-rise construction; low-rise building | `ORG-GENERIC` | `EX-PHRASE` |
@@ -52,12 +52,12 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-CON-DES-015-V1` | Construction Design Management | construction design management; building design management | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-CON-TRD-001-V1` | Electrical Contracting | electrical contracting | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-TRD-002-V1` | Plumbing Contracting | plumbing contracting | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-CON-TRD-003-V1` | HVAC Installation | hvac installation | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-CON-TRD-004-V1` | Fire-Safety Systems | fire-safety systems; fire-safety system | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-CON-TRD-005-V1` | Elevator and Escalator Installation | elevator and escalator installation; elevator & escalator installation | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-CON-TRD-006-V1` | Solar Installation | solar installation | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-CON-TRD-007-V1` | Security-System Installation | security-system installation | `ORG-SOFTWARE` | `EX-SECURITY` |
-| `KW-CON-TRD-008-V1` | Low-Voltage and Networking Installation | low-voltage and networking installation; low-voltage & networking installation | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-CON-TRD-003-V1` | HVAC Installation | hvac installation | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-CON-TRD-004-V1` | Fire-Safety Systems | fire-safety systems; fire-safety system | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-CON-TRD-005-V1` | Elevator and Escalator Installation | elevator and escalator installation; elevator & escalator installation | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-CON-TRD-006-V1` | Solar Installation | solar installation | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-CON-TRD-007-V1` | Security-System Installation | security-system installation | `ORG-SERVICE` | `EX-SECURITY` |
+| `KW-CON-TRD-008-V1` | Low-Voltage and Networking Installation | low-voltage and networking installation; low-voltage & networking installation | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-CON-TRD-009-V1` | Glass and Aluminium Works | glass and aluminium works; glass & aluminium works; glass and aluminium work | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-TRD-010-V1` | Carpentry and Joinery | carpentry and joinery; carpentry & joinery | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-TRD-011-V1` | Masonry and Concrete Works | masonry and concrete works; masonry & concrete works; masonry and concrete work | `ORG-GENERIC` | `EX-PHRASE` |
@@ -74,7 +74,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-CON-MAT-005-V1` | Structural Steel | structural steel | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-MAT-006-V1` | Aggregates and Sand | aggregates and sand; aggregates & sand | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-MAT-007-V1` | Glass | glass | `ORG-GENERIC` | `EX-BROAD` |
-| `KW-CON-MAT-008-V1` | Aluminium Systems | aluminium systems; aluminium system | `ORG-SOFTWARE` | `EX-BROAD` |
+| `KW-CON-MAT-008-V1` | Aluminium Systems | aluminium systems; aluminium system | `ORG-GENERIC` | `EX-BROAD` |
 | `KW-CON-MAT-009-V1` | Timber and Wood Products | timber and wood products; timber & wood products; timber and wood product | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-CON-MAT-010-V1` | Doors and Windows | doors and windows; doors & windows; doors and window | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-MAT-011-V1` | Roofing Materials | roofing materials; roofing material | `ORG-PRODUCT` | `EX-PHRASE` |
@@ -102,7 +102,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-CON-OPS-013-V1` | Demolition | demolition | `ORG-GENERIC` | `EX-BROAD` |
 | `KW-CON-OPS-014-V1` | Renovation and Refurbishment | renovation and refurbishment; renovation & refurbishment | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-OPS-015-V1` | Fit-Out Contracting | fit-out contracting | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-CON-OPS-016-V1` | Building Maintenance | building maintenance | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-CON-OPS-016-V1` | Building Maintenance | building maintenance | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-OPS-017-V1` | Construction Software and Field Systems | construction software and field systems; construction software & field systems; construction software and field system; building software and field systems; construction application and field systems | `ORG-SOFTWARE` | `EX-PHRASE` |
 
 A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
