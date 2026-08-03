@@ -1,4 +1,4 @@
-# Harvester Sector, Domain and Activity Taxonomy Index
+# Harvester Sector, Domain, Activity and Keyword Taxonomy Index
 
 Status: **Proposed**
 
@@ -8,7 +8,7 @@ Date: **3 August 2026**
 
 Implementation status: **Not implemented**
 
-This directory contains the controlled broad-sector, product-or-service-domain, and business-activity registries used by the Harvester Services and Opportunity Model.
+This directory contains the controlled broad-sector, product-or-service-domain, business-activity, and discovery-keyword registries used by the Harvester Services and Opportunity Model.
 
 The locked classification chain is:
 
@@ -18,7 +18,9 @@ Broad Sector
 → Domain-Specific Activity
 → Approved Domain–Activity Combination
 → Active Provider Offering
-→ Keywords and Evidence
+→ Domain and Activity Keywords
+→ Service-Specific Signals
+→ Verified Evidence
 → Supported Opportunity
 → Qualified Lead
 ```
@@ -27,6 +29,7 @@ Broad Sector
 
 - [Broad Sector Registry and Selection Framework](broad-sector-registry.md)
 - [Canonical Activity Registry and Domain Mappings](activity-registry.md)
+- [Keyword Taxonomy Index](keywords/README.md)
 - [Harvester Services and Opportunity Model](../SERVICES.md)
 - [Harvester Intelligence Operating Model](../architecture/harvester-intelligence-operating-model.md)
 - [Harvester Standalone Product Roadmap](../ROADMAP.md)
@@ -39,8 +42,14 @@ Broad Sector
 | Canonical product and service domains | 1,586 |
 | Canonical business activities | 519 |
 | Explicit domain-to-activity-profile assignments | 1,586 |
+| Separate domain keyword profiles | 1,586 |
+| Separate activity keyword profiles | 519 |
+| Shared organization-cue profiles | 8 |
+| Shared exclusion and negative-context profiles | 15 |
 
 The activity library is shared for stable naming and reuse. Applicability remains domain-specific: every canonical domain has an explicit activity profile, and user selections remain independent for each domain.
+
+The keyword library follows the same rule. Domain and activity terms are reusable identities, but each domain retains its own keyword profile, organization cues, exclusions, and version history.
 
 ## Sector-specific domain registries
 
@@ -95,6 +104,32 @@ Legal Services
 → Advising; Drafting; Reviewing; Filing; Representing; Case Management
 ```
 
+## Keyword classification
+
+The complete keyword dataset is indexed by [Keyword Taxonomy Index](keywords/README.md).
+
+Keyword layers are deliberately separated:
+
+```text
+Domain identity terms
+Activity terms
+Organization cues
+Exclusions and negative context
+Service-specific problem and buying signals
+```
+
+The first four layers help discover and classify evidence. The service-specific layer exists only after the provider activates a relevant offering.
+
+A match must retain its match mode:
+
+```text
+EXACT
+PHRASE
+SEMANTIC
+ENTITY
+REGEX
+```
+
 ## Locked rules
 
 1. Broad sectors are multi-select.
@@ -102,17 +137,19 @@ Legal Services
 3. Every selected domain receives its own independent activity group.
 4. Activities selected for one domain never propagate automatically to another domain.
 5. The same canonical domain may be mapped to several sectors without creating duplicate identities.
-6. Every canonical domain has an explicit default activity profile.
+6. Every canonical domain has an explicit default activity profile and a separate keyword profile.
 7. The user must approve domain–activity combinations before attaching provider services.
 8. Only active services actually offered by the provider may generate opportunity assessments.
-9. Keywords discover evidence; they do not independently prove an activity, service gap, or opportunity.
-10. Overlapping sectors and domains must not duplicate organizations, evidence, opportunities, scores, exports, or outreach packages.
-11. Completed harvest jobs preserve the registry, mapping, offering, keyword, evidence, and scoring versions used when they ran.
+9. Keywords discover evidence; they do not independently prove a domain, activity, service gap, opportunity, or lead.
+10. Domain keywords, activity keywords, organization cues, exclusions, and service-specific signals remain separately versioned.
+11. Service-gap, buying-intent, competitor, existing-solution, and problem-signal keywords require an active provider offering.
+12. Overlapping sectors and domains must not duplicate organizations, evidence, opportunities, scores, exports, or outreach packages.
+13. Completed harvest jobs preserve the registry, mapping, offering, keyword, evidence, and scoring versions used when they ran.
 
 ## Delivery boundary
 
-The broad-sector, domain, canonical-activity, activity-profile, and domain-assignment datasets are **defined and repository-integrated documentation**.
+The broad-sector, domain, canonical-activity, activity-profile, domain-assignment, domain-keyword, activity-keyword, organization-cue, and exclusion datasets are **defined and repository-integrated documentation**.
 
-They do not implement database records, migrations, APIs, interface controls, activity detection, provider-service catalogues, keyword profiles, evidence rules, scoring behaviour, or releases.
+They do not implement database records, migrations, APIs, search indexes, embeddings, classifiers, interface controls, activity detection, provider-service catalogues, evidence rules, scoring behaviour, or releases.
 
 The taxonomy documentation is complete for the current 16-sector registry, but runtime implementation is not complete until the corresponding engineering work is built and verified.
