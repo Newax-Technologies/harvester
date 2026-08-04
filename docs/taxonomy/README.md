@@ -1,16 +1,13 @@
 # Harvester Sector, Domain, Activity and Keyword Taxonomy Index
 
-Status: **Proposed**
-
-Version: **1.0**
-
-Date: **3 August 2026**
-
+Status: **Proposed**  
+Version: **1.1**  
+Date: **4 August 2026**  
 Implementation status: **Not implemented**
 
-This directory contains the controlled broad-sector, product-or-service-domain, business-activity, and discovery-keyword registries used by the Harvester Services and Opportunity Model.
+This directory contains the controlled broad-sector, product-or-service-domain, business-activity, discovery-keyword, lead-signal, role-cue, source-suitability, and evidence-governance registries used by the Harvester Services and Opportunity Model.
 
-The locked classification chain is:
+The locked classification and lead-generation chain is:
 
 ```text
 Broad Sector
@@ -19,8 +16,10 @@ Broad Sector
 → Approved Domain–Activity Combination
 → Active Provider Offering
 → Domain and Activity Keywords
-→ Service-Specific Signals
-→ Verified Evidence
+→ Lead-Generation Signal Profile
+→ Source-Appropriate Query Families
+→ Evidence, Freshness and Contradiction Review
+→ Responsible-Role and Contact Assessment
 → Supported Opportunity
 → Qualified Lead
 ```
@@ -29,9 +28,10 @@ Broad Sector
 
 - [Broad Sector Registry and Selection Framework](broad-sector-registry.md)
 - [Canonical Activity Registry and Domain Mappings](activity-registry.md)
-- [Keyword Taxonomy Index](keywords/README.md)
+- [Keyword Taxonomy and Lead-Signal Index](keywords/README.md)
 - [Harvester Services and Opportunity Model](../SERVICES.md)
 - [Harvester Intelligence Operating Model](../architecture/harvester-intelligence-operating-model.md)
+- [Provider Portfolio and Lead-Generation Profile Model](../architecture/provider-portfolio-and-lead-generation-profile-model.md)
 - [Harvester Standalone Product Roadmap](../ROADMAP.md)
 
 ## Registry coverage
@@ -45,11 +45,20 @@ Broad Sector
 | Separate domain keyword profiles | 1,586 |
 | Separate activity keyword profiles | 519 |
 | Shared organization-cue profiles | 8 |
-| Shared exclusion and negative-context profiles | 15 |
+| Shared exclusion and negative-context profiles | 28 |
+| Evidence-control profiles | 9 |
+| Reusable lead-generation signal profiles | 29 |
+| Functional decision-maker role groups | 20 |
+| Contact-route profiles | 8 |
+| Sector lead-generation overlays | 16 |
+| Source classes with signal guidance | 14 |
+| Governed query families | 10 |
 
 The activity library is shared for stable naming and reuse. Applicability remains domain-specific: every canonical domain has an explicit activity profile, and user selections remain independent for each domain.
 
-The keyword library follows the same rule. Domain and activity terms are reusable identities, but each domain retains its own keyword profile, organization cues, exclusions, and version history.
+The keyword library follows the same rule. Domain and activity terms are reusable identities, but every domain retains its own keyword profile, organization cues, exclusions, and version history.
+
+Lead-generation signals are reusable commercial-event and operational-evidence identities. Their relevance, weights, evidence requirements, and disqualifiers remain specific to the provider offering and lead-generation profile.
 
 ## Sector-specific domain registries
 
@@ -88,37 +97,26 @@ NOT_APPLICABLE
 
 `CORE`, `COMMON`, and `OPTIONAL` guide the interface. They do not prove that a target performs an activity. `NOT_APPLICABLE` is represented by the activity being absent from a domain's default profile.
 
-Examples:
+## Keyword and lead-signal layers
 
-```text
-Pharmaceuticals
-→ Manufacturing; Formulating; Quality Control; Packaging; Distribution
+The complete keyword and signal dataset is indexed by [Keyword Taxonomy and Lead-Signal Index](keywords/README.md).
 
-Medical Devices
-→ Designing; Manufacturing; Installing; Calibrating; Maintaining; Repairing
-
-Hospitals
-→ Diagnosing; Treating; Patient Monitoring; Clinical Documentation; Care Coordination
-
-Legal Services
-→ Advising; Drafting; Reviewing; Filing; Representing; Case Management
-```
-
-## Keyword classification
-
-The complete keyword dataset is indexed by [Keyword Taxonomy Index](keywords/README.md).
-
-Keyword layers are deliberately separated:
+The layers remain deliberately separate:
 
 ```text
 Domain identity terms
 Activity terms
 Organization cues
 Exclusions and negative context
-Service-specific problem and buying signals
+Lead-generation signals
+Sector overlays
+Source-to-signal suitability
+Decision-maker role cues
+Contact-route cues
+Offering-specific problem, buying, competitor and existing-solution logic
 ```
 
-The first four layers help discover and classify evidence. The service-specific layer exists only after the provider activates a relevant offering.
+The first four layers help discover and classify organizations. Lead-signal and sector-overlay layers help determine why a target may be relevant now. Offering-specific logic decides whether that relevance can become an opportunity for the selected provider service.
 
 A match must retain its match mode:
 
@@ -141,15 +139,19 @@ REGEX
 7. The user must approve domain–activity combinations before attaching provider services.
 8. Only active services actually offered by the provider may generate opportunity assessments.
 9. Keywords discover evidence; they do not independently prove a domain, activity, service gap, opportunity, or lead.
-10. Domain keywords, activity keywords, organization cues, exclusions, and service-specific signals remain separately versioned.
-11. Service-gap, buying-intent, competitor, existing-solution, and problem-signal keywords require an active provider offering.
-12. Overlapping sectors and domains must not duplicate organizations, evidence, opportunities, scores, exports, or outreach packages.
-13. Completed harvest jobs preserve the registry, mapping, offering, keyword, evidence, and scoring versions used when they ran.
+10. Direct intent, procurement, business events, operational pain, technology footprint, role cues, and contactability remain separate evidence dimensions.
+11. Service-gap, buying-intent, competitor, existing-solution, and problem-signal evaluation requires an active provider offering.
+12. Decision-maker discovery follows entity resolution; contact-ready status follows opportunity support and lawful-contact checks.
+13. Job posts, reviews, tenders, news, directories, maps, social posts, and technology listings are evaluated according to their source-signal suitability.
+14. Positive opportunities require negative, contradiction, freshness, closure, cancellation, and award checks where applicable.
+15. Raw keyword counts never become a lead score.
+16. Overlapping sectors and domains must not duplicate organizations, evidence, opportunities, scores, exports, or outreach packages.
+17. Completed harvest jobs preserve the taxonomy, mapping, offering, keyword, signal, role, source, evidence, qualification, and scoring versions used when they ran.
 
 ## Delivery boundary
 
-The broad-sector, domain, canonical-activity, activity-profile, domain-assignment, domain-keyword, activity-keyword, organization-cue, and exclusion datasets are **defined and repository-integrated documentation**.
+The broad-sector, domain, activity, keyword, signal, role, source, and control-profile datasets are **defined and repository-integrated documentation**.
 
-They do not implement database records, migrations, APIs, search indexes, embeddings, classifiers, interface controls, activity detection, provider-service catalogues, evidence rules, scoring behaviour, or releases.
+They do not implement database records, migrations, APIs, interface controls, query execution, search indexes, activity detection, provider-service catalogues, evidence rules, scoring behavior, contact eligibility, outreach, or releases.
 
-The taxonomy documentation is complete for the current 16-sector registry, but runtime implementation is not complete until the corresponding engineering work is built and verified.
+The taxonomy documentation is strengthened for the current 16-sector registry, but runtime implementation is not complete until the corresponding engineering work is built and verified.
