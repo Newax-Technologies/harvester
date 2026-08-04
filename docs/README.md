@@ -1,6 +1,6 @@
 # Harvester Documentation Map
 
-This directory contains the authoritative product, architecture, source, and delivery documentation for NEWAX Harvester.
+This directory contains the authoritative product, architecture, source, taxonomy, and delivery documentation for NEWAX Harvester.
 
 Harvester is standalone lead-intelligence infrastructure. It converts a governed, provider-defined service market into evidence-backed, reviewable, and operationally usable opportunities while preserving customer ownership and control.
 
@@ -18,19 +18,25 @@ When documents overlap, use this order:
 
 3. [Harvester Services and Opportunity Model](SERVICES.md)
    - Universal provider, service-offering, customer-market, lead-subject, opportunity-signal, qualification, and first-page lead-generation model
-   - Requires the complete service and target definition before **Generate Leads**
+   - Requires provider and active offering selection before the target market is commercially complete
    - Supports B2B, B2C, referral, professional, healthcare, legal, local, remote, appointment, project, and recurring services
    - Establishes service gap as one signal type rather than the universal product model
 
-4. [NEWAX Harvester Opportunity Scoring Model v3](architecture/opportunity-scoring-model-v3.md)
+4. [Provider Portfolio and Lead-Generation Profile Model](architecture/provider-portfolio-and-lead-generation-profile-model.md)
+   - Separates provider identity, business units, complete offering portfolios, reusable lead-generation profiles, profile versions, operational activation, schedules, and Harvest Jobs
+   - Allows a company to maintain many offerings and profiles without activating all of them
+   - Defines the Portfolio and Lead Definition Workspace, overlap control, shared-evidence reuse, capacity, budgets, permissions, profile analytics, and scale requirements
+   - Strengthens the existing 64 modules and does not create another module count
+
+5. [NEWAX Harvester Opportunity Scoring Model v3](architecture/opportunity-scoring-model-v3.md)
    - NEWAX-specific provider scoring profile for business-infrastructure opportunities
    - Defines opportunity value, pursuit readiness, infrastructure-gap, coverage, confidence, risk, and recommendation behavior for NEWAX offerings
    - Remains subordinate to the universal services model and must not be applied to unrelated providers or unselected services
 
-5. [Standalone Product and Integration Framework](architecture/standalone-product-and-integration-framework.md)
+6. [Standalone Product and Integration Framework](architecture/standalone-product-and-integration-framework.md)
    - Product boundaries, connector framework, credentials, mappings, synchronization, destinations, tenancy, and recovery
 
-6. [Optional NEWAX Core Synchronization](architecture/newax-core-automatic-sync.md)
+7. [Optional NEWAX Core Synchronization](architecture/newax-core-automatic-sync.md)
    - Optional Harvester-to-Core streams, application identity, credentials, delivery, links, reconciliation, and failure behavior
 
 ## Service and market taxonomy
@@ -54,7 +60,7 @@ Taxonomy documents define controlled registries and mappings used by the Service
   - Defines separate discovery profiles for all 1,586 domains and all 519 canonical activities
   - Separates domain terms, activity terms, organization cues, exclusions, and negative context
   - Defines exact, phrase, semantic, entity, and regex match-mode requirements
-  - Keeps problem, buying-intent, competitor, existing-solution, and service-gap keywords subordinate to an active provider offering
+  - Keeps problem, buying-intent, competitor, existing-solution, and service-gap keywords subordinate to selected active provider offerings
   - Prohibits a keyword match from independently proving a domain, activity, service gap, opportunity, or qualified lead
 
 - [Broad Sector Registry and Selection Framework](taxonomy/broad-sector-registry.md)
@@ -67,18 +73,22 @@ Taxonomy documents define controlled registries and mappings used by the Service
   - Defines the controlled domain registry for broad sector `BS-001 Healthcare`
   - Includes 142 canonical domains across medicines, devices, supplies, facilities, digital health, operations, research, education, and public health
   - Provides a 40-domain first-release presentation shortlist without replacing canonical domain identities
-  - Requires independent activity groups, approved domain–activity combinations, cross-sector reuse, evidence attribution, and duplicate prevention
+  - Requires independent activity groups, approved domain-activity combinations, cross-sector reuse, evidence attribution, and duplicate prevention
+
+The taxonomy index links the remaining 15 sector registries.
 
 ## Source input and formatting
 
-Source documents define how user inputs become immutable job snapshots and how provider-native records enter the Harvester evidence model. They remain subordinate to the roadmap, operating model, services model, applicable scoring profile, integration framework, and provider terms.
+Source documents define how user inputs become immutable job snapshots and how provider-native records enter the Harvester evidence model. They remain subordinate to the roadmap, operating model, services model, provider-portfolio model, applicable scoring profile, integration framework, and provider terms.
 
 - [Source Input and Formatting Index](sources/README.md)
   - Links the user-input storage model, canonical source envelope, adapter template, named provider formats, and remaining approved source families
   - Covers Google, Yandex, LinkedIn, Meta and Instagram, X, Bing, Indeed, Crunchbase, Apple Maps, Telegram, websites, official registries, directories, job boards, procurement, news, marketplaces, imports, APIs and feeds
 
 - [User Input Storage Model](sources/user-input-storage-model.md)
-  - Defines tenant-isolated drafts, approvals, provider offerings, market selections, domain-specific activities, keyword versions, source selections, secret references, output policies and immutable Harvest Job input snapshots
+  - Defines tenant-isolated workspaces, providers, business units, offering portfolios, reusable profile versions, activation, market selections, domain-specific activities, keyword versions, sources, secret references, output policies and immutable Harvest Job input snapshots
+  - Separates approved configuration from operational activation
+  - Allows several profiles to remain inactive, paused, scheduled, suspended, or archived without participating in a job
   - Prohibits plaintext credential storage and silent mutation of active configurations
 
 - [Canonical Source Record Format](sources/canonical-source-record-format.md)
@@ -110,10 +120,11 @@ Previous versions remain available through Git history and pull-request history 
 
 ```text
 Harvester
-Owns provider and service definition, market definition, source intake,
-observations, evidence, local resolution, lead profiles, qualification,
-opportunity intelligence, research, dossiers, selection, exports,
-publishing rules, and operations.
+Owns provider organizations, business units, offering portfolios,
+lead-generation profiles, profile activation, market definition,
+source intake, observations, evidence, local resolution, lead profiles,
+qualification, opportunity intelligence, research, dossiers, selection,
+exports, publishing rules, and operations.
 
 Communicator
 Optionally receives approved lead and context packages.
@@ -134,19 +145,20 @@ No product shares private database tables, database-owner credentials, migration
 - Product delivery changes belong in `ROADMAP.md`.
 - Operating-model and decision-invariant changes belong in the intelligence operating model.
 - Provider types, service offerings, customer markets, lead-subject types, opportunity signals, qualification boundaries, first-page configuration, and universal generation rules belong in `SERVICES.md`.
+- Provider organizations, business units, offering portfolios, reusable lead-generation profiles, profile versions, activation, scheduling, overlap, capacity, budget, profile analytics, and profile lifecycle changes belong in the provider-portfolio model, subordinate to `SERVICES.md`.
 - Broad-sector registry, sector-to-domain applicability, and first-stage market-selection changes belong in `taxonomy/broad-sector-registry.md`, subordinate to `SERVICES.md`.
 - Sector-specific domain definitions, family assignments, first-release visibility, and cross-sector mappings belong in the registries listed by `taxonomy/README.md`.
 - Canonical activity definitions, applicability profiles, and domain-to-activity assignments belong under `taxonomy/activity-registry.md` and its linked mapping files.
 - Domain and activity discovery terms, organization cues, exclusions, negative context, match modes, and locale-specific keyword packs belong under `taxonomy/keywords/`.
-- Service-specific target terms, problem signals, buying-intent signals, competitor terms, existing-solution terms, and service-gap profiles require an active provider offering and remain subordinate to `SERVICES.md`.
-- Target-workspace activity and keyword overrides must remain explicit, versioned selections and must not silently mutate canonical registries.
+- Service-specific target terms, problem signals, buying-intent signals, competitor terms, existing-solution terms, and service-gap profiles require a selected active provider offering and remain subordinate to `SERVICES.md`.
+- Target-workspace and lead-generation-profile activity and keyword overrides must remain explicit, versioned selections and must not silently mutate canonical registries.
 - Provider-specific opportunity weights, rubrics, confidence, risk, and recommendations belong in an explicitly scoped scoring profile.
 - The NEWAX Opportunity Scoring Model applies only to selected NEWAX business-infrastructure offerings and must not be treated as the universal Harvester score.
-- User-input storage, approval, versioning, source selections, credential references and immutable job snapshots belong in `sources/user-input-storage-model.md`.
+- User-input storage, approval, activation, versioning, source selections, credential references and immutable job snapshots belong in `sources/user-input-storage-model.md`.
 - Shared request, response, observation, claim, provenance, quality, retention and failure envelopes belong in `sources/canonical-source-record-format.md`.
 - Source query, extraction, field-mask, coverage, retention, attribution, failure, cost, field mapping and source-specific compliance changes belong in the relevant source model or source-format document.
 - Every new source requires a separate approved source-format document before production activation.
-- Source-specific models cannot override product boundaries, service eligibility, evidence invariants, scoring separation, security requirements, or current provider terms.
+- Source-specific models cannot override product boundaries, service eligibility, profile activation, evidence invariants, scoring separation, security requirements, or current provider terms.
 - Integration-boundary changes belong in the integration framework or the relevant adapter document.
 - Superseded versions remain in Git history rather than duplicate active documentation.
 - Do not create parallel roadmaps, duplicate module counts, hidden product dependencies, competing universal opportunity definitions, or undocumented source behavior.
