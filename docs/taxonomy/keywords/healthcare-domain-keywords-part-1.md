@@ -67,7 +67,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-HC-SUP-006-V1` | Sterilization and Disinfection Products | sterilization and disinfection products; sterilization & disinfection products; sterilization and disinfection product | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-HC-SUP-007-V1` | Personal Protective Equipment | personal protective equipment | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-HC-SUP-008-V1` | Hospital Linen and Patient-Care Supplies | hospital linen and patient-care supplies; hospital linen & patient-care supplies; hospital linen and patient-care supply | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-SUP-009-V1` | Medical Gases | medical gases; medical gase | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-SUP-009-V1` | Medical Gases | medical gases; medical gas | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HC-SUP-010-V1` | Blood-Bank and Transfusion Supplies | blood-bank and transfusion supplies; blood-bank & transfusion supplies; blood-bank and transfusion supply | `ORG-PRODUCT` | `EX-BANK` |
 | `KW-HC-SUP-011-V1` | Laboratory Reagents and Consumables | laboratory reagents and consumables; laboratory reagents & consumables; laboratory reagents and consumable; lab reagents and consumables | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-HC-SUP-012-V1` | Diagnostic Test Kits | diagnostic test kits; diagnostic test kit | `ORG-GENERIC` | `EX-PHRASE` |
