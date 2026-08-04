@@ -155,3 +155,16 @@ The broad-sector, domain, activity, keyword, signal, role, source, and control-p
 They do not implement database records, migrations, APIs, interface controls, query execution, search indexes, activity detection, provider-service catalogues, evidence rules, scoring behavior, contact eligibility, outreach, or releases.
 
 The taxonomy documentation is strengthened for the current 16-sector registry, but runtime implementation is not complete until the corresponding engineering work is built and verified.
+
+## Runtime planning additions
+
+The taxonomy now links the additive plans required to turn the existing registries into governed runtime configuration:
+
+- [Keyword Profile Implementation Plan](keywords/keyword-profile-implementation-plan.md)
+  - User configuration, profile types, data objects, query preview, evidence capture, locale support, versioning, APIs, implementation slices, safeguards, and acceptance criteria.
+- [Keyword and Evidence Profile Integration Addendum](../architecture/keyword-evidence-profile-integration-addendum.md)
+  - Operating-plane placement, evidence-graph edges, confidence separation, source suitability, failure states, cross-product boundaries, security, and architectural verification scenarios.
+- [Keyword Profile Delivery Addendum](../delivery/keyword-profile-delivery-addendum.md)
+  - Existing-roadmap crosswalk, delivery gates, benchmark set, quality metrics, migration and rollout sequence, and exact definition of done.
+
+These additions do not replace the registries, the Services and Opportunity Model, the Intelligence Operating Model, or the authoritative 64-module roadmap. They define how the approved taxonomy participates in future implementation.
