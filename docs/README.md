@@ -69,9 +69,25 @@ Taxonomy documents define controlled registries and mappings used by the Service
   - Provides a 40-domain first-release presentation shortlist without replacing canonical domain identities
   - Requires independent activity groups, approved domain–activity combinations, cross-sector reuse, evidence attribution, and duplicate prevention
 
-## Source-specific models
+## Source input and formatting
 
-Source-specific models define how one external source is planned, queried, extracted, governed, retained, and connected to Harvester evidence. They remain subordinate to the roadmap, operating model, services model, applicable scoring profile, and integration framework.
+Source documents define how user inputs become immutable job snapshots and how provider-native records enter the Harvester evidence model. They remain subordinate to the roadmap, operating model, services model, applicable scoring profile, integration framework, and provider terms.
+
+- [Source Input and Formatting Index](sources/README.md)
+  - Links the user-input storage model, canonical source envelope, adapter template, named provider formats, and remaining approved source families
+  - Covers Google, Yandex, LinkedIn, Meta and Instagram, X, Bing, Indeed, Crunchbase, Apple Maps, Telegram, websites, official registries, directories, job boards, procurement, news, marketplaces, imports, APIs and feeds
+
+- [User Input Storage Model](sources/user-input-storage-model.md)
+  - Defines tenant-isolated drafts, approvals, provider offerings, market selections, domain-specific activities, keyword versions, source selections, secret references, output policies and immutable Harvest Job input snapshots
+  - Prohibits plaintext credential storage and silent mutation of active configurations
+
+- [Canonical Source Record Format](sources/canonical-source-record-format.md)
+  - Defines requests, response outcomes, provider-native observations, artifacts, claims, provenance, quality, policy, retention and failure states shared by all adapters
+  - Preserves source meaning rather than flattening unrelated objects into one record type
+
+## Detailed source acquisition models
+
+Detailed source models remain authoritative for provider-specific acquisition, coverage, query behavior, permissions, retention, attribution, cost and production gates.
 
 - [Google API Source and Extraction Model](sources/google-api-source-model.md)
   - Normative planned Google Places public-discovery and Google Business Profile authorized-data architecture
@@ -126,7 +142,10 @@ No product shares private database tables, database-owner credentials, migration
 - Target-workspace activity and keyword overrides must remain explicit, versioned selections and must not silently mutate canonical registries.
 - Provider-specific opportunity weights, rubrics, confidence, risk, and recommendations belong in an explicitly scoped scoring profile.
 - The NEWAX Opportunity Scoring Model applies only to selected NEWAX business-infrastructure offerings and must not be treated as the universal Harvester score.
-- Source query, extraction, field-mask, coverage, retention, attribution, failure, cost, and source-specific compliance changes belong in the relevant source model.
+- User-input storage, approval, versioning, source selections, credential references and immutable job snapshots belong in `sources/user-input-storage-model.md`.
+- Shared request, response, observation, claim, provenance, quality, retention and failure envelopes belong in `sources/canonical-source-record-format.md`.
+- Source query, extraction, field-mask, coverage, retention, attribution, failure, cost, field mapping and source-specific compliance changes belong in the relevant source model or source-format document.
+- Every new source requires a separate approved source-format document before production activation.
 - Source-specific models cannot override product boundaries, service eligibility, evidence invariants, scoring separation, security requirements, or current provider terms.
 - Integration-boundary changes belong in the integration framework or the relevant adapter document.
 - Superseded versions remain in Git history rather than duplicate active documentation.
