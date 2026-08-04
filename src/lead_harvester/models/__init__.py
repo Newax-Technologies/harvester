@@ -8,6 +8,7 @@ from .compliance import (
     SuppressionEntry,
     SuppressionReason,
 )
+from .email_complaint import EmailComplaintProjection, EmailComplaintType
 from .outbox import EventOutbox, OutboxStatus
 from .outreach import AccountBrief, BriefStatus, DraftStatus, OutreachDraft, OutreachOutcome
 from .person import PersonCandidate, PersonCandidateStatus
@@ -33,6 +34,8 @@ __all__ = [
     "DeletionRequestStatus",
     "DeletionSubjectType",
     "DraftStatus",
+    "EmailComplaintProjection",
+    "EmailComplaintType",
     "EventOutbox",
     "FieldProvenance",
     "FindingType",
