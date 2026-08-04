@@ -159,3 +159,23 @@ A future implementation must preserve match mode, source, language, profile vers
 These Markdown registries are **defined and repository-integrated documentation datasets**.
 
 They do not implement database tables, migrations, search indexes, embeddings, classifiers, APIs, interface controls, source queries, evidence decisions, opportunity scoring, contact eligibility, outreach, or releases. Runtime implementation remains separate engineering work requiring schema, migration, API, interface, testing, security, and release verification.
+
+## Implementation and delivery planning
+
+The registries above are now connected to three additive planning documents:
+
+- [Keyword Profile Implementation Plan](keyword-profile-implementation-plan.md)
+  - Defines the user configuration flow, keyword layers, planned runtime objects, profile versioning, query composition, evidence behavior, locale packs, APIs, safeguards, implementation slices, and acceptance criteria.
+- [Keyword and Evidence Profile Integration Addendum](../../architecture/keyword-evidence-profile-integration-addendum.md)
+  - Defines how keyword configuration and match evidence enter the control, acquisition, evidence, resolution, intelligence, decision, and learning planes without allowing a keyword match to bypass entity resolution or evidence review.
+- [Keyword Profile Delivery Addendum](../../delivery/keyword-profile-delivery-addendum.md)
+  - Adds delivery gates, benchmark requirements, rollout controls, quality metrics, migration sequencing, and definition-of-done rules while preserving the authoritative 64-module roadmap.
+
+### Change-control rule
+
+- Canonical domain and activity keyword terms belong in the sector and activity registries linked above.
+- Shared organization cues, exclusions, evidence controls, role cues, contact routes, source suitability, and locale packs belong under this keyword directory.
+- Provider-offering problem, intent, procurement, competitor, existing-solution, replacement, integration, maintenance, and service-gap profiles require an active selected offering.
+- Runtime objects, API boundaries, query preview, match evidence, versioning, feedback, and interface behavior belong in the implementation plan and architecture addendum.
+- Delivery sequencing, verification gates, benchmark requirements, rollout, and production-readiness rules belong in the delivery addendum.
+- The authoritative roadmap remains the only top-level module roadmap; these documents strengthen its existing modules and do not create a parallel module count.
