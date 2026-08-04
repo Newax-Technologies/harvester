@@ -19,7 +19,8 @@ These files remain documentation datasets, not production search configuration.
 | Canonical domains with separate keyword profiles | 1,586 |
 | Canonical activities with separate keyword profiles | 519 |
 | Organization-cue profiles | 8 |
-| Exclusion and negative-context profiles | 15 |
+| Exclusion and negative-context profiles | 28 |
+| Evidence-control profiles | 9 |
 | Reusable lead-generation signal profiles | 29 |
 | Functional decision-maker role groups | 20 |
 | Contact-route profiles | 8 |
@@ -55,8 +56,7 @@ Domain and activity keywords classify what an organization is and what it appear
 ## Shared keyword controls
 
 - [Keyword Control Profiles](control-profiles.md)
-  - Organization cues for institutions, products, services, commerce, software, government, and nonprofit targets
-  - Exclusion controls for ambiguous terms such as bank, cloud, port, plant, security, audit, trust, market, asset, network, and AI
+  - Organization cues, ambiguity controls, sensitive-sector exclusions, evidence requirements, and contact-order safeguards
 - [Keyword Quality and Review Standard](keyword-quality-and-review-standard.md)
   - Profile lifecycle, benchmark examples, sensitive-sector controls, quality metrics, versioning, and rollback
 
