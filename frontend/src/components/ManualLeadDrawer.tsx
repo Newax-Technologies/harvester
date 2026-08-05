@@ -10,6 +10,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { authHeaders } from "../api/client";
+import { useToast } from "./Toast";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -114,12 +115,7 @@ export function ManualLeadDrawer({
 
   // UI state
   const [submitting, setSubmitting] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
-
-  const showToast = (msg: string, ok: boolean) => {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 4000);
-  };
+  const { showToast } = useToast();
 
   const resetForm = useCallback(() => {
     setName("");
@@ -526,20 +522,6 @@ export function ManualLeadDrawer({
             Saves to canonical pipeline
           </span>
         </div>
-
-        {/* Toast */}
-        {toast && (
-          <div
-            className={`absolute bottom-20 left-6 right-6 px-4 py-3 rounded-lg text-sm font-medium
-            border shadow-xl animate-in slide-in-from-bottom-2 duration-200 ${
-              toast.ok
-                ? "bg-green-950 border-green-600/50 text-green-300"
-                : "bg-red-950  border-red-600/50  text-red-300"
-            }`}
-          >
-            {toast.msg}
-          </div>
-        )}
       </aside>
     </>
   );

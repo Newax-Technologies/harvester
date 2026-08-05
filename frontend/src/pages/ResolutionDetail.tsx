@@ -7,23 +7,19 @@ import {
   MapPin,
   Building2,
   ExternalLink,
-  AlertTriangle,
   AlertCircle,
 } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { resolutionQueries } from "../api/queries";
-import { apiClient, ApiError } from "../api/client";
+import { apiClient, handleApiResponse } from "../api/client";
+import { useVersionedMutation } from "../hooks/useVersionedMutation";
+import { ConflictModal } from "../components/ConflictModal";
 
 export function ResolutionDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   const [feedback, setFeedback] = useState("");
-  const [conflictError, setConflictError] = useState<{
-    expected: number;
-    current: number;
-  } | null>(null);
 
   const {
     data: resolution,
@@ -32,39 +28,17 @@ export function ResolutionDetail() {
     error,
   } = useQuery(resolutionQueries.detail(id!));
 
-  const decisionMutation = useMutation({
-    mutationFn: async (decision: "merge" | "separate" | "branch") => {
-      const res = await apiClient.POST(
-        "/api/v1/resolution-reviews/{review_id}/decision",
-        {
+  const decisionMutation = useVersionedMutation({
+    mutationFn: (decision: "merge" | "separate" | "branch") =>
+      apiClient
+        .POST("/api/v1/resolution-reviews/{review_id}/decision", {
           params: { path: { review_id: id! } },
           body: { decision, feedback, expected_version: resolution!.version },
-        },
-      );
-      if (res.error)
-        throw new ApiError(
-          (res.error as any).error?.message || "Error",
-          (res.error as any).error?.code,
-          (res.error as any).error?.details,
-        );
-      return res.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: resolutionQueries.detail(id!).queryKey,
-      });
-      navigate("/resolution");
-    },
-    onError: (err: any) => {
-      if (err instanceof ApiError && err.code === "stale_resource") {
-        setConflictError({
-          expected: resolution!.version,
-          current: err.details?.current_version || resolution!.version + 1,
-        });
-      } else {
-        alert("Failed to save decision: " + err.message);
-      }
-    },
+        })
+        .then(handleApiResponse),
+    invalidateKey: resolutionQueries.detail(id!).queryKey,
+    currentVersion: resolution?.version ?? 0,
+    onSuccess: () => navigate("/resolution"),
   });
 
   if (isLoading)
@@ -227,58 +201,13 @@ export function ResolutionDetail() {
         </div>
       </div>
 
-      {/* Conflict Modal */}
-      {conflictError && (
-        <div className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-xl shadow-lg max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 text-destructive mb-4">
-              <AlertTriangle size={24} />
-              <h3 className="text-lg font-semibold text-foreground">
-                Update Conflict Detected
-              </h3>
-            </div>
-
-            <div className="space-y-4 mb-6 text-sm text-muted-foreground">
-              <p>
-                Another reviewer has modified or decided on this candidate while
-                you were viewing it.
-              </p>
-              <div className="bg-muted p-3 rounded-md border border-border space-y-2">
-                <div className="flex justify-between">
-                  <span>Your version:</span>
-                  <span className="font-mono bg-background px-1.5 py-0.5 rounded text-foreground">
-                    v{conflictError.expected}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Current server version:</span>
-                  <span className="font-mono bg-background px-1.5 py-0.5 rounded text-foreground">
-                    v{conflictError.current}
-                  </span>
-                </div>
-              </div>
-              <p>
-                To prevent overwriting someone else's work, your changes have
-                been blocked. Please refresh to see the latest version before
-                taking action.
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => {
-                  setConflictError(null);
-                  queryClient.invalidateQueries({
-                    queryKey: resolutionQueries.detail(id!).queryKey,
-                  });
-                }}
-                className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium transition-colors rounded-md bg-primary hover:bg-primary/90 text-primary-foreground"
-              >
-                Reload Latest Version
-              </button>
-            </div>
-          </div>
-        </div>
+      {decisionMutation.conflict && (
+        <ConflictModal
+          expected={decisionMutation.conflict.expected}
+          current={decisionMutation.conflict.current}
+          description="Another reviewer has modified or decided on this candidate while you were viewing it."
+          onReload={decisionMutation.resolveConflict}
+        />
       )}
     </div>
   );
