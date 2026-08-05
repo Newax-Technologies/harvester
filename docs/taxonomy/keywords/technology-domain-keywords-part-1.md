@@ -3,15 +3,17 @@
 Part **1 of 2**
 
 Status: **Proposed**  
-Version: **1.1**  
-Date: **4 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-Review boundary: **Controlled discovery baseline. Human sector review and source-level validation are required before runtime activation.**
+Review boundary: **Controlled discovery baseline. Human sector review, source-level validation, locale review, benchmark testing, and approved activation are required before runtime use.**
 
-This file defines separate discovery keyword profiles for **80** of the **127** canonical domains in `BS-014 Technology`.
+This file defines separate discovery keyword profiles for a portion of the **127** canonical domains in the Technology sector.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
+
+Keywords identify evidence candidates. They do not independently prove that an organization belongs to a domain, performs an activity, needs a provider service, has buying intent, presents a service gap, or qualifies as a lead.
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
@@ -20,17 +22,17 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-TEC-SFW-003-V1` | Mobile Applications | mobile applications; mobile application | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-SFW-004-V1` | Web Applications | web applications; web application | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-SFW-005-V1` | Business Operating Systems | business operating systems; business operating system | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-TEC-SFW-006-V1` | Customer Relationship Management | customer relationship management; CRM; customer management software | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-TEC-SFW-007-V1` | Enterprise Resource Planning | enterprise resource planning; ERP; enterprise management software | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-TEC-SFW-006-V1` | Customer Relationship Management | customer relationship management; CRM; customer management software | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-TEC-SFW-007-V1` | Enterprise Resource Planning | enterprise resource planning; ERP; enterprise management software | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-SFW-008-V1` | Human Resource Management Systems | human resource management systems; human resource management system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-SFW-009-V1` | Accounting and Finance Software | accounting and finance software; accounting & finance software; accounting and finance application | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-SFW-010-V1` | Document Management Systems | document management systems; document management system | `ORG-SOFTWARE` | `EX-BROAD` |
-| `KW-TEC-SFW-011-V1` | Workflow and Automation Platforms | workflow and automation platforms; workflow & automation platforms; workflow and automation platform | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-TEC-SFW-011-V1` | Workflow and Automation Platforms | workflow and automation platforms; workflow & automation platforms | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-SFW-012-V1` | Project Management Software | project management software; project management application | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-SFW-013-V1` | Collaboration Software | collaboration software; collaboration application | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-SFW-014-V1` | Vertical Industry Software | vertical industry software; vertical industry application | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-TEC-SFW-015-V1` | Developer Tools | developer tools; developer tool | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-TEC-SFW-016-V1` | Low-Code and No-Code Platforms | low-code and no-code platforms; low-code & no-code platforms; low-code and no-code platform | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-TEC-SFW-015-V1` | Developer Tools | developer tools; developer tool | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-TEC-SFW-016-V1` | Low-Code and No-Code Platforms | low-code and no-code platforms; low-code & no-code platforms | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-DAT-001-V1` | Business Intelligence | business intelligence | `ORG-GENERIC` | `EX-AI` |
 | `KW-TEC-DAT-002-V1` | Data Warehousing | data warehousing; data warehouse | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-DAT-003-V1` | Data Engineering | data engineering | `ORG-GENERIC` | `EX-PHRASE` |
@@ -43,7 +45,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-TEC-DAT-010-V1` | Natural Language Processing | natural language processing | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-DAT-011-V1` | Computer Vision | computer vision | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-DAT-012-V1` | Decision Support Systems | decision support systems; decision support system | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-TEC-DAT-013-V1` | Search and Knowledge Systems | search and knowledge systems; search & knowledge systems; search and knowledge system | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-TEC-DAT-013-V1` | Search and Knowledge Systems | search and knowledge systems; search & knowledge systems | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-DAT-014-V1` | Geospatial Analytics | geospatial analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-DAT-015-V1` | Data Quality Tools | data quality tools; data quality tool | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-DAT-016-V1` | Database Products | database products; database product | `ORG-PRODUCT` | `EX-BROAD` |
@@ -63,7 +65,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-TEC-CLD-014-V1` | Virtualization | virtualization | `ORG-GENERIC` | `EX-BROAD` |
 | `KW-TEC-CLD-015-V1` | Container Platforms | container platforms; container platform | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-CLD-016-V1` | Edge Computing | edge computing | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-TEC-CLD-017-V1` | Domain and DNS Services | domain and dns services; domain & dns services; domain and dns service; domain and dns providers | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-TEC-CLD-017-V1` | Domain and DNS Services | domain and dns services; domain & dns services; domain and dns providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-TEC-SEC-001-V1` | Managed Security Services | managed security services; managed security service; managed security providers | `ORG-SERVICE` | `EX-SECURITY` |
 | `KW-TEC-SEC-002-V1` | Security Operations Centres | security operations centres; security operations centers; security operations centre | `ORG-INSTITUTION` | `EX-SECURITY` |
 | `KW-TEC-SEC-003-V1` | Identity and Access Management | identity and access management; identity & access management | `ORG-SERVICE` | `EX-PHRASE` |
@@ -96,4 +98,17 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-TEC-TEL-014-V1` | Managed Network Services | managed network services; managed network service; managed network providers | `ORG-SERVICE` | `EX-NETWORK` |
 | `KW-TEC-TEL-015-V1` | IoT Connectivity | iot connectivity | `ORG-GENERIC` | `EX-PHRASE` |
 
-A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
+## Locked interpretation
+
+1. Every canonical domain retains a separate keyword profile and version.
+2. Domain terms identify the market or subject area; activity terms remain separately governed.
+3. Organization cues improve precision but are not mandatory when authoritative classification evidence exists.
+4. Broad or ambiguous phrases require sector, organization, activity, source, entity, proximity, or co-occurrence context.
+5. Service-gap, buying-intent, problem, competitor, replacement, integration, and existing-solution terms require an active provider offering and separate service-specific profiles.
+6. Urdu, Roman Urdu, and other locale aliases require reviewed locale packs and gold-set validation before activation.
+7. A matched phrase is an evidence candidate, not a domain, activity, opportunity, authority, consent, or lead decision.
+8. Completed Harvest Jobs preserve the exact keyword-profile and control-profile versions used when they ran.
+
+## Delivery boundary
+
+This Markdown registry is a controlled documentation dataset. It does not implement database records, APIs, search indexes, embeddings, source queries, classifiers, evidence scoring, opportunity scoring, contact discovery, outreach, or releases.
