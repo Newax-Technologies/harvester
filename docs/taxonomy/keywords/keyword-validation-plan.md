@@ -116,29 +116,27 @@ Required controls:
 - Holdout adjudication must not be performed solely by the person who tuned the profile.
 - Reviewer identity, role, decision, date and rationale must be retained.
 
-## 6. Validation lifecycle
+## 6. Validation lifecycle and execution stages
 
-The controlled lifecycle is:
+The canonical profile lifecycle remains:
 
 ```text
 DRAFT
-→ STRUCTURAL_VALIDATION
 → LEXICAL_REVIEW
 → DOMAIN_REVIEW
 → SOURCE_REVIEW
 → LOCALE_REVIEW where applicable
-→ COMPLIANCE_REVIEW where applicable
+→ COMPLIANCE_REVIEW where required
 → READY_FOR_TEST
-→ BENCHMARK_VALIDATION
-→ REGRESSION_VALIDATION
-→ SHADOW_NO_DECISION
-→ APPROVED_FOR_STAGE
-→ ACTIVE_IN_STAGE
-→ POST_ACTIVATION_REVIEW
-→ SUPERSEDED, REVOKED or ARCHIVED
+→ APPROVED
+→ ACTIVE
+→ SUPERSEDED or REVOKED
+→ ARCHIVED
 ```
 
-A lifecycle state may advance only when the required validation record identifies the exact profile version, validator version, benchmark version and result.
+Structural, referential, benchmark, regression, shadow, activation and post-activation checks are validation runs and gate records attached to the profile version. They do not create a competing profile lifecycle.
+
+A lifecycle state may advance only when the required validation records identify the exact profile version, validator version, benchmark version and result. `READY_FOR_TEST` requires the applicable pre-test gates. `APPROVED` requires benchmark, regression, policy and reviewer gates. `ACTIVE` additionally requires the approved rollout-stage and activation evidence.
 
 ## 7. Gate 0 — Inventory and source-integrity validation
 
