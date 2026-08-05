@@ -1,15 +1,32 @@
 # Harvester Keyword Taxonomy Index
 
 Status: **Proposed**  
-Version: **2.0**  
+Version: **2.1**  
 Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
 This directory defines the controlled keyword, semantic, source, evidence, qualification, and contact-preparation layer for the Harvester sector, domain, activity, provider-offering, and opportunity model.
 
-Version 2.0 preserves the 1,586 separate domain profiles, 519 separate activity profiles, organization cues, exclusions, lead-generation signals, role groups, contact routes, source rules, and sector overlays. It adds the ultimate-depth control surface required for precision tiers, co-occurrence, proximity, semantic expansion, entity and classification crosswalks, offering-specific problem and intent profiles, source-specific query templates, Pakistan locale packs, benchmark gold sets, measurable activation gates, a complete validation execution plan, and an explicit completion matrix.
+Version 2.1 preserves the 1,586 separate domain profiles, 519 separate activity profiles, organization cues, exclusions, lead-generation signals, role groups, contact routes, source rules, sector overlays, precision tiers, semantic expansion, locale controls, benchmark standards and validation gates. It adds one authoritative documentation sequence and one complete sector connection matrix so every registry has an explicit upstream and downstream path.
 
 These files are documentation datasets and standards. They are not production search configuration.
+
+## Start here
+
+Read the keyword documentation in this order:
+
+1. [Keyword Documentation Sequence and Connection Plan](00-keyword-sequence-and-connections.md)
+   - Defines authority, reading order, runtime gates, object ownership, version snapshots, implementation stages and connection acceptance criteria.
+2. [Sector Keyword Connection Matrix](01-sector-keyword-connection-matrix.md)
+   - Connects all 16 sector domain registries to their activity-applicability sources and domain keyword registries.
+3. [Keyword Profile Implementation Plan](keyword-profile-implementation-plan.md)
+   - Defines runtime objects, APIs, interface behavior, delivery slices and verification requirements.
+4. [Complete Keyword Validation Plan](keyword-validation-plan.md)
+   - Defines structural, semantic, source, locale, collision, gold-set, regression, rollout and activation gates.
+5. [Ultimate Keyword Depth Coverage Matrix](ultimate-depth-coverage-matrix.md)
+   - Records what is defined, partial, dependent on authoritative data or still unimplemented.
+
+The sequence documents connect existing authorities. They do not create a second taxonomy, a second opportunity model or a second roadmap.
 
 ## Coverage
 
@@ -93,6 +110,8 @@ Keywords discover evidence. They never independently prove a domain, activity, c
 
 ## Sector-specific domain registries
 
+The complete cross-reference to each sector's domain registry and activity-applicability source is maintained in the [Sector Keyword Connection Matrix](01-sector-keyword-connection-matrix.md).
+
 | Sector code | Broad sector | Domains | Registry |
 | --- | --- | ---: | --- |
 | `BS-001` | Healthcare | 142 | [Part 1](healthcare-domain-keywords-part-1.md), [Part 2](healthcare-domain-keywords-part-2.md) |
@@ -152,12 +171,14 @@ Every future match must preserve the originating profile and version, matched te
 
 ## Accurate status
 
-The domain, activity, signal, role, source, exclusion, and v2.0 depth standards are **defined and repository-integrated documentation** after merge.
+The domain, activity, signal, role, source, exclusion, sequence and v2.1 depth standards are **defined and repository-integrated documentation** after merge.
 
 They are not benchmark-tested, runtime-implemented, active, production-verified, or complete. Provider-offering profiles, authoritative classification mappings, reviewed locale coverage for every domain, profile-level gold sets, storage, APIs, query preview, source execution, classifiers, scoring, approval workflows, and controlled activation remain future work.
 
 ## Implementation planning
 
+- [Keyword Documentation Sequence and Connection Plan](00-keyword-sequence-and-connections.md)
+- [Sector Keyword Connection Matrix](01-sector-keyword-connection-matrix.md)
 - [Keyword Profile Implementation Plan](keyword-profile-implementation-plan.md)
 - [Keyword and Evidence Profile Integration Addendum](../../architecture/keyword-evidence-profile-integration-addendum.md)
 - [Keyword Profile Delivery Addendum](../../delivery/keyword-profile-delivery-addendum.md)
