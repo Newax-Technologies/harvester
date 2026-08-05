@@ -54,6 +54,10 @@ Keywords discover evidence. They never independently prove a domain, activity, c
 
 ## Ultimate-depth standards
 
+- [Deep Keyword Pack Registry](deep-keyword-pack-registry.md)
+  - Supplies reusable organization, commercial-activity, facility, process, event, intent, problem, technology, role, contact, negative and contradiction vocabulary packs.
+- [Sector and Domain-Family Vocabulary Registry](sector-domain-family-vocabulary.md)
+  - Adds reviewed candidate vocabulary across all 16 sectors and their major domain families without collapsing separate domain identities.
 - [Ultimate Keyword Profile Standard](ultimate-keyword-profile-standard.md)
   - Defines 32 independently versioned profile dimensions, keyword types, precision tiers, match modes, proximity, co-occurrence, weighting, source policy, sensitive-sector review, lifecycle, and approval gates.
 - [Keyword Expansion and Composition Engine](keyword-expansion-and-composition-engine.md)
