@@ -1,19 +1,22 @@
 # Harvester Real Estate Domain Keyword Registry
 
-
 Status: **Proposed**  
-Version: **1.0**  
-Date: **3 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-This file defines separate discovery keyword profiles for all **88** canonical domains in `BS-004 Real Estate`.
+Review boundary: **Controlled discovery baseline. Human sector review, source-level validation, locale review, benchmark testing, and approved activation are required before runtime use.**
+
+This file defines separate discovery keyword profiles for the **88** canonical domains in the Real Estate sector.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
+
+Keywords identify evidence candidates. They do not independently prove that an organization belongs to a domain, performs an activity, needs a provider service, has buying intent, presents a service gap, or qualifies as a lead.
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
 | `KW-REA-RES-001-V1` | Single-Family Housing | single-family housing | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-RES-002-V1` | Apartments and Flats | apartments and flats; apartments & flats; apartments and flat | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-REA-RES-002-V1` | Apartments and Flats | apartments and flats; apartments & flats | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-RES-003-V1` | Condominiums | condominiums; condominium | `ORG-GENERIC` | `EX-BROAD` |
 | `KW-REA-RES-004-V1` | Gated Communities | gated communities; gated community | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-RES-005-V1` | Housing Societies | housing societies; housing society | `ORG-GENERIC` | `EX-PHRASE` |
@@ -26,7 +29,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-REA-RES-012-V1` | Mixed Residential Communities | mixed residential communities; mixed residential community | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-001-V1` | Office Buildings | office buildings; office building | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-002-V1` | Retail Property | retail property | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-COM-003-V1` | Shopping Centres and Malls | shopping centres and malls; shopping centres & malls; shopping centers and malls; shopping centres and mall | `ORG-INSTITUTION` | `EX-PHRASE` |
+| `KW-REA-COM-003-V1` | Shopping Centres and Malls | shopping centres and malls; shopping centres & malls; shopping centers and malls | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-REA-COM-004-V1` | Hospitality Property | hospitality property; accommodation property | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-005-V1` | Healthcare Property | healthcare property; health care property; medical property | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-006-V1` | Education Property | education property; learning property | `ORG-GENERIC` | `EX-PHRASE` |
@@ -37,14 +40,14 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-REA-COM-011-V1` | Industrial Estates | industrial estates; industrial estate | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-COM-012-V1` | Special Economic Zones | special economic zones; special economic zone | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-IND-001-V1` | Industrial Property | industrial property | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-IND-002-V1` | Factories and Production Sites | factories and production sites; factories & production sites; factories and production site | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-REA-IND-002-V1` | Factories and Production Sites | factories and production sites; factories & production sites | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-IND-003-V1` | Agricultural Land | agricultural land | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-IND-004-V1` | Development Land | development land | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-IND-005-V1` | Plots and Subdivisions | plots and subdivisions; plots & subdivisions; plots and subdivision | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-REA-IND-005-V1` | Plots and Subdivisions | plots and subdivisions; plots & subdivisions | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-IND-006-V1` | Mining and Resource Land | mining and resource land; mining & resource land | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-IND-007-V1` | Storage Yards | storage yards; storage yard | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-IND-008-V1` | Cold-Storage Property | cold-storage property | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-IND-009-V1` | Utility and Energy Sites | utility and energy sites; utility & energy sites; utility and energy site; utility and power sites | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-REA-IND-009-V1` | Utility and Energy Sites | utility and energy sites; utility & energy sites; utility and power sites | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-IND-010-V1` | Telecommunications Sites | telecommunications sites; telecommunications site | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-DEV-001-V1` | Residential Development | residential development | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-DEV-002-V1` | Commercial Development | commercial development | `ORG-GENERIC` | `EX-PHRASE` |
@@ -68,7 +71,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-REA-TRN-008-V1` | Real Estate Advisory | real estate advisory; property advisory | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-TRN-009-V1` | Investment Advisory | investment advisory | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-REA-TRN-010-V1` | Market Research | market research | `ORG-SERVICE` | `EX-MARKET` |
-| `KW-REA-TRN-011-V1` | Title and Ownership Services | title and ownership services; title & ownership services; title and ownership service; title and ownership providers | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-REA-TRN-011-V1` | Title and Ownership Services | title and ownership services; title & ownership services; title and ownership providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-REA-TRN-012-V1` | Property Auction Services | property auction services; property auction service; property auction providers | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-TRN-013-V1` | Mortgage and Financing Brokerage | mortgage and financing brokerage; mortgage & financing brokerage | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-REA-TRN-014-V1` | Real Estate Legal Support | real estate legal support; property legal support | `ORG-GENERIC` | `EX-PHRASE` |
@@ -80,7 +83,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-REA-MGT-006-V1` | Maintenance Management | maintenance management | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-REA-MGT-007-V1` | Service-Charge Management | service-charge management | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-REA-MGT-008-V1` | Rent Collection | rent collection | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-REA-MGT-009-V1` | Owner and Investor Portals | owner and investor portals; owner & investor portals; owner and investor portal | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-REA-MGT-009-V1` | Owner and Investor Portals | owner and investor portals; owner & investor portals | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-REA-MGT-010-V1` | Tenant Portals | tenant portals; tenant portal | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-REA-MGT-011-V1` | Visitor Management | visitor management | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-REA-MGT-012-V1` | Parking Management | parking management | `ORG-SERVICE` | `EX-BROAD` |
@@ -97,8 +100,21 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-REA-DIG-008-V1` | Virtual Tour Platforms | virtual tour platforms; virtual tour platform | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-REA-DIG-009-V1` | Property Analytics | property analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-REA-DIG-010-V1` | Building Information Platforms | building information platforms; building information platform | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-REA-DIG-011-V1` | Digital Title and Registry Systems | digital title and registry systems; digital title & registry systems; digital title and registry system | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-REA-DIG-011-V1` | Digital Title and Registry Systems | digital title and registry systems; digital title & registry systems | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-REA-DIG-012-V1` | Real Estate Document Management | real estate document management; property document management | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-REA-DIG-013-V1` | Smart Property Systems | smart property systems; smart property system | `ORG-SOFTWARE` | `EX-PHRASE` |
 
-A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
+## Locked interpretation
+
+1. Every canonical domain retains a separate keyword profile and version.
+2. Domain terms identify the market or subject area; activity terms remain separately governed.
+3. Organization cues improve precision but are not mandatory when authoritative classification evidence exists.
+4. Broad or ambiguous phrases require sector, organization, activity, source, entity, proximity, or co-occurrence context.
+5. Service-gap, buying-intent, problem, competitor, replacement, integration, and existing-solution terms require an active provider offering and separate service-specific profiles.
+6. Urdu, Roman Urdu, and other locale aliases require reviewed locale packs and gold-set validation before activation.
+7. A matched phrase is an evidence candidate, not a domain, activity, opportunity, authority, consent, or lead decision.
+8. Completed Harvest Jobs preserve the exact keyword-profile and control-profile versions used when they ran.
+
+## Delivery boundary
+
+This Markdown registry is a controlled documentation dataset. It does not implement database records, APIs, search indexes, embeddings, source queries, classifiers, evidence scoring, opportunity scoring, contact discovery, outreach, or releases.
