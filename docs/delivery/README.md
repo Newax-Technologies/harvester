@@ -1,23 +1,76 @@
 # Harvester Delivery Plans
 
-This directory contains implementation-sequencing and release-verification plans that remain subordinate to the authoritative product roadmap, operating model, services model, taxonomy and source models.
+Status: **Authoritative delivery index**  
+Version: **2.0**  
+Date: **6 August 2026**
 
-## Frontend
+Delivery plans translate the 64-module roadmap and normative architecture into implementation slices. They remain subordinate to `docs/ROADMAP.md` and the authority order in `docs/README.md`.
+
+## 1. Primary implementation sequence
+
+- [Agency Intelligence Implementation Sequence](agency-intelligence-implementation-sequence.md)
+  - The dependency-ordered delivery authority for the Agency Intelligence re-baseline.
+  - Starts with known data-integrity and restricted-source corrections.
+  - Continues through tenancy, security, source governance, provider and market configuration, Harvest Job orchestration, universal evidence and identity, sector packs, Opportunity Scoring Model v3, AI governance, agency intelligence, activation, and productization.
+  - Maps every slice back to the existing 64 modules instead of inventing another module count.
+
+## 2. Frontend delivery
 
 - [Frontend Configuration and Responsive UI Delivery Plan](frontend-configuration-and-responsive-ui-delivery-plan.md)
-  - Defines the complete A-to-Z configuration journey.
-  - Completes frontend coverage for existing backend operational domains.
-  - Defines the shared frontend architecture, responsive correction, accessibility, testing, security and rollout requirements.
-  - Provides a 30-PR dependency-ordered implementation sequence.
+  - Defines the complete configuration journey and full frontend coverage for current and planned operational domains.
+  - Defines shared frontend architecture, responsive correction, accessibility, testing, security, and rollout requirements.
+  - Its pull-request sequence must now follow the foundation, tenancy, source-governance, provider, market-definition, sector-pack, and universal-entity contracts established by the primary implementation sequence.
 
-## Keyword runtime
+## 3. Keyword and taxonomy runtime
 
 - [Keyword Profile Runtime Delivery Plan](keyword-profile-runtime-delivery-plan.md)
-  - Defines the runtime schema, APIs, lifecycle, frontend workspaces, validation, query preview, evidence, quality and rollout plan for keyword profiles.
+  - Defines runtime schema, APIs, lifecycle, validation, query preview, evidence, quality, locale, and frontend workspaces for keyword profiles.
+  - Keywords remain evidence-discovery inputs and cannot independently qualify or score a lead.
 
 - [Keyword Profile Delivery Addendum](keyword-profile-delivery-addendum.md)
-  - Integrates keyword-profile delivery requirements with the wider Harvester architecture and roadmap.
+  - Connects keyword-profile delivery to the roadmap, evidence model, source suitability, sector packs, and release gates.
 
-## Status boundary
+## 4. Delivery precedence
 
-Delivery plans are planning and sequencing artifacts. They do not independently prove that schema, APIs, frontend routes, tests, migrations, deployment or runtime behavior have been implemented.
+When plans overlap:
+
+1. correct known data-integrity and restricted-source issues;
+2. establish tenant, authentication, authorization, credential, and policy boundaries;
+3. implement provider, offering, profile, and market contracts;
+4. implement source orchestration and evidence contracts;
+5. implement sector, intelligence, AI, frontend, and activation work against those stable boundaries.
+
+A lower plan may add detail but must not schedule a dependent feature before its required foundation.
+
+## 5. Status boundary
+
+Delivery plans are planning and sequencing artifacts. They do not independently prove that schemas, migrations, APIs, routes, workers, interfaces, deployments, or runtime behavior exist.
+
+A slice becomes **Current** only when:
+
+- the intended code and migrations are integrated;
+- applicable format, lint, type, test, build, security, migration, accessibility, performance, and workflow checks pass;
+- the real workflow is verified at the exact latest commit;
+- unresolved internal and external integration statuses are reported honestly;
+- owning documentation status is updated.
+
+## 6. Pull-request requirements
+
+Every implementation PR states:
+
+```text
+Owning module or modules
+Affected contracts
+Migration impact
+Tenant and workspace impact
+Source-policy impact
+Sector-pack impact
+AI impact
+Frontend impact
+Destination impact
+Compatibility and rollback
+Checks executed
+Exact head SHA
+```
+
+Stacked PRs declare and preserve their dependency order. Stale branches are rebased or reimplemented rather than merged by optimism.
