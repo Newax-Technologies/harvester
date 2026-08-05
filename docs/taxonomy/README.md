@@ -1,8 +1,8 @@
 # Harvester Sector, Domain, Activity and Keyword Taxonomy Index
 
 Status: **Proposed**  
-Version: **1.1**  
-Date: **4 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
 This directory contains the controlled broad-sector, product-or-service-domain, business-activity, discovery-keyword, lead-signal, role-cue, source-suitability, and evidence-governance registries used by the Harvester Services and Opportunity Model.
@@ -29,6 +29,8 @@ Broad Sector
 - [Broad Sector Registry and Selection Framework](broad-sector-registry.md)
 - [Canonical Activity Registry and Domain Mappings](activity-registry.md)
 - [Keyword Taxonomy and Lead-Signal Index](keywords/README.md)
+- [Keyword Documentation Sequence and Connection Plan](keywords/00-keyword-sequence-and-connections.md)
+- [Sector Keyword Connection Matrix](keywords/01-sector-keyword-connection-matrix.md)
 - [Harvester Services and Opportunity Model](../SERVICES.md)
 - [Harvester Intelligence Operating Model](../architecture/harvester-intelligence-operating-model.md)
 - [Provider Portfolio and Lead-Generation Profile Model](../architecture/provider-portfolio-and-lead-generation-profile-model.md)
@@ -59,6 +61,24 @@ The activity library is shared for stable naming and reuse. Applicability remain
 The keyword library follows the same rule. Domain and activity terms are reusable identities, but every domain retains its own keyword profile, organization cues, exclusions, and version history.
 
 Lead-generation signals are reusable commercial-event and operational-evidence identities. Their relevance, weights, evidence requirements, and disqualifiers remain specific to the provider offering and lead-generation profile.
+
+## Required reading sequence
+
+Use the [Keyword Documentation Sequence and Connection Plan](keywords/00-keyword-sequence-and-connections.md) for the authoritative reading and implementation order.
+
+Use the [Sector Keyword Connection Matrix](keywords/01-sector-keyword-connection-matrix.md) to resolve every sector to:
+
+```text
+sector domain registry
+→ domain-to-activity applicability
+→ sector domain keyword registry
+→ shared activity keywords
+→ offering-specific signals
+→ source and query controls
+→ evidence and validation controls
+```
+
+The connection matrix is navigation and dependency control. It does not replace the underlying registries.
 
 ## Sector-specific domain registries
 
@@ -123,9 +143,13 @@ A match must retain its match mode:
 ```text
 EXACT
 PHRASE
-SEMANTIC
-ENTITY
+TOKEN_SET
+PROXIMITY
 REGEX
+ENTITY
+CLASSIFICATION_CODE
+SEMANTIC
+STRUCTURED_FIELD
 ```
 
 ## Locked rules
@@ -147,10 +171,11 @@ REGEX
 15. Raw keyword counts never become a lead score.
 16. Overlapping sectors and domains must not duplicate organizations, evidence, opportunities, scores, exports, or outreach packages.
 17. Completed harvest jobs preserve the taxonomy, mapping, offering, keyword, signal, role, source, evidence, qualification, and scoring versions used when they ran.
+18. Every sector-to-domain-to-activity-to-keyword connection must resolve through the authoritative matrix rather than undocumented file-name assumptions.
 
 ## Delivery boundary
 
-The broad-sector, domain, activity, keyword, signal, role, source, and control-profile datasets are **defined and repository-integrated documentation**.
+The broad-sector, domain, activity, keyword, signal, role, source, control-profile, sequence and connection datasets are **defined and repository-integrated documentation** after merge.
 
 They do not implement database records, migrations, APIs, interface controls, query execution, search indexes, activity detection, provider-service catalogues, evidence rules, scoring behavior, contact eligibility, outreach, or releases.
 
@@ -158,8 +183,12 @@ The taxonomy documentation is strengthened for the current 16-sector registry, b
 
 ## Runtime planning additions
 
-The taxonomy now links the additive plans required to turn the existing registries into governed runtime configuration:
+The taxonomy links the additive plans required to turn the existing registries into governed runtime configuration:
 
+- [Keyword Documentation Sequence and Connection Plan](keywords/00-keyword-sequence-and-connections.md)
+  - Authority, reading order, runtime gates, object ownership, version snapshots, implementation stages and connection acceptance criteria.
+- [Sector Keyword Connection Matrix](keywords/01-sector-keyword-connection-matrix.md)
+  - Exact sector-to-domain-registry, activity-applicability and keyword-registry links for all 16 sectors.
 - [Keyword Profile Implementation Plan](keywords/keyword-profile-implementation-plan.md)
   - User configuration, profile types, data objects, query preview, evidence capture, locale support, versioning, APIs, implementation slices, safeguards, and acceptance criteria.
 - [Keyword and Evidence Profile Integration Addendum](../architecture/keyword-evidence-profile-integration-addendum.md)
