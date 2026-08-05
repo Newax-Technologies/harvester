@@ -7,7 +7,7 @@ Implementation status: **Not implemented**
 
 This directory defines the controlled keyword, semantic, source, evidence, qualification, and contact-preparation layer for the Harvester sector, domain, activity, provider-offering, and opportunity model.
 
-Version 2.1 preserves the 1,586 separate domain profiles, 519 separate activity profiles, organization cues, exclusions, lead-generation signals, role groups, contact routes, source rules, sector overlays, precision tiers, semantic expansion, locale controls, benchmark standards and validation gates. It adds one authoritative documentation sequence and one complete sector connection matrix so every registry has an explicit upstream and downstream path.
+Version 2.1 preserves the 1,586 separate domain profiles, 519 separate activity profiles, organization cues, exclusions, lead-generation signals, role groups, contact routes, source rules, sector overlays, precision tiers, semantic expansion, locale controls, benchmark standards and validation gates. It adds one authoritative application sequence and one complete sector connection matrix so every registry has an explicit upstream and downstream path.
 
 These files are documentation datasets and standards. They are not production search configuration.
 
@@ -15,15 +15,17 @@ These files are documentation datasets and standards. They are not production se
 
 Read the keyword documentation in this order:
 
-1. [Keyword Documentation Sequence and Connection Plan](00-keyword-sequence-and-connections.md)
-   - Defines authority, reading order, runtime gates, object ownership, version snapshots, implementation stages and connection acceptance criteria.
+1. [Keyword Plan Application Map](keyword-plan-application-map.md)
+   - Defines the authoritative reading and implementation sequence, additive boundaries, per-sector application rules, required composition, version connections and acceptance criteria.
 2. [Sector Keyword Connection Matrix](01-sector-keyword-connection-matrix.md)
    - Connects all 16 sector domain registries to their activity-applicability sources and domain keyword registries.
-3. [Keyword Profile Implementation Plan](keyword-profile-implementation-plan.md)
+3. [Keyword Profile Development Plan](keyword-profile-development-plan.md)
+   - Defines the governed keyword layers, query composition, evidence behavior and profile-development approach.
+4. [Keyword Profile Implementation Plan](keyword-profile-implementation-plan.md)
    - Defines runtime objects, APIs, interface behavior, delivery slices and verification requirements.
-4. [Complete Keyword Validation Plan](keyword-validation-plan.md)
+5. [Complete Keyword Validation Plan](keyword-validation-plan.md)
    - Defines structural, semantic, source, locale, collision, gold-set, regression, rollout and activation gates.
-5. [Ultimate Keyword Depth Coverage Matrix](ultimate-depth-coverage-matrix.md)
+6. [Ultimate Keyword Depth Coverage Matrix](ultimate-depth-coverage-matrix.md)
    - Records what is defined, partial, dependent on authoritative data or still unimplemented.
 
 The sequence documents connect existing authorities. They do not create a second taxonomy, a second opportunity model or a second roadmap.
@@ -177,8 +179,9 @@ They are not benchmark-tested, runtime-implemented, active, production-verified,
 
 ## Implementation planning
 
-- [Keyword Documentation Sequence and Connection Plan](00-keyword-sequence-and-connections.md)
+- [Keyword Plan Application Map](keyword-plan-application-map.md)
 - [Sector Keyword Connection Matrix](01-sector-keyword-connection-matrix.md)
+- [Keyword Profile Development Plan](keyword-profile-development-plan.md)
 - [Keyword Profile Implementation Plan](keyword-profile-implementation-plan.md)
 - [Keyword and Evidence Profile Integration Addendum](../../architecture/keyword-evidence-profile-integration-addendum.md)
 - [Keyword Profile Delivery Addendum](../../delivery/keyword-profile-delivery-addendum.md)
