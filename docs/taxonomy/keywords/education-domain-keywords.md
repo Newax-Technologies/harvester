@@ -1,14 +1,17 @@
 # Harvester Education Domain Keyword Registry
 
-
 Status: **Proposed**  
-Version: **1.0**  
-Date: **3 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-This file defines separate discovery keyword profiles for all **95** canonical domains in `BS-002 Education`.
+Review boundary: **Controlled discovery baseline. Human sector review, source-level validation, locale review, benchmark testing, and approved activation are required before runtime use.**
+
+This file defines separate discovery keyword profiles for the **95** canonical domains in the Education sector.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
+
+Keywords identify evidence candidates. They do not independently prove that an organization belongs to a domain, performs an activity, needs a provider service, has buying intent, presents a service gap, or qualifies as a lead.
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
@@ -20,11 +23,11 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-EDU-INS-006-V1` | Boarding Schools | boarding schools; boarding school | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-EDU-INS-007-V1` | Special Education Schools | special education schools; special education school; special learning schools | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-EDU-INS-008-V1` | Religious Education Institutions | religious education institutions; religious education institution; religious learning institutions | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-EDU-INS-009-V1` | Technical and Vocational Institutes | technical and vocational institutes; technical & vocational institutes; technical and vocational institute | `ORG-INSTITUTION` | `EX-PHRASE` |
+| `KW-EDU-INS-009-V1` | Technical and Vocational Institutes | technical and vocational institutes; technical & vocational institutes | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-EDU-INS-010-V1` | Community Colleges | community colleges; community college | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-EDU-INS-011-V1` | Colleges | colleges; college | `ORG-INSTITUTION` | `EX-BROAD` |
 | `KW-EDU-INS-012-V1` | Universities | universities; university | `ORG-INSTITUTION` | `EX-BROAD` |
-| `KW-EDU-INS-013-V1` | Graduate and Postgraduate Institutions | graduate and postgraduate institutions; graduate & postgraduate institutions; graduate and postgraduate institution | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-EDU-INS-013-V1` | Graduate and Postgraduate Institutions | graduate and postgraduate institutions; graduate & postgraduate institutions | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-EDU-INS-014-V1` | Medical Colleges | medical colleges; medical college | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-EDU-INS-015-V1` | Dental Colleges | dental colleges; dental college | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-EDU-INS-016-V1` | Nursing Colleges | nursing colleges; nursing college | `ORG-INSTITUTION` | `EX-PHRASE` |
@@ -62,7 +65,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-EDU-DIG-012-V1` | Learning Experience Platforms | learning experience platforms; learning experience platform | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-EDU-DIG-013-V1` | Adaptive Learning Systems | adaptive learning systems; adaptive learning system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-EDU-DIG-014-V1` | Education Analytics Systems | education analytics systems; education analytics system; learning analytics systems | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-EDU-DIG-015-V1` | Parent and Student Portals | parent and student portals; parent & student portals; parent and student portal | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-EDU-DIG-015-V1` | Parent and Student Portals | parent and student portals; parent & student portals | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-EDU-DIG-016-V1` | Digital Credentialing Platforms | digital credentialing platforms; digital credentialing platform | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-EDU-DIG-017-V1` | Academic Scheduling Systems | academic scheduling systems; academic scheduling system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-EDU-DIG-018-V1` | Library Management Systems | library management systems; library management system | `ORG-SOFTWARE` | `EX-BROAD` |
@@ -74,7 +77,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-EDU-CON-006-V1` | Question Banks | question banks; question bank | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-EDU-CON-007-V1` | Curriculum Development | curriculum development | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-EDU-CON-008-V1` | Instructional Design | instructional design | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-EDU-CON-009-V1` | Learning Materials and Teaching Aids | learning materials and teaching aids; learning materials & teaching aids; learning materials and teaching aid | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-EDU-CON-009-V1` | Learning Materials and Teaching Aids | learning materials and teaching aids; learning materials & teaching aids | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-EDU-CON-010-V1` | Children's Educational Content | children's educational content; children's learning content | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-EDU-CON-011-V1` | Professional Reference Content | professional reference content | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-EDU-CON-012-V1` | Open Educational Resources | open educational resources; open educational resource; open learning resources | `ORG-GENERIC` | `EX-PHRASE` |
@@ -83,18 +86,18 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-EDU-RES-002-V1` | Think Tanks | think tanks; think tank | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-EDU-RES-003-V1` | Policy Research Centres | policy research centres; policy research centers; policy research centre | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-RES-004-V1` | University Research Centres | university research centres; university research centers; university research centre | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-EDU-RES-005-V1` | Laboratories and Innovation Centres | laboratories and innovation centres; laboratories & innovation centres; laboratories and innovation centers; laboratories and innovation centre; labs and innovation centres | `ORG-INSTITUTION` | `EX-PHRASE` |
+| `KW-EDU-RES-005-V1` | Laboratories and Innovation Centres | laboratories and innovation centres; laboratories & innovation centres; laboratories and innovation centers; labs and innovation centres | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-EDU-RES-006-V1` | Academic Journals | academic journals; academic journal | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-EDU-RES-007-V1` | Research Data Services | research data services; research data service; research data providers | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-EDU-RES-008-V1` | Research Ethics and Review Services | research ethics and review services; research ethics & review services; research ethics and review service; research ethics and review providers | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-EDU-RES-008-V1` | Research Ethics and Review Services | research ethics and review services; research ethics & review services; research ethics and review providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-RES-009-V1` | Grant Management Services | grant management services; grant management service; grant management providers | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-EDU-RES-010-V1` | Academic Conference Services | academic conference services; academic conference service; academic conference providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-RES-011-V1` | Knowledge Management Services | knowledge management services; knowledge management service; knowledge management providers | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-EDU-RES-012-V1` | Institutional Repositories | institutional repositories; institutional repository | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-EDU-SUP-001-V1` | Education Consultancy | education consultancy; learning consultancy | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-EDU-SUP-002-V1` | Admissions and Enrolment Services | admissions and enrolment services; admissions & enrolment services; admissions and enrolment service; admissions and enrolment providers | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-EDU-SUP-002-V1` | Admissions and Enrolment Services | admissions and enrolment services; admissions & enrolment services; admissions and enrolment providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-SUP-003-V1` | Student Recruitment Services | student recruitment services; student recruitment service; student recruitment providers | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-EDU-SUP-004-V1` | Scholarship and Financial-Aid Services | scholarship and financial-aid services; scholarship & financial-aid services; scholarship and financial-aid service; scholarship and financial-aid providers | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-EDU-SUP-004-V1` | Scholarship and Financial-Aid Services | scholarship and financial-aid services; scholarship & financial-aid services; scholarship and financial-aid providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-SUP-005-V1` | Education Verification Services | education verification services; education verification service; learning verification services; education verification providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-EDU-SUP-006-V1` | Accreditation Services | accreditation services; accreditation service; accreditation providers | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-EDU-SUP-007-V1` | Examination Boards | examination boards; examination board | `ORG-GENERIC` | `EX-PHRASE` |
@@ -108,4 +111,17 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-EDU-SUP-015-V1` | Alumni Management Services | alumni management services; alumni management service; alumni management providers | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-EDU-SUP-016-V1` | Career Services and Placement | career services and placement; career services & placement | `ORG-SERVICE` | `EX-PHRASE` |
 
-A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
+## Locked interpretation
+
+1. Every canonical domain retains a separate keyword profile and version.
+2. Domain terms identify the market or subject area; activity terms remain separately governed.
+3. Organization cues improve precision but are not mandatory when authoritative classification evidence exists.
+4. Broad or ambiguous phrases require sector, organization, activity, source, entity, proximity, or co-occurrence context.
+5. Service-gap, buying-intent, problem, competitor, replacement, integration, and existing-solution terms require an active provider offering and separate service-specific profiles.
+6. Urdu, Roman Urdu, and other locale aliases require reviewed locale packs and gold-set validation before activation.
+7. A matched phrase is an evidence candidate, not a domain, activity, opportunity, authority, consent, or lead decision.
+8. Completed Harvest Jobs preserve the exact keyword-profile and control-profile versions used when they ran.
+
+## Delivery boundary
+
+This Markdown registry is a controlled documentation dataset. It does not implement database records, APIs, search indexes, embeddings, source queries, classifiers, evidence scoring, opportunity scoring, contact discovery, outreach, or releases.
