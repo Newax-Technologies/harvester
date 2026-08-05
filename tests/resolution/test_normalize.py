@@ -1,9 +1,23 @@
 from lead_harvester.resolution.normalize import (
     country_to_iso2,
     normalize_city,
+    normalize_domain,
     normalize_social_profile,
     normalize_website,
 )
+
+
+def test_normalize_domain_truncates_to_255_chars():
+    # Correction regression test: every column normalize_domain's result
+    # is ever written to (RawSourceRecord/RawPageSnapshot.normalized_domain,
+    # CanonicalInstitution.domain) is String(255) -- an oversized netloc
+    # (e.g. embedded userinfo, an unreasonably long host) must not reach
+    # a flush-time "value too long" error that aborts an entire crawler
+    # run over one bad seed URL.
+    huge_host = "a" * 300 + ".example.edu"
+    result = normalize_domain(f"https://{huge_host}/path")
+    assert len(result) == 255
+    assert result == huge_host[:255]
 
 
 def test_normalize_city_lowercases_and_strips_punctuation():

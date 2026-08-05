@@ -33,6 +33,10 @@ from lead_harvester.models.resolution import (
 from lead_harvester.models.source import RawSourceRecord
 from lead_harvester.resolution.orchestrator import _has_other_pending_candidate
 from lead_harvester.schemas.resolution import ResolutionDecisionRequest
+from lead_harvester.services.lead_profile_service import (
+    link_page_snapshots_to_institution,
+    refresh_lead_profile,
+)
 
 _OUTCOME_BY_DECISION = {
     "merge": ReviewOutcome.MERGED,
@@ -319,6 +323,16 @@ async def _apply_decision(
     re-sync is needed (a "separate" decision touches no existing
     institution; a "merge"/"branch" against a brand-new record creates a
     fresh institution via merge_records that has never been synced).
+
+    Every institution-touching branch also refreshes its LeadProfile
+    before returning -- linking a record's snapshots (above) is necessary
+    but not sufficient: an institution that already had a LeadProfile
+    keeps its pre-decision, evidence-stale website_quality_tier/
+    service_gap_score until something recomputes it, and nothing else
+    does so as a direct consequence of this decision. Mirrors the same
+    "every branch that touches an institution refreshes before returning"
+    rule resolution/orchestrator.py::resolve_incoming_record already
+    follows for the automated path.
     """
     record = await session.get(RawSourceRecord, candidate.raw_record_id)
     matched_record = None
@@ -328,7 +342,15 @@ async def _apply_decision(
     if decision == "separate":
         # Confidently distinct: the incoming record gets its own institution.
         # The matched record (if any) is left untouched.
-        await merge_records(session, [record])
+        institution = await merge_records(session, [record])
+        # Correction: `record`'s RawPageSnapshot rows (if it's a WEBSITE
+        # record) were persisted back when it was first crawled, with
+        # institution_id still null since resolution hadn't run yet --
+        # nothing else ever revisits that link once this candidate leaves
+        # the pending-review queue, so it must happen here. See
+        # link_page_snapshots_to_institution's own docstring.
+        await link_page_snapshots_to_institution(session, record.id, institution.id)
+        await refresh_lead_profile(session, institution.id)
         return None
 
     if matched_record is None:
@@ -344,6 +366,8 @@ async def _apply_decision(
             if institution is None:
                 raise ResourceNotFoundError(str(candidate.target_canonical_id))
             await attach_record_to_institution(session, record, institution, target_branch=None)
+            await link_page_snapshots_to_institution(session, record.id, institution.id)
+            await refresh_lead_profile(session, institution.id)
             return institution.id if institution.lead_synced_at is not None else None
 
         # "merge"/"branch" both require something to attach to; without a
@@ -363,6 +387,12 @@ async def _apply_decision(
         await attach_record_to_institution(
             session, record, institution, target_branch=target_branch
         )
+        # Only `record`'s snapshots need linking here -- matched_record
+        # already belongs to `institution` (that's what existing_canonical_id
+        # means), so its own snapshots were already linked when IT was
+        # resolved.
+        await link_page_snapshots_to_institution(session, record.id, institution.id)
+        await refresh_lead_profile(session, institution.id)
         return institution.id if institution.lead_synced_at is not None else None
 
     # matched_record (B) is itself still unresolved -- unlike the
@@ -380,5 +410,13 @@ async def _apply_decision(
     if await _has_other_pending_candidate(session, matched_record.id, exclude_id=candidate.id):
         raise TargetHasPendingConflictError(str(matched_record.id))
 
-    await merge_records(session, [record, matched_record], same_location=same_location)
+    institution = await merge_records(
+        session, [record, matched_record], same_location=same_location
+    )
+    # Correction: both raw records are newly canonicalized by this merge --
+    # neither had an institution before, so both may have WEBSITE
+    # RawPageSnapshot rows still waiting to be linked.
+    await link_page_snapshots_to_institution(session, record.id, institution.id)
+    await link_page_snapshots_to_institution(session, matched_record.id, institution.id)
+    await refresh_lead_profile(session, institution.id)
     return None

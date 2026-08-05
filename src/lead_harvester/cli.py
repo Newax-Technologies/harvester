@@ -287,6 +287,27 @@ async def qualify_leads(args: argparse.Namespace) -> int:
     return 0
 
 
+async def recompute_lead_profiles(args: argparse.Namespace) -> int:
+    """
+    Re-runs refresh_lead_profile for every institution that already has a
+    LeadProfile row. The direct remediation for the RawPageSnapshot
+    institution-linkage correction (migration e2a4c6f8b0d2): every
+    website_quality_tier/service_gap_score computed before that fix must
+    be treated as untrusted, since it may have been scored against
+    another institution's crawled pages that happened to share a
+    SourceRun. This recomputes every LeadProfile field fresh, including
+    both of those, from the corrected institution_id-scoped query.
+    """
+    from .database import get_session
+    from .services.lead_profile_service import recompute_all_lead_profiles
+
+    async with get_session() as session:
+        count = await recompute_all_lead_profiles(session, limit=args.limit)
+
+    print(f"\n✓ Recomputed {count} lead profile(s).\n")
+    return 0
+
+
 async def select_daily_leads(args: argparse.Namespace) -> int:
     """
     Claim a batch of the highest-scoring eligible leads for a round of
@@ -703,6 +724,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--limit", type=int, default=200, help="Max unassessed institutions to process this run"
     )
 
+    # -- recompute-lead-profiles -----------------------------------------------
+    recompute = subparsers.add_parser(
+        "recompute-lead-profiles",
+        help=(
+            "Recompute every existing LeadProfile (incl. website_quality_tier/"
+            "service_gap_score) -- run after migration e2a4c6f8b0d2"
+        ),
+    )
+    recompute.add_argument(
+        "--limit", type=int, default=500, help="Max lead profiles to recompute this run"
+    )
+
     # -- select-daily-leads ---------------------------------------------------
     select_daily = subparsers.add_parser(
         "select-daily-leads",
@@ -978,6 +1011,7 @@ def main() -> None:
         "linkedin-run": lambda: sys.exit(asyncio.run(linkedin_run(args))),
         "linkedin-research": lambda: sys.exit(asyncio.run(linkedin_research(args))),
         "qualify-leads": lambda: sys.exit(asyncio.run(qualify_leads(args))),
+        "recompute-lead-profiles": lambda: sys.exit(asyncio.run(recompute_lead_profiles(args))),
         "select-daily-leads": lambda: sys.exit(asyncio.run(select_daily_leads(args))),
         "verify-data-quality": lambda: sys.exit(asyncio.run(verify_data_quality(args))),
         "suppress-contact": lambda: sys.exit(asyncio.run(suppress_contact(args))),
