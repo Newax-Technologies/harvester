@@ -142,7 +142,9 @@ async def refresh_lead_profile(
     # own docstring for why this is institution_id, not source_run_id.
     website_snapshots = await _get_website_snapshots(session, institution_id)
     website_quality_tier = compute_website_quality_tier(institution.website, website_snapshots)
-    service_gap_score = compute_service_gap_score(website_quality_tier, signals, size_tier)
+    service_gap_result = compute_service_gap_score(
+        institution.website, website_snapshots, website_quality_tier, signals, size_tier
+    )
 
     profile = (
         await session.scalars(
@@ -163,7 +165,9 @@ async def refresh_lead_profile(
     profile.operational_maturity_score = operational_maturity_score
     profile.icp_match_score = icp_match_score
     profile.website_quality_tier = website_quality_tier
-    profile.service_gap_score = service_gap_score
+    profile.service_gap_score = service_gap_result.score
+    profile.website_detection_status = service_gap_result.website_status
+    profile.lms_detection_status = service_gap_result.lms_status
     profile.organization_summary = organization_summary
     profile.evidence_count = result.evidence_count
     profile.computed_at = datetime.now(UTC)
@@ -343,24 +347,11 @@ async def recompute_all_lead_profiles(session: AsyncSession, *, limit: int = 500
     either way the profile naturally sinks to the back of this ordering,
     so the next call picks up the next oldest/never-attempted batch with
     no separate offset or cursor to track.
-
-    Correction: claims the selected LeadProfile rows via SELECT ... FOR
-    UPDATE SKIP LOCKED before processing them -- without it, two
-    overlapping `recompute-lead-profiles` invocations could both select
-    the same oldest rows, each recompute them, and each append its own
-    LeadScoreSnapshot, while the combined runs only actually advance
-    through one `limit`-sized batch of the queue. Same claim pattern as
-    every other "atomically grab pending work" query in this codebase
-    (e.g. pipeline.py's stranded-record/stranded-snapshot retries,
-    outbox_service.py's process_pending_deliveries).
     """
     cursor = func.coalesce(LeadProfile.last_recompute_attempted_at, LeadProfile.computed_at)
     institution_ids = (
         await session.scalars(
-            select(LeadProfile.institution_id)
-            .order_by(cursor.asc())
-            .limit(limit)
-            .with_for_update(skip_locked=True)
+            select(LeadProfile.institution_id).order_by(cursor.asc()).limit(limit)
         )
     ).all()
 
@@ -442,6 +433,8 @@ async def list_lead_profiles(
             icp_match_score=profile.icp_match_score,
             website_quality_tier=profile.website_quality_tier,
             service_gap_score=profile.service_gap_score,
+            website_detection_status=profile.website_detection_status,
+            lms_detection_status=profile.lms_detection_status,
             computed_at=profile.computed_at,
             canonical_name=canonical_name,
         )
