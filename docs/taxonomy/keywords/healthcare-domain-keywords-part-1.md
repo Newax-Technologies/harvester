@@ -17,6 +17,66 @@ Keywords identify evidence candidates. They do not independently prove that an o
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
+| `KW-HC-MED-001-V1` | Prescription Pharmaceuticals | prescription pharmaceuticals; prescription pharmaceutical; prescription medicines | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-002-V1` | Generic Medicines | generic medicines; generic medicine; generic medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-003-V1` | Over-the-Counter Medicines | over-the-counter medicines; over-the-counter medicine; over-the-counter medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-004-V1` | Biological Medicines | biological medicines; biological medicine; biological medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-005-V1` | Biosimilars | biosimilars; biosimilar | `ORG-GENERIC` | `EX-BROAD` |
+| `KW-HC-MED-006-V1` | Vaccines and Immunization Products | vaccines and immunization products; vaccines & immunization products | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-MED-007-V1` | Specialty Medicines | specialty medicines; specialty medicine; specialty medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-008-V1` | Oncology Medicines | oncology medicines; oncology medicine; oncology medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-009-V1` | Cardiovascular Medicines | cardiovascular medicines; cardiovascular medicine; cardiovascular medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-010-V1` | Diabetes and Endocrine Medicines | diabetes and endocrine medicines; diabetes & endocrine medicines; diabetes and endocrine medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-011-V1` | Neurology and Psychiatric Medicines | neurology and psychiatric medicines; neurology & psychiatric medicines; neurology and psychiatric medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-012-V1` | Antibiotics and Anti-Infective Medicines | antibiotics and anti-infective medicines; antibiotics & anti-infective medicines; antibiotics and anti-infective medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-013-V1` | Respiratory Medicines | respiratory medicines; respiratory medicine; respiratory medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-014-V1` | Gastrointestinal Medicines | gastrointestinal medicines; gastrointestinal medicine; gastrointestinal medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-015-V1` | Dermatology Medicines | dermatology medicines; dermatology medicine; dermatology medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-016-V1` | Ophthalmic Medicines | ophthalmic medicines; ophthalmic medicine; ophthalmic medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-017-V1` | Women’s Health and Fertility Medicines | women’s health and fertility medicines; women's health and fertility medicines; women's health & fertility medicines; women's health and fertility medicine; women's health and fertility medications; women’s health & fertility medicines | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-018-V1` | Anaesthesia and Critical-Care Medicines | anaesthesia and critical-care medicines; anaesthesia & critical-care medicines; anaesthesia and critical-care medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-019-V1` | Rare-Disease and Orphan Medicines | rare-disease and orphan medicines; rare-disease & orphan medicines; rare-disease and orphan medications | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HC-MED-020-V1` | Herbal and Traditional Healthcare Products | herbal and traditional healthcare products; herbal & traditional healthcare products; herbal and traditional health care products; herbal and traditional medical products | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-MED-021-V1` | Clinical Nutrition Products | clinical nutrition products; clinical nutrition product | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-MED-022-V1` | Medical Nutrition and Enteral Feeding Products | medical nutrition and enteral feeding products; medical nutrition & enteral feeding products | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-001-V1` | General Medical Devices | general medical devices; general medical device; general medical equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-002-V1` | Diagnostic Imaging Equipment | diagnostic imaging equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-003-V1` | Laboratory and In-Vitro Diagnostic Equipment | laboratory and in-vitro diagnostic equipment; laboratory & in-vitro diagnostic equipment; laboratory and in vitro diagnostic equipment; IVD; laboratory diagnostic; lab and in-vitro diagnostic equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-004-V1` | Patient Monitoring Equipment | patient monitoring equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-005-V1` | Critical-Care and ICU Equipment | critical-care and icu equipment; critical-care & icu equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-006-V1` | Anaesthesia Equipment | anaesthesia equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-007-V1` | Respiratory and Ventilation Equipment | respiratory and ventilation equipment; respiratory & ventilation equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-008-V1` | Cardiology Devices | cardiology devices; cardiology device | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-009-V1` | Dialysis and Renal-Care Equipment | dialysis and renal-care equipment; dialysis & renal-care equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-010-V1` | Surgical Instruments | surgical instruments; surgical instrument | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-011-V1` | Operating-Theatre Equipment | operating-theatre equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-012-V1` | Orthopaedic Implants and Devices | orthopaedic implants and devices; orthopaedic implants & devices | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-013-V1` | Orthotics and Prosthetics | orthotics and prosthetics; orthotics & prosthetics; O&P; orthotic and prosthetic | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-014-V1` | Rehabilitation and Physiotherapy Equipment | rehabilitation and physiotherapy equipment; rehabilitation & physiotherapy equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-015-V1` | Mobility and Assistive Devices | mobility and assistive devices; mobility & assistive devices | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-016-V1` | Dental Equipment and Devices | dental equipment and devices; dental equipment & devices | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-017-V1` | Ophthalmology and Optical Equipment | ophthalmology and optical equipment; ophthalmology & optical equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-018-V1` | ENT Equipment and Devices | ent equipment and devices; ent equipment & devices | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-019-V1` | Urology Equipment and Devices | urology equipment and devices; urology equipment & devices | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-020-V1` | Gynaecology and Obstetric Equipment | gynaecology and obstetric equipment; gynaecology & obstetric equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-021-V1` | Neonatal and Paediatric Equipment | neonatal and paediatric equipment; neonatal & paediatric equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-022-V1` | Emergency and Ambulance Equipment | emergency and ambulance equipment; emergency & ambulance equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-023-V1` | Home Medical Equipment | home medical equipment; home healthcare equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-DEV-024-V1` | Biomedical Testing and Calibration Equipment | biomedical testing and calibration equipment; biomedical testing & calibration equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-001-V1` | Medical Disposables | medical disposables; medical disposable | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-002-V1` | Syringes, Needles and Injection Products | syringes, needles and injection products; syringes, needles & injection products | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-003-V1` | Surgical Consumables | surgical consumables; surgical consumable | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-004-V1` | Wound-Care and Dressing Products | wound-care and dressing products; wound-care & dressing products | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-005-V1` | Infection-Control Products | infection-control products; infection-control product | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-006-V1` | Sterilization and Disinfection Products | sterilization and disinfection products; sterilization & disinfection products | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-007-V1` | Personal Protective Equipment | personal protective equipment | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-008-V1` | Hospital Linen and Patient-Care Supplies | hospital linen and patient-care supplies; hospital linen & patient-care supplies | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-009-V1` | Medical Gases | medical gases; medical gas | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-010-V1` | Blood-Bank and Transfusion Supplies | blood-bank and transfusion supplies; blood-bank & transfusion supplies | `ORG-PRODUCT` | `EX-BANK` |
+| `KW-HC-SUP-011-V1` | Laboratory Reagents and Consumables | laboratory reagents and consumables; laboratory reagents & consumables; lab reagents and consumables | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-012-V1` | Diagnostic Test Kits | diagnostic test kits; diagnostic test kit | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-013-V1` | Pharmacy Supplies | pharmacy supplies; pharmacy supply | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-HC-SUP-014-V1` | Medical Packaging and Medicine Containers | medical packaging and medicine containers; medical packaging & medicine containers | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-HC-CLI-001-V1` | Hospitals and Health Systems | hospitals and health systems; hospitals & health systems | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-HC-CLI-002-V1` | General Medical Clinics | general medical clinics | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-HC-CLI-003-V1` | Primary-Care Practices | primary-care practices; primary-care practice | `ORG-INSTITUTION` | `EX-PHRASE` |
@@ -37,66 +97,6 @@ Keywords identify evidence candidates. They do not independently prove that an o
 | `KW-HC-CLI-018-V1` | Mental Health and Psychiatry Services | mental health and psychiatry services; mental health & psychiatry services; mental health and psychiatry providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-HC-CLI-019-V1` | Addiction Treatment and Recovery Services | addiction treatment and recovery services; addiction treatment & recovery services; addiction treatment and recovery providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-HC-CLI-020-V1` | Home Healthcare Services | home healthcare services; home health care services; home healthcare service; home medical services; home healthcare providers | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-HC-CLI-021-V1` | Nursing and Elder-Care Services | nursing and elder-care services; nursing & elder-care services; nursing and elder-care providers | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-HC-CLI-022-V1` | Ambulance and Emergency Medical Services | ambulance and emergency medical services; ambulance & emergency medical services; ambulance and emergency medical providers | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-HC-CLI-023-V1` | Blood Banks | blood banks; blood bank | `ORG-INSTITUTION` | `EX-PHRASE` |
-| `KW-HC-CLI-024-V1` | Day-Surgery and Ambulatory Care Centres | day-surgery and ambulatory care centres; day-surgery & ambulatory care centres; day-surgery and ambulatory care centers | `ORG-INSTITUTION` | `EX-PHRASE` |
-| `KW-HC-CLI-025-V1` | Medical Tourism Services | medical tourism services; medical tourism service; medical tourism providers | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-HC-DEV-001-V1` | General Medical Devices | general medical devices; general medical device; general medical equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-002-V1` | Diagnostic Imaging Equipment | diagnostic imaging equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-003-V1` | Laboratory and In-Vitro Diagnostic Equipment | laboratory and in-vitro diagnostic equipment; laboratory & in-vitro diagnostic equipment; laboratory and in vitro diagnostic equipment; IVD; laboratory diagnostic; lab and in-vitro diagnostic equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-004-V1` | Patient Monitoring Equipment | patient monitoring equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-005-V1` | Critical-Care and ICU Equipment | critical-care and icu equipment; critical-care & icu equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-006-V1` | Anaesthesia Equipment | anaesthesia equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-007-V1` | Respiratory and Ventilation Equipment | respiratory and ventilation equipment; respiratory & ventilation equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-008-V1` | Cardiology Devices | cardiology devices; cardiology device | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-009-V1` | Dialysis and Renal-Care Equipment | dialysis and renal-care equipment; dialysis & renal-care equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-010-V1` | Surgical Instruments | surgical instruments; surgical instrument | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-HC-DEV-011-V1` | Operating-Theatre Equipment | operating-theatre equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-012-V1` | Orthopaedic Implants and Devices | orthopaedic implants and devices; orthopaedic implants & devices | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-013-V1` | Orthotics and Prosthetics | orthotics and prosthetics; orthotics & prosthetics; O&P; orthotic and prosthetic | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-HC-DEV-014-V1` | Rehabilitation and Physiotherapy Equipment | rehabilitation and physiotherapy equipment; rehabilitation & physiotherapy equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-015-V1` | Mobility and Assistive Devices | mobility and assistive devices; mobility & assistive devices | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-016-V1` | Dental Equipment and Devices | dental equipment and devices; dental equipment & devices | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-017-V1` | Ophthalmology and Optical Equipment | ophthalmology and optical equipment; ophthalmology & optical equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-018-V1` | ENT Equipment and Devices | ent equipment and devices; ent equipment & devices | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-019-V1` | Urology Equipment and Devices | urology equipment and devices; urology equipment & devices | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-020-V1` | Gynaecology and Obstetric Equipment | gynaecology and obstetric equipment; gynaecology & obstetric equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-021-V1` | Neonatal and Paediatric Equipment | neonatal and paediatric equipment; neonatal & paediatric equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-022-V1` | Emergency and Ambulance Equipment | emergency and ambulance equipment; emergency & ambulance equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-023-V1` | Home Medical Equipment | home medical equipment; home healthcare equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DEV-024-V1` | Biomedical Testing and Calibration Equipment | biomedical testing and calibration equipment; biomedical testing & calibration equipment | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-DIG-001-V1` | Hospital Management Systems | hospital management systems; hospital management system | `ORG-SOFTWARE` | `EX-BROAD` |
-| `KW-HC-DIG-002-V1` | Clinic Management Systems | clinic management systems; clinic management system | `ORG-SOFTWARE` | `EX-CLINIC` |
-| `KW-HC-DIG-003-V1` | Electronic Medical Record Systems | electronic medical record systems; electronic medical record system; EMR systems; electronic medical records | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-004-V1` | Electronic Health Record Systems | electronic health record systems; electronic health record system; EHR systems; electronic health records | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-005-V1` | Laboratory Information Systems | laboratory information systems; laboratory information system; lab information systems | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-006-V1` | Radiology Information Systems | radiology information systems; radiology information system | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-007-V1` | Picture Archiving and Communication Systems | picture archiving and communication systems; picture archiving & communication systems; PACS; medical imaging archive | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-008-V1` | Pharmacy Management Systems | pharmacy management systems; pharmacy management system | `ORG-SOFTWARE` | `EX-BROAD` |
-| `KW-HC-DIG-009-V1` | Appointment and Queue Management Systems | appointment and queue management systems; appointment & queue management systems | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-010-V1` | Patient Portals | patient portals; patient portal | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-011-V1` | Telemedicine Platforms | telemedicine platforms; telemedicine platform | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-012-V1` | Remote Patient Monitoring Systems | remote patient monitoring systems; remote patient monitoring system | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-013-V1` | Healthcare CRM Systems | healthcare crm systems; health care crm systems; healthcare crm system; medical crm systems | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-014-V1` | Medical Billing and Revenue-Cycle Systems | medical billing and revenue-cycle systems; medical billing & revenue-cycle systems | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-015-V1` | Healthcare Inventory and Procurement Systems | healthcare inventory and procurement systems; healthcare inventory & procurement systems; health care inventory and procurement systems; medical inventory and procurement systems | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-016-V1` | Clinical Decision-Support Systems | clinical decision-support systems; clinical decision-support system | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-017-V1` | Healthcare Analytics and Reporting Systems | healthcare analytics and reporting systems; healthcare analytics & reporting systems; health care analytics and reporting systems; medical analytics and reporting systems | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-018-V1` | Medical Practice Management Systems | medical practice management systems; medical practice management system | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-019-V1` | Health Information Exchange Systems | health information exchange systems; health information exchange system | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-DIG-020-V1` | Healthcare Compliance and Documentation Systems | healthcare compliance and documentation systems; healthcare compliance & documentation systems; health care compliance and documentation systems; medical compliance and documentation systems | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HC-MED-001-V1` | Prescription Pharmaceuticals | prescription pharmaceuticals; prescription pharmaceutical; prescription medicines | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-HC-MED-002-V1` | Generic Medicines | generic medicines; generic medicine; generic medications | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-HC-MED-003-V1` | Over-the-Counter Medicines | over-the-counter medicines; over-the-counter medicine; over-the-counter medications | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-HC-MED-004-V1` | Biological Medicines | biological medicines; biological medicine; biological medications | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-HC-MED-005-V1` | Biosimilars | biosimilars; biosimilar | `ORG-GENERIC` | `EX-BROAD` |
-| `KW-HC-MED-006-V1` | Vaccines and Immunization Products | vaccines and immunization products; vaccines & immunization products | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HC-MED-007-V1` | Specialty Medicines | specialty medicines; specialty medicine; specialty medications | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-HC-MED-008-V1` | Oncology Medicines | oncology medicines; oncology medicine; oncology medications | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-HC-MED-009-V1` | Cardiovascular Medicines | cardiovascular medicines; cardiovascular medicine; cardiovascular medications | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-HC-MED-010-V1` | Diabetes and Endocrine Medicines | diabetes and endocrine medicines; diabetes & endocrine medicines; diabetes and endocrine medications | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-HC-MED-011-V1` | Neurology and Psychiatric Medicines | neurology and psychiatric medicines; neurology & psychiatric medicines; neurology and psychiatric medications | `ORG-GENERIC` | `EX-PHRASE` |
 
 ## Locked interpretation
 
