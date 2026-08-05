@@ -1,17 +1,17 @@
 # Harvester Hospitality Domain Keyword Registry
 
-
-
 Status: **Proposed**  
-Version: **1.1**  
-Date: **4 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-Review boundary: **Controlled discovery baseline. Human sector review and source-level validation are required before runtime activation.**
+Review boundary: **Controlled discovery baseline. Human sector review, source-level validation, locale review, benchmark testing, and approved activation are required before runtime use.**
 
-This file defines separate discovery keyword profiles for **79** of the **79** canonical domains in `BS-009 Hospitality`.
+This file defines separate discovery keyword profiles for the **79** canonical domains in the Hospitality sector.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
+
+Keywords identify evidence candidates. They do not independently prove that an organization belongs to a domain, performs an activity, needs a provider service, has buying intent, presents a service gap, or qualifies as a lead.
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
@@ -31,14 +31,14 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-HOS-ACC-014-V1` | Conference Hotels | conference hotels; conference hotel | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-HOS-FNB-001-V1` | Hotel Restaurants | hotel restaurants; hotel restaurant | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-HOS-FNB-002-V1` | Standalone Restaurants | standalone restaurants; standalone restaurant | `ORG-INSTITUTION` | `EX-PHRASE` |
-| `KW-HOS-FNB-003-V1` | Cafes and Coffee Shops | cafes and coffee shops; cafes & coffee shops; cafes and coffee shop | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HOS-FNB-003-V1` | Cafes and Coffee Shops | cafes and coffee shops; cafes & coffee shops | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-FNB-004-V1` | Quick-Service Restaurants | quick-service restaurants; quick-service restaurant | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-HOS-FNB-005-V1` | Fine Dining | fine dining | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-FNB-006-V1` | Cloud Kitchens | cloud kitchens; cloud kitchen | `ORG-INSTITUTION` | `EX-CLOUD` |
 | `KW-HOS-FNB-007-V1` | Institutional Food Services | institutional food services; institutional food service; institutional food providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-HOS-FNB-008-V1` | Room Service Operations | room service operations; room service operation | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-HOS-FNB-009-V1` | Banqueting and Catering | banqueting and catering; banqueting & catering | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-HOS-FNB-010-V1` | Bakeries and Dessert Shops | bakeries and dessert shops; bakeries & dessert shops; bakeries and dessert shop | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-HOS-FNB-010-V1` | Bakeries and Dessert Shops | bakeries and dessert shops; bakeries & dessert shops | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-FNB-011-V1` | Food Courts | food courts; food court | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-FNB-012-V1` | Corporate Dining | corporate dining | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-VEN-001-V1` | Banquet Halls | banquet halls; banquet hall | `ORG-GENERIC` | `EX-PHRASE` |
@@ -61,7 +61,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-HOS-GST-006-V1` | Laundry and Linen | laundry and linen; laundry & linen | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-GST-007-V1` | Spa and Wellness | spa and wellness; spa & wellness | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-GST-008-V1` | Recreation Services | recreation services; recreation service; recreation providers | `ORG-SERVICE` | `EX-BROAD` |
-| `KW-HOS-GST-009-V1` | Kids Clubs and Family Services | kids clubs and family services; kids clubs & family services; kids clubs and family service; kids clubs and family providers | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-HOS-GST-009-V1` | Kids Clubs and Family Services | kids clubs and family services; kids clubs & family services; kids clubs and family providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-HOS-GST-010-V1` | Guest Transport | guest transport | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-GST-011-V1` | Loyalty Programs | loyalty programs; loyalty program | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-GST-012-V1` | Guest Feedback and Reputation Management | guest feedback and reputation management; guest feedback & reputation management | `ORG-SERVICE` | `EX-PHRASE` |
@@ -74,11 +74,11 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-HOS-OPS-007-V1` | Housekeeping Management Systems | housekeeping management systems; housekeeping management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-HOS-OPS-008-V1` | Maintenance Management Systems | maintenance management systems; maintenance management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-HOS-OPS-009-V1` | Hospitality CRM | hospitality crm; accommodation crm | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HOS-OPS-010-V1` | Inventory and Procurement Systems | inventory and procurement systems; inventory & procurement systems; inventory and procurement system | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HOS-OPS-011-V1` | Food Safety and Hygiene Services | food safety and hygiene services; food safety & hygiene services; food safety and hygiene service; food safety and hygiene providers | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-HOS-OPS-010-V1` | Inventory and Procurement Systems | inventory and procurement systems; inventory & procurement systems | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-HOS-OPS-011-V1` | Food Safety and Hygiene Services | food safety and hygiene services; food safety & hygiene services; food safety and hygiene providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-HOS-OPS-012-V1` | Hospitality Staffing | hospitality staffing; accommodation staffing | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-HOS-OPS-013-V1` | Hospitality Supplies | hospitality supplies; hospitality supply; accommodation supplies | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-HOS-OPS-014-V1` | Hotel Furniture and Fixtures | hotel furniture and fixtures; hotel furniture & fixtures; hotel furniture and fixture | `ORG-INSTITUTION` | `EX-PHRASE` |
+| `KW-HOS-OPS-014-V1` | Hotel Furniture and Fixtures | hotel furniture and fixtures; hotel furniture & fixtures | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-HOS-OPS-015-V1` | Commercial Kitchen Equipment | commercial kitchen equipment | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-HOS-OPS-016-V1` | Hospitality Laundry Services | hospitality laundry services; hospitality laundry service; accommodation laundry services; hospitality laundry providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-HOS-OPS-017-V1` | Hotel Security Services | hotel security services; hotel security service; hotel security providers | `ORG-SERVICE` | `EX-SECURITY` |
@@ -92,7 +92,20 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-HOS-DIG-007-V1` | Dynamic Pricing Systems | dynamic pricing systems; dynamic pricing system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-HOS-DIG-008-V1` | Digital Menus and Ordering | digital menus and ordering; digital menus & ordering | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-HOS-DIG-009-V1` | Contactless Guest Services | contactless guest services; contactless guest service; contactless guest providers | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-HOS-DIG-010-V1` | Loyalty and Membership Platforms | loyalty and membership platforms; loyalty & membership platforms; loyalty and membership platform | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-HOS-DIG-010-V1` | Loyalty and Membership Platforms | loyalty and membership platforms; loyalty & membership platforms | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-HOS-DIG-011-V1` | Hospitality Marketplace Integrations | hospitality marketplace integrations; hospitality marketplace integration; accommodation marketplace integrations | `ORG-SOFTWARE` | `EX-PHRASE` |
 
-A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
+## Locked interpretation
+
+1. Every canonical domain retains a separate keyword profile and version.
+2. Domain terms identify the market or subject area; activity terms remain separately governed.
+3. Organization cues improve precision but are not mandatory when authoritative classification evidence exists.
+4. Broad or ambiguous phrases require sector, organization, activity, source, entity, proximity, or co-occurrence context.
+5. Service-gap, buying-intent, problem, competitor, replacement, integration, and existing-solution terms require an active provider offering and separate service-specific profiles.
+6. Urdu, Roman Urdu, and other locale aliases require reviewed locale packs and gold-set validation before activation.
+7. A matched phrase is an evidence candidate, not a domain, activity, opportunity, authority, consent, or lead decision.
+8. Completed Harvest Jobs preserve the exact keyword-profile and control-profile versions used when they ran.
+
+## Delivery boundary
+
+This Markdown registry is a controlled documentation dataset. It does not implement database records, APIs, search indexes, embeddings, source queries, classifiers, evidence scoring, opportunity scoring, contact discovery, outreach, or releases.
