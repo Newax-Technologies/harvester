@@ -4,6 +4,8 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from lead_harvester.enrichment.institution_classifier import classify_institution_type
+from lead_harvester.enrichment.location_enricher import enrich_location
 from lead_harvester.models.canonical import (
     Branch,
     CanonicalInstitution,
@@ -107,6 +109,10 @@ def _raw_display_fields(record: RawSourceRecord) -> dict[str, Any]:
             or record.normalized_name
             or "Unknown"
         )
+        raw = payload.get("raw") or {}
+        city, country_code = enrich_location(
+            raw.get("address_locality", ""), raw.get("address_country", "")
+        )
         return {
             "name": name,
             "address": payload.get("location") or "",
@@ -117,10 +123,19 @@ def _raw_display_fields(record: RawSourceRecord) -> dict[str, Any]:
             # and would otherwise always shadow the real URL.
             "website": payload.get("website") or record.normalized_domain,
             "email": payload.get("email") or None,
-            "institution_type": "",
-            "city": "",
-            "country_code": "",
+            # enrichment/institution_classifier.py -- see its own docstring
+            # for why this source previously always returned "" here.
+            "institution_type": classify_institution_type(name, raw.get("description", "")),
+            "city": city,
+            "country_code": country_code,
             "social_profiles": payload.get("social_profiles") or [],
+            # enrichment/decision_maker_discovery.py (via
+            # sources/web.py::_extract_lead) -- threaded onto this page's
+            # phone/email/social ContactPoint(s) by
+            # _add_contacts_and_provenance below, same as an
+            # AUTHORIZED_IMPORT row's declared person_name/role.
+            "person_name": payload.get("name") or None,
+            "role": raw.get("person_role") or None,
         }
 
     if record.source_type == SourceType.MANUAL:
@@ -404,20 +419,45 @@ async def _add_contacts_and_provenance(
             )
         return
 
+    # Populated only for WEBSITE records today (see
+    # enrichment/decision_maker_discovery.py) -- every other source_type's
+    # display_fields branch leaves these keys absent, so .get() below is a
+    # no-op for them, same as it already is for "declared_contacts" above.
+    person_name = fields.get("person_name")
+    role = fields.get("role")
+
     for social_url in fields.get("social_profiles") or []:
         normalized_social = normalize_social_profile(social_url)
         if normalized_social is None:
             continue
         platform, canonical_url = normalized_social
         await _add_contact_if_present(
-            session, institution, record, contact_type=platform, contact_value=canonical_url
+            session,
+            institution,
+            record,
+            contact_type=platform,
+            contact_value=canonical_url,
+            person_name=person_name,
+            role=role,
         )
 
     await _add_contact_if_present(
-        session, institution, record, contact_type="phone", contact_value=record.normalized_phone
+        session,
+        institution,
+        record,
+        contact_type="phone",
+        contact_value=record.normalized_phone,
+        person_name=person_name,
+        role=role,
     )
     await _add_contact_if_present(
-        session, institution, record, contact_type="email", contact_value=fields.get("email")
+        session,
+        institution,
+        record,
+        contact_type="email",
+        contact_value=fields.get("email"),
+        person_name=person_name,
+        role=role,
     )
 
 
