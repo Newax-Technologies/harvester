@@ -31,6 +31,9 @@ export const queryKeys = {
       institutionId,
     ],
   },
+  dailySelection: {
+    list: (filters: any) => ["daily-selection", "list", filters],
+  },
 };
 
 export const dashboardQueries = {
@@ -143,6 +146,19 @@ export const leadProfileQueries = {
               path: { institution_id: institutionId },
               query: { limit },
             },
+          })
+          .then(handleApiResponse),
+    }),
+};
+
+export const dailySelectionQueries = {
+  list: (status?: string, limit = 100) =>
+    queryOptions({
+      queryKey: queryKeys.dailySelection.list({ status, limit }),
+      queryFn: () =>
+        apiClient
+          .GET("/api/v1/daily-selection", {
+            params: { query: { status: status as any, limit } },
           })
           .then(handleApiResponse),
     }),
