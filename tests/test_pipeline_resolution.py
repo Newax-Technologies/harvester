@@ -102,7 +102,9 @@ async def test_resolution_failure_is_logged_not_raised(db_session, source_run):
     # rollback at all -- issue a real broken SQL statement instead, matching
     # what a genuine resolution failure (a constraint violation, a bad query)
     # would actually do to the transaction.
-    async def fake_resolve(session, record, *, resync_ids=None, job_sector_hint=None):
+    async def fake_resolve(
+        session, record, *, resync_ids=None, job_sector_hint=None, record_history=True
+    ):
         await session.execute(text("SELECT * FROM this_table_does_not_exist"))
 
     with patch(

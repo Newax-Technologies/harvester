@@ -505,6 +505,7 @@ async def test_concurrent_sibling_decisions_serialize_via_raw_record_lock(async_
     from lead_harvester.api.errors import RecordAlreadyCanonicalizedError
     from lead_harvester.models.audit import AuditLog
     from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
+    from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot
     from lead_harvester.models.provenance import FieldProvenance
     from lead_harvester.models.source import RawSourceRecord
     from lead_harvester.schemas.resolution import ResolutionDecisionRequest
@@ -638,6 +639,17 @@ async def test_concurrent_sibling_decisions_serialize_via_raw_record_lock(async_
             delete(ContactPoint).where(ContactPoint.institution_id.in_(canonical_ids))
         )
         await cleanup_session.execute(delete(Branch).where(Branch.id.in_(branch_ids)))
+        # ResolutionService.make_decision now refreshes the LeadProfile for
+        # any institution it touches (see resolution_service.py's
+        # "Correction"), so a real decision leaves LeadProfile/
+        # LeadScoreSnapshot rows behind that this real-commit cleanup must
+        # also remove before the institution itself.
+        await cleanup_session.execute(
+            delete(LeadScoreSnapshot).where(LeadScoreSnapshot.institution_id.in_(canonical_ids))
+        )
+        await cleanup_session.execute(
+            delete(LeadProfile).where(LeadProfile.institution_id.in_(canonical_ids))
+        )
         await cleanup_session.execute(
             delete(CanonicalInstitution).where(CanonicalInstitution.id.in_(canonical_ids))
         )
@@ -682,6 +694,7 @@ async def test_concurrent_decisions_on_shared_target_serialize_via_target_lock(a
 
     from lead_harvester.models.audit import AuditLog
     from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
+    from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot
     from lead_harvester.models.provenance import FieldProvenance
     from lead_harvester.models.source import RawSourceRecord
     from lead_harvester.schemas.resolution import ResolutionDecisionRequest
@@ -815,6 +828,17 @@ async def test_concurrent_decisions_on_shared_target_serialize_via_target_lock(a
             delete(ContactPoint).where(ContactPoint.institution_id.in_(canonical_ids))
         )
         await cleanup_session.execute(delete(Branch).where(Branch.id.in_(branch_ids)))
+        # ResolutionService.make_decision now refreshes the LeadProfile for
+        # any institution it touches (see resolution_service.py's
+        # "Correction"), so a real decision leaves LeadProfile/
+        # LeadScoreSnapshot rows behind that this real-commit cleanup must
+        # also remove before the institution itself.
+        await cleanup_session.execute(
+            delete(LeadScoreSnapshot).where(LeadScoreSnapshot.institution_id.in_(canonical_ids))
+        )
+        await cleanup_session.execute(
+            delete(LeadProfile).where(LeadProfile.institution_id.in_(canonical_ids))
+        )
         await cleanup_session.execute(
             delete(CanonicalInstitution).where(CanonicalInstitution.id.in_(canonical_ids))
         )

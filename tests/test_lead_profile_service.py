@@ -1,7 +1,9 @@
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.profile import (
@@ -10,7 +12,6 @@ from lead_harvester.models.profile import (
     SizeTier,
     WebsiteQualityTier,
 )
-from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.qualification import QualificationAssessment, QualificationStatus
 from lead_harvester.models.signal import Signal, SignalType
 from lead_harvester.models.source import RawPageSnapshot, RawSourceRecord, SourceRun, SourceType
@@ -20,6 +21,7 @@ from lead_harvester.services.lead_profile_service import (
     list_lead_profiles,
     qualify_all_unassessed,
     qualify_and_refresh,
+    recompute_all_lead_profiles,
     refresh_lead_profile,
 )
 
@@ -118,15 +120,6 @@ async def test_refresh_computes_website_quality_from_own_crawled_snapshots(db_se
         '<html><head><meta name="viewport" content="width=device-width"></head>'
         "<body><form action='/contact'></form></body></html>"
     )
-    for _ in range(6):
-        db_session.add(
-            RawPageSnapshot(
-                source_run_id=run.id,
-                url="https://riverside.edu",
-                final_url="https://riverside.edu",
-                html=full_html,
-            )
-        )
     record = RawSourceRecord(
         source_run_id=run.id,
         source_type=SourceType.WEBSITE,
@@ -136,19 +129,140 @@ async def test_refresh_computes_website_quality_from_own_crawled_snapshots(db_se
     )
     db_session.add(record)
     await db_session.flush()
-    db_session.add(
-        FieldProvenance(
-            canonical_id=institution.id,
-            raw_record_id=record.id,
-            field_name="website",
-            asserted_value="https://riverside.edu",
+    for _ in range(6):
+        db_session.add(
+            RawPageSnapshot(
+                source_run_id=run.id,
+                url="https://riverside.edu",
+                final_url="https://riverside.edu",
+                normalized_domain="riverside.edu",
+                raw_source_record_id=record.id,
+                institution_id=institution.id,
+                html=full_html,
+            )
         )
-    )
     await db_session.flush()
 
     profile = await refresh_lead_profile(db_session, institution.id)
 
     assert profile.website_quality_tier == WebsiteQualityTier.EXCEPTIONAL
+
+
+@pytest.mark.asyncio
+async def test_refresh_does_not_score_a_snapshot_with_no_institution_link(db_session):
+    # Correction regression test: a RawPageSnapshot whose institution_id
+    # is still NULL (predates the linkage fix, or its domain's record
+    # never resolved) must be excluded, not guessed into scope via
+    # source_run_id membership alone.
+    institution = await _seed_institution(db_session)
+
+    run = SourceRun(source_type=SourceType.WEBSITE)
+    db_session.add(run)
+    await db_session.flush()
+
+    full_html = (
+        '<html><head><meta name="viewport" content="width=device-width"></head>'
+        "<body><form action='/contact'></form></body></html>"
+    )
+    for _ in range(6):
+        db_session.add(
+            RawPageSnapshot(
+                source_run_id=run.id,
+                url="https://riverside.edu",
+                final_url="https://riverside.edu",
+                normalized_domain="riverside.edu",
+                # institution_id deliberately left unset.
+                html=full_html,
+            )
+        )
+    await db_session.flush()
+
+    profile = await refresh_lead_profile(db_session, institution.id)
+
+    # Not NONE -- institution.website is still present, so NONE isn't
+    # forced (that's only for an institution with no site at all, see
+    # compute_website_quality_tier's own docstring); the unlinked
+    # snapshots are simply invisible to the corrected query, same as if
+    # zero pages had ever been crawled at all (https-only credit, no
+    # depth/broken-link bonus since page_count is 0).
+    assert profile.website_quality_tier == WebsiteQualityTier.POOR
+
+
+@pytest.mark.asyncio
+async def test_refresh_never_scores_a_different_institutions_snapshots_from_the_same_run(
+    db_session,
+):
+    # Correction regression test: WebCrawler.crawl() fetches every seed
+    # domain in one call, so one SourceRun's snapshots span multiple
+    # institutions -- this institution's own snapshots are POOR (no
+    # https/viewport/form/depth), while a same-run sibling institution's
+    # snapshots are a fully-featured EXCEPTIONAL site. Scoping by
+    # source_run_id alone (the bug this correction fixes) would leak the
+    # sibling's high-quality pages into this institution's score.
+    # http (not https) + a single bare page + no depth/broken-link penalty
+    # scores POOR (0 https + 0 viewport + 0 form + 0 depth + 2 low-broken =
+    # 2, below the ADEQUATE threshold of 3) -- see
+    # intelligence/website_quality.py's point weights.
+    institution = await _seed_institution(db_session, website="http://riverside.edu")
+    other_institution = await _seed_institution(
+        db_session, canonical_name="Lakeside Academy", website="https://lakeside.edu"
+    )
+
+    run = SourceRun(source_type=SourceType.WEBSITE)
+    db_session.add(run)
+    await db_session.flush()
+
+    riverside_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.WEBSITE,
+        source_id="https://riverside.edu",
+        raw_payload={},
+        normalized_domain="riverside.edu",
+    )
+    lakeside_record = RawSourceRecord(
+        source_run_id=run.id,
+        source_type=SourceType.WEBSITE,
+        source_id="https://lakeside.edu",
+        raw_payload={},
+        normalized_domain="lakeside.edu",
+    )
+    db_session.add_all([riverside_record, lakeside_record])
+    await db_session.flush()
+
+    full_html = (
+        '<html><head><meta name="viewport" content="width=device-width"></head>'
+        "<body><form action='/contact'></form></body></html>"
+    )
+    db_session.add(
+        RawPageSnapshot(
+            source_run_id=run.id,
+            url="https://riverside.edu",
+            final_url="https://riverside.edu",
+            normalized_domain="riverside.edu",
+            raw_source_record_id=riverside_record.id,
+            institution_id=institution.id,
+            html="<html><body>bare page, no viewport/form</body></html>",
+        )
+    )
+    for _ in range(6):
+        db_session.add(
+            RawPageSnapshot(
+                source_run_id=run.id,
+                url="https://lakeside.edu",
+                final_url="https://lakeside.edu",
+                normalized_domain="lakeside.edu",
+                raw_source_record_id=lakeside_record.id,
+                institution_id=other_institution.id,
+                html=full_html,
+            )
+        )
+    await db_session.flush()
+
+    riverside_profile = await refresh_lead_profile(db_session, institution.id)
+    lakeside_profile = await refresh_lead_profile(db_session, other_institution.id)
+
+    assert riverside_profile.website_quality_tier == WebsiteQualityTier.POOR
+    assert lakeside_profile.website_quality_tier == WebsiteQualityTier.EXCEPTIONAL
 
 
 @pytest.mark.asyncio
@@ -418,3 +532,232 @@ async def test_get_lead_score_history_returns_most_recent_first(db_session):
 
     assert len(history) == 2
     assert history[0].computed_at >= history[1].computed_at
+
+
+@pytest.mark.asyncio
+async def test_recompute_all_lead_profiles_only_touches_institutions_with_a_profile(db_session):
+    profiled = await _seed_institution(db_session, canonical_name="Already Profiled School")
+    await refresh_lead_profile(db_session, profiled.id)
+    never_profiled = await _seed_institution(db_session, canonical_name="Never Profiled School")
+    await db_session.flush()
+
+    count = await recompute_all_lead_profiles(db_session)
+
+    assert count == 1
+    assert await get_lead_profile(db_session, never_profiled.id) is None
+
+
+@pytest.mark.asyncio
+async def test_recompute_all_lead_profiles_recomputes_website_quality(db_session):
+    # The direct remediation this correction requires: a profile computed
+    # before the RawPageSnapshot institution_id fix must pick up the
+    # corrected (now-empty, since these snapshots predate the link) score
+    # on recompute rather than keeping whatever it was scored as before.
+    institution = await _seed_institution(db_session, website="https://riverside.edu")
+    profile = await refresh_lead_profile(db_session, institution.id)
+    # Simulate a stale/untrusted pre-correction score sitting in the DB.
+    profile.website_quality_tier = WebsiteQualityTier.EXCEPTIONAL
+    await db_session.flush()
+
+    count = await recompute_all_lead_profiles(db_session)
+
+    assert count == 1
+    recomputed = await get_lead_profile(db_session, institution.id)
+    assert recomputed.website_quality_tier == WebsiteQualityTier.POOR
+
+
+@pytest.mark.asyncio
+async def test_recompute_all_lead_profiles_isolates_one_institutions_failure(
+    db_session, monkeypatch
+):
+    good_one = await _seed_institution(db_session, canonical_name="Good School One")
+    await refresh_lead_profile(db_session, good_one.id)
+    bad_one = await _seed_institution(db_session, canonical_name="Bad School")
+    await refresh_lead_profile(db_session, bad_one.id)
+    good_two = await _seed_institution(db_session, canonical_name="Good School Two")
+    await refresh_lead_profile(db_session, good_two.id)
+
+    from lead_harvester.services import lead_profile_service as service_module
+
+    real_refresh_lead_profile = service_module.refresh_lead_profile
+
+    async def flaky_refresh_lead_profile(session, institution_id, **kwargs):
+        if institution_id == bad_one.id:
+            raise RuntimeError("simulated recompute failure")
+        return await real_refresh_lead_profile(session, institution_id, **kwargs)
+
+    monkeypatch.setattr(service_module, "refresh_lead_profile", flaky_refresh_lead_profile)
+
+    count = await recompute_all_lead_profiles(db_session)
+
+    assert count == 2
+
+
+@pytest.mark.asyncio
+async def test_recompute_all_lead_profiles_advances_past_a_persistently_failing_profile(
+    db_session, monkeypatch
+):
+    # Correction regression test: a profile whose refresh keeps failing
+    # must not stay at the front of the remediation cursor's ordering
+    # forever -- otherwise every subsequent bounded call re-selects the
+    # same failure and never reaches a later untrusted-but-healthy
+    # profile behind it. last_recompute_attempted_at should advance even
+    # on failure; computed_at (the API-exposed freshness/trust signal)
+    # must NOT change, since the refresh genuinely didn't succeed.
+    bad_one = await _seed_institution(db_session, canonical_name="Persistently Bad School")
+    await refresh_lead_profile(db_session, bad_one.id)
+    healthy_two = await _seed_institution(db_session, canonical_name="Healthy School Two")
+    await refresh_lead_profile(db_session, healthy_two.id)
+
+    original_profile = await get_lead_profile(db_session, bad_one.id)
+    original_computed_at = original_profile.computed_at
+    assert original_profile.last_recompute_attempted_at is None
+
+    from lead_harvester.services import lead_profile_service as service_module
+
+    real_refresh_lead_profile = service_module.refresh_lead_profile
+
+    async def flaky_refresh_lead_profile(session, institution_id, **kwargs):
+        if institution_id == bad_one.id:
+            raise RuntimeError("simulated persistent recompute failure")
+        return await real_refresh_lead_profile(session, institution_id, **kwargs)
+
+    monkeypatch.setattr(service_module, "refresh_lead_profile", flaky_refresh_lead_profile)
+
+    # Bounded to 1 -- without the fix, this always re-selects bad_one
+    # (oldest computed_at) and healthy_two is never reached across
+    # repeated calls.
+    first_call_count = await recompute_all_lead_profiles(db_session, limit=1)
+    second_call_count = await recompute_all_lead_profiles(db_session, limit=1)
+
+    assert first_call_count == 0
+    assert second_call_count == 1
+
+    bad_profile = await get_lead_profile(db_session, bad_one.id)
+    assert bad_profile.computed_at == original_computed_at
+    assert bad_profile.last_recompute_attempted_at is not None
+    assert bad_profile.last_recompute_attempted_at > original_computed_at
+
+
+@pytest.mark.asyncio
+async def test_recompute_all_lead_profiles_claim_query_never_double_claims_across_connections(
+    async_engine,
+):
+    # Correction regression test: two overlapping `recompute-lead-profiles`
+    # invocations could both select the same oldest LeadProfile rows
+    # before either commits, each recompute them, and each append its own
+    # LeadScoreSnapshot -- with_for_update(skip_locked=True) claims rows
+    # as part of the SELECT itself, so this proves two real, concurrent
+    # connections running the claim query against the same candidate set
+    # never claim the same row. Verified via a DB-truth assertion (exact
+    # LeadScoreSnapshot count per institution) rather than by monkeypatching
+    # refresh_lead_profile -- that function is a shared module-level
+    # global, and patching it from two genuinely-concurrent coroutines
+    # racing on the same attribute is itself unsafe/order-dependent, an
+    # artifact of the test technique rather than of the claim query itself.
+    import asyncio
+
+    from sqlalchemy import delete, func
+
+    from lead_harvester.models.canonical import CanonicalInstitution
+
+    setup_conn = await async_engine.connect()
+    setup_session = AsyncSession(bind=setup_conn, expire_on_commit=False)
+    institutions = [CanonicalInstitution(canonical_name=f"Claim Test School {i}") for i in range(6)]
+    setup_session.add_all(institutions)
+    await setup_session.flush()
+    for institution in institutions:
+        # Baseline: one LeadScoreSnapshot per institution before either
+        # concurrent recompute call below runs.
+        await refresh_lead_profile(setup_session, institution.id)
+    await setup_session.commit()
+    institution_ids = {i.id for i in institutions}
+    await setup_session.close()
+    await setup_conn.close()
+
+    first_claimed_event = asyncio.Event()
+    second_selected_event = asyncio.Event()
+
+    async def claim(*, first: bool) -> int:
+        conn = await async_engine.connect()
+        session = AsyncSession(bind=conn, expire_on_commit=False)
+        try:
+            if not first:
+                await first_claimed_event.wait()
+            async with session.begin():
+                count = await recompute_all_lead_profiles(session, limit=3)
+                if first:
+                    first_claimed_event.set()
+                    await second_selected_event.wait()
+                else:
+                    second_selected_event.set()
+            return count
+        finally:
+            await session.close()
+            await conn.close()
+
+    counts = await asyncio.gather(claim(first=True), claim(first=False))
+
+    try:
+        assert sum(counts) == 6
+        verify_conn = await async_engine.connect()
+        verify_session = AsyncSession(bind=verify_conn, expire_on_commit=False)
+        try:
+            rows = (
+                await verify_session.execute(
+                    select(LeadScoreSnapshot.institution_id, func.count(LeadScoreSnapshot.id))
+                    .where(LeadScoreSnapshot.institution_id.in_(institution_ids))
+                    .group_by(LeadScoreSnapshot.institution_id)
+                )
+            ).all()
+            # Exactly 2 per institution (1 baseline + 1 from being claimed
+            # and recomputed by exactly ONE of the two concurrent calls) --
+            # a double-claim would show 3 for whichever institution both
+            # connections processed.
+            assert {institution_id: count for institution_id, count in rows} == {
+                institution_id: 2 for institution_id in institution_ids
+            }
+        finally:
+            await verify_session.close()
+            await verify_conn.close()
+    finally:
+        cleanup_conn = await async_engine.connect()
+        cleanup_session = AsyncSession(bind=cleanup_conn, expire_on_commit=False)
+        try:
+            await cleanup_session.execute(
+                delete(LeadScoreSnapshot).where(
+                    LeadScoreSnapshot.institution_id.in_(institution_ids)
+                )
+            )
+            await cleanup_session.execute(
+                delete(LeadProfile).where(LeadProfile.institution_id.in_(institution_ids))
+            )
+            await cleanup_session.execute(
+                delete(CanonicalInstitution).where(CanonicalInstitution.id.in_(institution_ids))
+            )
+            await cleanup_session.commit()
+        finally:
+            await cleanup_session.close()
+            await cleanup_conn.close()
+
+
+@pytest.mark.asyncio
+async def test_refresh_lead_profile_clears_stale_failed_attempt_marker(db_session):
+    # Regression test: once a profile that previously failed a recompute
+    # attempt goes on to succeed, last_recompute_attempted_at must reset
+    # to None. Otherwise recompute_all_lead_profiles' COALESCE(
+    # last_recompute_attempted_at, computed_at) cursor keeps returning the
+    # stale failure timestamp forever (a non-null value always wins the
+    # COALESCE), so a healthy, freshly-recomputed profile would wrongly
+    # stay stuck at the front of the remediation queue.
+    institution = await _seed_institution(db_session, canonical_name="Recovered School")
+    await refresh_lead_profile(db_session, institution.id)
+
+    profile = await get_lead_profile(db_session, institution.id)
+    profile.last_recompute_attempted_at = datetime.now(UTC)
+    await db_session.flush()
+
+    await refresh_lead_profile(db_session, institution.id)
+
+    recomputed = await get_lead_profile(db_session, institution.id)
+    assert recomputed.last_recompute_attempted_at is None
