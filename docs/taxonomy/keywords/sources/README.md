@@ -1,7 +1,7 @@
 # Harvester Source Specification Index
 
 Status: **Proposed**  
-Version: **2.1**  
+Version: **2.2**  
 Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
@@ -52,22 +52,32 @@ Every source specification uses the same top-level structure:
 
 Shared structure does not mean shared behavior. Every source has an independent collection boundary and evidentiary role.
 
+All source classes additionally inherit the [Raw Source Response Preservation Standard](raw-source-response-preservation-standard.md).
+
 ## 3. Locked rules
 
-1. Source authorization and provider policy override keyword configuration.
-2. A source adapter may collect only fields and records supported by its documented interface and approved authorization.
-3. Domain and activity keywords support identity and activity evidence; they do not prove an opportunity.
-4. Offering-specific problem, intent, replacement, integration, competitor, existing-solution, procurement, and gap terms require an active provider offering.
-5. Source authority and signal relevance are separate dimensions.
-6. Publication date, event date, effective date, expiry date, collection date, and last verification date remain separate where applicable.
-7. `NOT_DETECTED`, unavailable, restricted, failed, stale, contradicted, and confirmed absence are separate states.
-8. Copied pages, syndicated articles, mirrored notices, repeated directory records, cross-posts, and repeated imports do not inflate source diversity.
-9. Decision-role resolution begins only after organization resolution.
-10. A role title does not prove authority.
-11. A public contact route does not create consent or override suppression, conflict, procurement, jurisdiction, or channel policy.
-12. Sensitive or private data cannot be inferred from weak public signals.
-13. Completed Harvest Jobs preserve the source-class, adapter, query, keyword-profile, evidence-policy, classifier, and contact-policy versions used.
-14. These specifications define documentation datasets and controls; they do not claim runtime implementation.
+1. Source authorization and provider policy override keyword configuration and generic retention defaults.
+2. A source request must ask only for the fields, records, pages, dates, geography, and enrichment required for the approved purpose.
+3. Field masks, projections, schema mappings, and request profiles must be versioned.
+4. Harvester must not request every available field merely for possible future use.
+5. Where retention is permitted, Harvester preserves the complete response actually returned as an immutable raw snapshot, including successful, empty, partial, failed, paginated, and retry outcomes.
+6. Permitted raw responses are retained indefinitely by default for audit, reproducibility, historical comparison, and future reprocessing.
+7. Law, binding legal process, provider terms, API policy, licence, contract, privacy, consent, deletion obligations, and stricter source-specific profiles override indefinite retention.
+8. Mandatory deletion should leave a non-reconstructive audit tombstone where permitted.
+9. Raw response preservation does not make every returned field verified, canonical, scoreable, publishable, contactable, or eligible for every future purpose.
+10. A source adapter may collect only fields and records supported by its documented interface and approved authorization.
+11. Domain and activity keywords support identity and activity evidence; they do not prove an opportunity.
+12. Offering-specific problem, intent, replacement, integration, competitor, existing-solution, procurement, and gap terms require an active provider offering.
+13. Source authority and signal relevance are separate dimensions.
+14. Publication date, event date, effective date, expiry date, collection date, and last verification date remain separate where applicable.
+15. `NOT_DETECTED`, unavailable, restricted, failed, stale, contradicted, and confirmed absence are separate states.
+16. Copied pages, syndicated articles, mirrored notices, repeated directory records, cross-posts, and repeated imports do not inflate source diversity.
+17. Decision-role resolution begins only after organization resolution.
+18. A role title does not prove authority.
+19. A public contact route does not create consent or override suppression, conflict, procurement, jurisdiction, or channel policy.
+20. Sensitive or private data cannot be inferred from weak public signals.
+21. Completed Harvest Jobs preserve the source-class, adapter, request, query, field-mask, keyword-profile, evidence-policy, classifier, retention-policy, and contact-policy versions used.
+22. These specifications define documentation datasets and controls; they do not claim runtime implementation.
 
 ## 4. Provider-specific source models
 
@@ -80,6 +90,7 @@ These source-class specifications remain subordinate to any stricter provider-sp
 
 ## 5. Cross-source controls
 
+- [Raw Source Response Preservation Standard](raw-source-response-preservation-standard.md).
 - [Source Query Template Library](../source-query-template-library.md).
 - [Source-to-Signal Matrix](../source-signal-matrix.md).
 - [Query Composition and Evidence Rules](../query-composition-and-evidence-rules.md).
@@ -88,4 +99,4 @@ These source-class specifications remain subordinate to any stricter provider-sp
 
 ## 6. Delivery boundary
 
-The source specifications are documentation standards. Credentials, adapters, source execution, data storage, retention enforcement, evidence resolution, classifiers, scoring, approval, and contact workflows remain separate implementation work.
+The source specifications are documentation standards. Credentials, adapters, source execution, request minimization, data storage, retention enforcement, audit tombstones, evidence resolution, classifiers, scoring, approval, and contact workflows remain separate implementation work.
