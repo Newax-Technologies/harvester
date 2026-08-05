@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.config import settings as app_settings
@@ -26,12 +26,11 @@ from lead_harvester.intelligence.size_estimation import estimate_size_tier
 from lead_harvester.intelligence.website_quality import compute_website_quality_tier
 from lead_harvester.models.canonical import Branch, CanonicalInstitution, ContactPoint
 from lead_harvester.models.profile import LeadProfile, LeadScoreSnapshot
-from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.qualification import QualificationAssessment
 from lead_harvester.models.research import ResearchFinding
 from lead_harvester.models.sector import Sector
 from lead_harvester.models.signal import Signal
-from lead_harvester.models.source import RawPageSnapshot, RawSourceRecord, SourceType
+from lead_harvester.models.source import RawPageSnapshot
 from lead_harvester.profiles.scoring import compute_lead_score
 from lead_harvester.qualification.agent import QualificationAgent
 from lead_harvester.schemas.profiles import (
@@ -41,8 +40,20 @@ from lead_harvester.schemas.profiles import (
 )
 
 
-async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID) -> LeadProfile:
+async def refresh_lead_profile(
+    session: AsyncSession, institution_id: uuid.UUID, *, record_history: bool = True
+) -> LeadProfile:
     """
+    record_history=False skips the LeadScoreSnapshot append (the
+    LeadProfile upsert itself always happens) -- for a caller that already
+    knows a second, more complete refresh is coming immediately after this
+    one within the same per-record processing (e.g. pipeline.py's
+    _resolve_or_log before its own snapshot-linkage step runs), writing
+    history here would record an intermediate score that was never really
+    "current" -- visible nowhere, superseded microseconds later -- as a
+    phantom entry, doubling history growth for no benefit. Defaults True
+    so every other caller keeps recording every call, unaffected.
+
     Idempotent -- safe to call repeatedly as new evidence arrives. Reads the
     institution's current branches/contact points, its latest
     QualificationAssessment (if any has ever run), every ResearchFinding,
@@ -126,10 +137,9 @@ async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID)
     operational_maturity_score = compute_operational_maturity(institution, signals)
     icp_match_score = score_icp_fit(institution, len(branches), app_settings, sector=sector)
 
-    # docs/ROADMAP.md module 20: scope to snapshots from crawl runs that
-    # actually contributed to this institution's canonical record (via
-    # FieldProvenance -> RawSourceRecord -> source_run_id), not a domain-
-    # string match against every crawl this harvester has ever run.
+    # docs/ROADMAP.md module 20: the crawled pages that belong to this
+    # institution's own website specifically -- see _get_website_snapshots'
+    # own docstring for why this is institution_id, not source_run_id.
     website_snapshots = await _get_website_snapshots(session, institution_id)
     website_quality_tier = compute_website_quality_tier(institution.website, website_snapshots)
     service_gap_score = compute_service_gap_score(website_quality_tier, signals, size_tier)
@@ -157,14 +167,21 @@ async def refresh_lead_profile(session: AsyncSession, institution_id: uuid.UUID)
     profile.organization_summary = organization_summary
     profile.evidence_count = result.evidence_count
     profile.computed_at = datetime.now(UTC)
+    # Clear any stale failed-attempt marker: recompute_all_lead_profiles'
+    # COALESCE(last_recompute_attempted_at, computed_at) cursor would
+    # otherwise keep pointing at an old failure timestamp forever, since a
+    # non-null last_recompute_attempted_at always wins the COALESCE even
+    # after this fresh, newer computed_at succeeds it.
+    profile.last_recompute_attempted_at = None
 
-    session.add(
-        LeadScoreSnapshot(
-            institution_id=institution_id,
-            overall_score=result.overall_score,
-            score_breakdown=result.breakdown,
+    if record_history:
+        session.add(
+            LeadScoreSnapshot(
+                institution_id=institution_id,
+                overall_score=result.overall_score,
+                score_breakdown=result.breakdown,
+            )
         )
-    )
 
     await session.flush()
     return profile
@@ -174,29 +191,59 @@ async def _get_website_snapshots(
     session: AsyncSession, institution_id: uuid.UUID
 ) -> list[RawPageSnapshot]:
     """
-    docs/ROADMAP.md module 20: the RawPageSnapshot rows from WEBSITE crawl
-    runs that actually contributed a field to this institution -- traced
-    via FieldProvenance rather than a domain-string match, since that's
-    the same provenance link canonical/merger.py already relies on
-    elsewhere for "which raw record asserted this".
+    docs/ROADMAP.md module 20: the RawPageSnapshot rows that actually
+    belong to this institution's own crawled website.
+
+    Correction: a single WEBSITE SourceRun crawls every seed domain passed
+    to WebCrawler.crawl() in one call, not just one -- filtering by
+    "snapshots from a run that touched this institution" (source_run_id
+    membership, this function's original approach) could silently pull in
+    another institution's pages that happened to be fetched in the same
+    run. RawPageSnapshot.institution_id (models/source.py, stamped by
+    pipeline.py::_run_web_crawler once a page's domain has both produced a
+    RawSourceRecord and been resolved) is the exact-grain link that fixes
+    this -- filter on it directly, never on source_run_id alone. A row
+    with institution_id still NULL (predates this column, or its domain's
+    record never resolved) is correctly excluded, not guessed into scope.
     """
-    run_ids = (
-        await session.scalars(
-            select(RawSourceRecord.source_run_id)
-            .join(FieldProvenance, FieldProvenance.raw_record_id == RawSourceRecord.id)
-            .where(FieldProvenance.canonical_id == institution_id)
-            .where(RawSourceRecord.source_type == SourceType.WEBSITE)
-            .distinct()
-        )
-    ).all()
-    if not run_ids:
-        return []
     return list(
         (
             await session.scalars(
-                select(RawPageSnapshot).where(RawPageSnapshot.source_run_id.in_(run_ids))
+                select(RawPageSnapshot).where(RawPageSnapshot.institution_id == institution_id)
             )
         ).all()
+    )
+
+
+async def link_page_snapshots_to_institution(
+    session: AsyncSession, raw_record_id: uuid.UUID, institution_id: uuid.UUID
+) -> None:
+    """
+    Correction: backfills RawPageSnapshot.institution_id for every page
+    fetched under raw_record_id -- see models/source.py::RawPageSnapshot's
+    "Correction" docstring and _get_website_snapshots above, which this
+    directly feeds.
+
+    pipeline.py::_run_web_crawler already does this inline for a record
+    resolved within the SAME crawl run that fetched its pages. This is the
+    shared path for every OTHER route that can canonicalize a WEBSITE
+    record afterward, where the snapshots were already persisted (with
+    raw_source_record_id set, institution_id still null) in an earlier,
+    already-committed run:
+      - pipeline.py::_retry_stranded_records, retrying a record that
+        failed resolution in an earlier run;
+      - services/resolution_service.py::_apply_decision, a human review
+        decision canonicalizing a record that was left PENDING.
+    Without this, either path leaves the record's pages permanently
+    unlinked -- _get_website_snapshots excludes them forever, not just
+    until some later recomputation, since nothing else ever revisits this
+    link. A no-op for a non-WEBSITE record, since it has no RawPageSnapshot
+    rows to begin with.
+    """
+    await session.execute(
+        update(RawPageSnapshot)
+        .where(RawPageSnapshot.raw_source_record_id == raw_record_id)
+        .values(institution_id=institution_id)
     )
 
 
@@ -269,6 +316,90 @@ async def qualify_all_unassessed(
             print(f"[LeadProfile] qualification failed for institution {institution_id}: {e}")
 
     return qualified_count
+
+
+async def recompute_all_lead_profiles(session: AsyncSession, *, limit: int = 500) -> int:
+    """
+    Re-runs refresh_lead_profile for every institution that already has a
+    LeadProfile row -- the direct remediation for the RawPageSnapshot
+    institution-linkage correction (see migration e2a4c6f8b0d2 and
+    _get_website_snapshots' docstring): every website_quality_tier/
+    service_gap_score computed before that fix landed is treated as
+    untrusted, since it may have been scored from another institution's
+    crawled pages that happened to share a SourceRun. Calling this
+    recomputes both fields (and every other refresh_lead_profile field)
+    fresh, from the now-correctly-scoped institution_id-filtered snapshot
+    query. Each institution is processed in its own savepoint (see
+    docs/CODE_REVIEW_LESSONS.md pattern 3) so one failure doesn't abort
+    the batch or the ones already recomputed in it. Returns the number
+    successfully recomputed.
+
+    Correction: ordered by COALESCE(last_recompute_attempted_at,
+    computed_at) ascending (oldest first), not left unordered, so repeated
+    bounded calls actually make progress across every profile instead of
+    reprocessing the same first `limit` rows forever. A successful
+    refresh_lead_profile sets computed_at to "now" as its last step, and a
+    failed one bumps last_recompute_attempted_at instead (see below) --
+    either way the profile naturally sinks to the back of this ordering,
+    so the next call picks up the next oldest/never-attempted batch with
+    no separate offset or cursor to track.
+
+    Correction: claims the selected LeadProfile rows via SELECT ... FOR
+    UPDATE SKIP LOCKED before processing them -- without it, two
+    overlapping `recompute-lead-profiles` invocations could both select
+    the same oldest rows, each recompute them, and each append its own
+    LeadScoreSnapshot, while the combined runs only actually advance
+    through one `limit`-sized batch of the queue. Same claim pattern as
+    every other "atomically grab pending work" query in this codebase
+    (e.g. pipeline.py's stranded-record/stranded-snapshot retries,
+    outbox_service.py's process_pending_deliveries).
+    """
+    cursor = func.coalesce(LeadProfile.last_recompute_attempted_at, LeadProfile.computed_at)
+    institution_ids = (
+        await session.scalars(
+            select(LeadProfile.institution_id)
+            .order_by(cursor.asc())
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+    ).all()
+
+    recomputed_count = 0
+    for institution_id in institution_ids:
+        try:
+            async with session.begin_nested():
+                await refresh_lead_profile(session, institution_id)
+            recomputed_count += 1
+        except Exception as e:
+            print(f"[LeadProfile] recompute failed for institution {institution_id}: {e}")
+            # Correction: without this, a profile whose refresh keeps
+            # failing (a genuinely bad row) stays at the front of the
+            # cursor ordering forever -- every subsequent bounded call
+            # re-selects the same failing profile(s) and never reaches
+            # later untrusted-but-healthy profiles behind it. Bump
+            # last_recompute_attempted_at alone (in a fresh savepoint,
+            # since the failed one above already rolled back) so the
+            # cursor advances past it; computed_at and every other field
+            # are deliberately left untouched -- computed_at still means
+            # "last successfully computed", so a consumer never sees a
+            # failed, still-untrusted profile reported as freshly
+            # computed, and it stays as untrusted as this function's own
+            # remediation note describes, just no longer blocking the
+            # queue for every other profile.
+            try:
+                async with session.begin_nested():
+                    await session.execute(
+                        update(LeadProfile)
+                        .where(LeadProfile.institution_id == institution_id)
+                        .values(last_recompute_attempted_at=datetime.now(UTC))
+                    )
+            except Exception as advance_error:
+                print(
+                    f"[LeadProfile] failed to advance cursor past institution "
+                    f"{institution_id}: {advance_error}"
+                )
+
+    return recomputed_count
 
 
 async def list_lead_profiles(

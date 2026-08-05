@@ -11,7 +11,7 @@ from lead_harvester.models.resolution import MatchAssessment, MatchDecision
 from lead_harvester.models.sector import Sector
 from lead_harvester.resolution.orchestrator import resolve_incoming_record
 
-from .factories import google_places_record
+from .factories import google_places_record, website_record
 
 
 @pytest.mark.asyncio
@@ -57,6 +57,79 @@ async def test_merge_with_unresolved_target_creates_shared_institution(db_sessio
     result = await db_session.execute(select(Branch).where(Branch.institution_id == inst_a.id))
     branches = result.scalars().all()
     assert len(branches) == 1  # same_location=True collapses to one branch
+
+
+@pytest.mark.asyncio
+async def test_automated_merge_of_two_unresolved_records_links_both_records_snapshots(
+    db_session, source_run
+):
+    # Correction regression test: when the incoming record merges with a
+    # matched_record that is ITSELF still unresolved (neither has been
+    # through resolve_incoming_record before), matched_record may already
+    # carry its own persisted WEBSITE RawPageSnapshot rows from an earlier
+    # run/attempt. pipeline.py's caller only ever backfills institution_id
+    # for the record IT knows about (the incoming one); matched_record is
+    # now canonicalized by this merge, so _retry_stranded_records would
+    # never revisit it either -- its snapshots must be linked here.
+    from lead_harvester.models.source import RawPageSnapshot
+
+    incoming = website_record(
+        source_run.id,
+        name="Snapshot School",
+        organization="Snapshot School",
+        website="snapshot.edu",
+        source_id="web:incoming",
+    )
+    matched = website_record(
+        source_run.id,
+        name="Snapshot School",
+        organization="Snapshot School",
+        website="snapshot.edu",
+        source_id="web:matched",
+    )
+    db_session.add_all([incoming, matched])
+    await db_session.flush()
+
+    # matched's own snapshot, persisted in an earlier run/attempt, still
+    # unlinked -- neither incoming nor matched has been resolved yet.
+    snapshot = RawPageSnapshot(
+        source_run_id=source_run.id,
+        url="https://snapshot.edu/",
+        final_url="https://snapshot.edu/",
+        status_code=200,
+        content_type="text/html",
+        html="<html>hi</html>",
+        fetch_error="",
+        normalized_domain="snapshot.edu",
+        raw_source_record_id=matched.id,
+        institution_id=None,
+    )
+    db_session.add(snapshot)
+    await db_session.flush()
+
+    async def fake_score_candidate(session, candidate):
+        assessment = MatchAssessment(
+            candidate_id=candidate.id,
+            name_similarity=0.95,
+            distance_meters=None,
+            phone_match=False,
+            domain_match=True,
+            total_score=95.0,
+            decision=MatchDecision.MERGE,
+        )
+        session.add(assessment)
+        return assessment
+
+    with patch(
+        "lead_harvester.resolution.orchestrator.score_candidate",
+        new=AsyncMock(side_effect=fake_score_candidate),
+    ):
+        institution = await resolve_incoming_record(db_session, incoming)
+
+    assert institution is not None
+    assert await find_canonical_for_raw_record(db_session, matched.id) == institution.id
+    await db_session.refresh(snapshot)
+    assert snapshot.institution_id == institution.id
 
 
 @pytest.mark.asyncio

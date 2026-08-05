@@ -109,6 +109,19 @@ class LeadProfile(Base):
     computed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+    # Correction: distinct from computed_at, which the lead-profile API
+    # exposes as this profile's freshness/trust signal -- computed_at must
+    # only ever mean "the score fields were last SUCCESSFULLY recomputed
+    # as of this time". services/lead_profile_service.py::
+    # recompute_all_lead_profiles bumps this column (not computed_at) when
+    # a profile's refresh fails, purely so its own remediation cursor
+    # (ordered by whichever of the two is more recent) advances past a
+    # persistently-failing profile instead of re-selecting it forever --
+    # without corrupting computed_at into claiming a failed, still-
+    # untrusted profile was just freshly computed.
+    last_recompute_attempted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
