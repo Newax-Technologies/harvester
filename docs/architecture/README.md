@@ -4,7 +4,7 @@ Status: **Authoritative architecture-directory index**
 Version: **2.0**  
 Date: **6 August 2026**
 
-The repository-wide authority order remains [Harvester Documentation Map](../README.md). This index groups architecture documents by responsibility and reading sequence.
+The repository-wide authority order remains [Harvester Documentation Map](../README.md). The [Documentation Re-baseline Manifest](../documentation-rebaseline-manifest.md) classifies the older Markdown corpus and open documentation work after this re-baseline.
 
 ## 1. Re-baseline and operating architecture
 
