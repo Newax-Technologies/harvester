@@ -7,7 +7,7 @@ Implementation status: **Not implemented**
 
 This directory defines the controlled keyword, semantic, source, evidence, qualification, and contact-preparation layer for the Harvester sector, domain, activity, provider-offering, and opportunity model.
 
-Version 2.0 preserves the 1,586 separate domain profiles, 519 separate activity profiles, organization cues, exclusions, lead-generation signals, role groups, contact routes, source rules, and sector overlays. It adds the ultimate-depth control surface required for precision tiers, co-occurrence, proximity, semantic expansion, entity and classification crosswalks, offering-specific problem and intent profiles, source-specific query templates, Pakistan locale packs, benchmark gold sets, measurable activation gates, and an explicit completion matrix.
+Version 2.0 preserves the 1,586 separate domain profiles, 519 separate activity profiles, organization cues, exclusions, lead-generation signals, role groups, contact routes, source rules, and sector overlays. It adds the ultimate-depth control surface required for precision tiers, co-occurrence, proximity, semantic expansion, entity and classification crosswalks, offering-specific problem and intent profiles, source-specific query templates, Pakistan locale packs, benchmark gold sets, measurable activation gates, a complete validation execution plan, and an explicit completion matrix.
 
 These files are documentation datasets and standards. They are not production search configuration.
 
@@ -70,6 +70,8 @@ Keywords discover evidence. They never independently prove a domain, activity, c
   - Defines source-specific query and inspection patterns for websites, directories, registries, procurement, jobs, news, social, technology sources, app marketplaces, professional networks, and authorized imports.
 - [Keyword Benchmark and Gold-Set Standard](benchmark-and-gold-set-standard.md)
   - Defines example classes, minimum sample depth, metrics, provisional activation thresholds, evaluation splits, locale validation, regression testing, shadow rollout, and completion evidence.
+- [Complete Keyword Validation Plan](keyword-validation-plan.md)
+  - Defines validation outcomes and severity, reviewer separation, 18 execution gates, structural and semantic checks, collision handling, offering isolation, source and locale validation, gold-set execution, regression, shadow rollout, activation, rollback, monitoring, CI evidence and acceptance criteria.
 - [Ultimate Keyword Depth Coverage Matrix](ultimate-depth-coverage-matrix.md)
   - Shows what is defined, what remains partially reviewed, what requires authoritative data, and what remains unimplemented.
 - [Pakistan English, Urdu and Roman Urdu Candidate Pack](locale-packs/pakistan-english-urdu-roman-urdu.md)
