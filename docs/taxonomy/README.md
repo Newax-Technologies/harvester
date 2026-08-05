@@ -1,42 +1,52 @@
 # Harvester Sector, Domain, Activity and Keyword Taxonomy Index
 
-Status: **Proposed**  
-Version: **1.2**  
-Date: **5 August 2026**  
-Implementation status: **Not implemented**
+Status: **Authoritative taxonomy index**  
+Version: **2.1**  
+Date: **6 August 2026**  
+Implementation status: **Controlled documentation datasets; runtime sector-pack implementation remains planned**
 
-This directory contains the controlled broad-sector, product-or-service-domain, business-activity, discovery-keyword, lead-signal, role-cue, source-suitability, and evidence-governance registries used by the Harvester Services and Opportunity Model.
+This directory contains Harvester's canonical broad-sector, product-and-service-domain, business-activity, discovery-keyword, lead-signal, role, contact-route, source-suitability, exclusion, and evidence-control registries.
 
-The locked classification and lead-generation chain is:
+The registries are inputs to [Sector Pack Runtime Model](../architecture/sector-pack-runtime-model.md). They are not separate application schemas and do not independently prove a lead or opportunity.
+
+## 1. Authority sequence
+
+1. [Agency Intelligence Re-baseline](../architecture/agency-intelligence-rebaseline.md)
+2. [Harvester Intelligence Operating Model](../architecture/harvester-intelligence-operating-model.md)
+3. [Sector Pack Runtime Model](../architecture/sector-pack-runtime-model.md)
+4. [Harvester Services and Opportunity Model](../SERVICES.md)
+5. [Provider Portfolio and Lead-Generation Profile Model](../architecture/provider-portfolio-and-lead-generation-profile-model.md)
+6. [Broad Sector Registry and Selection Framework](broad-sector-registry.md)
+7. [Canonical Activity Registry and Domain Mappings](activity-registry.md)
+8. [Keyword Taxonomy and Lead-Signal Index](keywords/README.md)
+9. [Keyword Plan Application Map](keywords/keyword-plan-application-map.md)
+10. [Sector Keyword Connection Matrix](keywords/01-sector-keyword-connection-matrix.md)
+11. Sector-specific domain registries and controlled profile datasets
+12. [Agency Intelligence Implementation Sequence](../delivery/agency-intelligence-implementation-sequence.md)
+
+A lower taxonomy document may add terms, mappings, examples, or source guidance. It cannot weaken active offering, evidence, source-policy, compliance, contact, tenant, or review requirements.
+
+## 2. Locked classification and opportunity chain
 
 ```text
 Broad Sector
-→ Product or Service Domain
-→ Domain-Specific Activity
-→ Approved Domain–Activity Combination
-→ Active Provider Offering
-→ Domain and Activity Keywords
-→ Lead-Generation Signal Profile
-→ Source-Appropriate Query Families
-→ Evidence, Freshness and Contradiction Review
-→ Responsible-Role and Contact Assessment
-→ Supported Opportunity
-→ Qualified Lead
+→ selected Product or Service Domains
+→ independent Activities for every selected Domain
+→ approved Domain–Activity combinations
+→ active Provider Offerings
+→ Domain and Activity discovery profiles
+→ offering-specific Pains, Needs, Signals, and Exclusions
+→ source-appropriate Query Families
+→ evidence, Coverage, Freshness, and Contradiction review
+→ resolved Entities and Roles
+→ Qualification
+→ Opportunity Scoring Model v3
+→ Decision and controlled Output
 ```
 
-## Governing documents
+The order matters. A keyword result cannot jump directly to a qualified or contact-ready lead, despite humanity's persistent belief that more rows equal more truth.
 
-- [Broad Sector Registry and Selection Framework](broad-sector-registry.md)
-- [Canonical Activity Registry and Domain Mappings](activity-registry.md)
-- [Keyword Taxonomy and Lead-Signal Index](keywords/README.md)
-- [Keyword Plan Application Map](keywords/keyword-plan-application-map.md)
-- [Sector Keyword Connection Matrix](keywords/01-sector-keyword-connection-matrix.md)
-- [Harvester Services and Opportunity Model](../SERVICES.md)
-- [Harvester Intelligence Operating Model](../architecture/harvester-intelligence-operating-model.md)
-- [Provider Portfolio and Lead-Generation Profile Model](../architecture/provider-portfolio-and-lead-generation-profile-model.md)
-- [Harvester Standalone Product Roadmap](../ROADMAP.md)
-
-## Registry coverage
+## 3. Registry coverage
 
 | Controlled layer | Coverage |
 | --- | ---: |
@@ -56,17 +66,13 @@ Broad Sector
 | Source classes with signal guidance | 14 |
 | Governed query families | 10 |
 
-The activity library is shared for stable naming and reuse. Applicability remains domain-specific: every canonical domain has an explicit activity profile, and user selections remain independent for each domain.
+These counts describe repository-integrated documentation. They do not prove runtime tables, migrations, APIs, search indexes, classifiers, interfaces, benchmarks, or production activation.
 
-The keyword library follows the same rule. Domain and activity terms are reusable identities, but every domain retains its own keyword profile, organization cues, exclusions, and version history.
+## 4. Required keyword reading sequence
 
-Lead-generation signals are reusable commercial-event and operational-evidence identities. Their relevance, weights, evidence requirements, and disqualifiers remain specific to the provider offering and lead-generation profile.
+Use the [Keyword Plan Application Map](keywords/keyword-plan-application-map.md) for the authoritative keyword-documentation and implementation order.
 
-## Required reading sequence
-
-Use the [Keyword Plan Application Map](keywords/keyword-plan-application-map.md) for the authoritative reading and implementation order.
-
-Use the [Sector Keyword Connection Matrix](keywords/01-sector-keyword-connection-matrix.md) to resolve every sector to:
+Use the [Sector Keyword Connection Matrix](keywords/01-sector-keyword-connection-matrix.md) to resolve every sector through:
 
 ```text
 sector domain registry
@@ -78,9 +84,9 @@ sector domain registry
 → evidence and validation controls
 ```
 
-The application map and connection matrix provide navigation and dependency control. They do not replace the underlying registries.
+The application map and matrix provide navigation and dependency control. They do not replace the underlying canonical registries or runtime governance.
 
-## Sector-specific domain registries
+## 5. Sector-specific domain registries
 
 | Sector code | Broad sector | Registry | Canonical domains |
 | --- | --- | --- | ---: |
@@ -102,11 +108,11 @@ The application map and connection matrix provide navigation and dependency cont
 | `BS-016` | Nonprofit | [Nonprofit Product and Service Domain Registry](nonprofit-domain-registry.md) | 92 |
 |  | **Total** |  | **1,586** |
 
-## Activity applicability
+## 6. Activity applicability
 
 The complete activity dataset is indexed by [Canonical Activity Registry and Domain Mappings](activity-registry.md).
 
-Applicability values are:
+Applicability guidance:
 
 ```text
 CORE
@@ -115,13 +121,19 @@ OPTIONAL
 NOT_APPLICABLE
 ```
 
-`CORE`, `COMMON`, and `OPTIONAL` guide the interface. They do not prove that a target performs an activity. `NOT_APPLICABLE` is represented by the activity being absent from a domain's default profile.
+The shared activity library provides stable identities. Applicability and user selection remain domain-specific.
 
-## Keyword and lead-signal layers
+Rules:
 
-The complete keyword and signal dataset is indexed by [Keyword Taxonomy and Lead-Signal Index](keywords/README.md).
+- selecting an activity for one domain never activates it for another domain;
+- guidance does not prove that a target performs the activity;
+- activity evidence remains source- and date-backed;
+- tenant overlays may adjust approved defaults but cannot mutate canonical records;
+- completed jobs retain exact activity-registry and selection versions.
 
-The layers remain deliberately separate:
+## 7. Keyword and signal layers
+
+The [Keyword Taxonomy and Lead-Signal Index](keywords/README.md) keeps these layers separate:
 
 ```text
 Domain identity terms
@@ -133,12 +145,12 @@ Sector overlays
 Source-to-signal suitability
 Decision-maker role cues
 Contact-route cues
-Offering-specific problem, buying, competitor and existing-solution logic
+Offering-specific problem, buying, competitor, replacement, integration, and existing-solution profiles
+Locale and transliteration packs
+Evidence and validation controls
 ```
 
-The first four layers help discover and classify organizations. Lead-signal and sector-overlay layers help determine why a target may be relevant now. Offering-specific logic decides whether that relevance can become an opportunity for the selected provider service.
-
-A match must retain its match mode:
+Match modes remain explicit:
 
 ```text
 EXACT
@@ -152,50 +164,85 @@ SEMANTIC
 STRUCTURED_FIELD
 ```
 
-## Locked rules
+A semantic or regex match is not a superior form of evidence merely because it required more computing.
+
+## 8. Runtime sector packs
+
+A runtime `SectorPackVersion` pins:
+
+- canonical sector, domain, activity, keyword, signal, role, contact, source, and control-profile versions;
+- organization, person, facility, product, service, project, employment, procurement, pain, need, lead, data, integration, and compliance definitions;
+- conditional input schema;
+- qualification and capability defaults;
+- locale and tenant overlays;
+- benchmark dataset;
+- activation and rollback state.
+
+Healthcare and Education are the first required operational packs. Their runtime scope, data restrictions, project types, roles, pains, needs, lead types, and integrations are defined in the Sector Pack Runtime Model.
+
+## 9. Tenant overlays
+
+Tenant or client overlays may:
+
+- add aliases and approved locale terms;
+- disable irrelevant defaults;
+- add custom exclusions;
+- select independent activities;
+- configure weights within approved bounds;
+- attach active provider offerings;
+- define market-specific evidence and output rules.
+
+They may not:
+
+- alter canonical IDs;
+- delete canonical history;
+- turn unsupported evidence into fact;
+- bypass source or compliance policy;
+- change another tenant's configuration;
+- make a keyword match a qualification or scoring decision.
+
+## 10. Locked rules
 
 1. Broad sectors are multi-select.
-2. Domains are multi-select within each selected sector.
-3. Every selected domain receives its own independent activity group.
-4. Activities selected for one domain never propagate automatically to another domain.
-5. The same canonical domain may be mapped to several sectors without creating duplicate identities.
-6. Every canonical domain has an explicit default activity profile and a separate keyword profile.
-7. The user must approve domain–activity combinations before attaching provider services.
-8. Only active services actually offered by the provider may generate opportunity assessments.
-9. Keywords discover evidence; they do not independently prove a domain, activity, service gap, opportunity, or lead.
-10. Direct intent, procurement, business events, operational pain, technology footprint, role cues, and contactability remain separate evidence dimensions.
-11. Service-gap, buying-intent, competitor, existing-solution, and problem-signal evaluation requires an active provider offering.
-12. Decision-maker discovery follows entity resolution; contact-ready status follows opportunity support and lawful-contact checks.
-13. Job posts, reviews, tenders, news, directories, maps, social posts, and technology listings are evaluated according to their source-signal suitability.
-14. Positive opportunities require negative, contradiction, freshness, closure, cancellation, and award checks where applicable.
-15. Raw keyword counts never become a lead score.
-16. Overlapping sectors and domains must not duplicate organizations, evidence, opportunities, scores, exports, or outreach packages.
-17. Completed harvest jobs preserve the taxonomy, mapping, offering, keyword, signal, role, source, evidence, qualification, and scoring versions used when they ran.
-18. Every sector-to-domain-to-activity-to-keyword connection must resolve through the authoritative matrix rather than undocumented file-name assumptions.
+2. Domains are selected within sectors and may reuse canonical identity across sectors.
+3. Every selected domain receives its own activity selection.
+4. Activities never propagate automatically across domains.
+5. Only approved and operationally active offerings may produce opportunity assessments.
+6. Keywords discover evidence candidates; they do not prove sector, domain, activity, need, opportunity, authority, consent, contact eligibility, or qualification.
+7. Direct intent, procurement, events, operational pain, technology, roles, and contactability remain separate evidence dimensions.
+8. Offering-specific problem, competitor, replacement, integration, and existing-solution logic requires an active offering.
+9. Decision-maker discovery follows entity resolution.
+10. Public contact information does not override suppression, consent, jurisdiction, route, channel, or client policy.
+11. Positive opportunities require negative, contradiction, freshness, closure, cancellation, award, and non-applicability checks where relevant.
+12. Raw keyword counts never become a lead score.
+13. Overlapping sectors, domains, profiles, and clients must not duplicate identity, evidence, opportunities, scores, outputs, or cost.
+14. Activated sector-pack and profile versions are immutable.
+15. Completed jobs retain exact taxonomy, pack, overlay, offering, keyword, signal, role, source, evidence, qualification, scoring, and output versions.
+16. Healthcare patient-level marketing data and Education protected student or minor data remain restricted according to pack policy.
+17. Every sector-to-domain-to-activity-to-keyword connection resolves through the approved application map and connection matrix rather than undocumented file-name assumptions.
 
-## Delivery boundary
+## 11. Runtime delivery references
 
-The broad-sector, domain, activity, keyword, signal, role, source, control-profile, sequence and connection datasets are **defined and repository-integrated documentation** after merge.
-
-They do not implement database records, migrations, APIs, interface controls, query execution, search indexes, activity detection, provider-service catalogues, evidence rules, scoring behavior, contact eligibility, outreach, or releases.
-
-The taxonomy documentation is strengthened for the current 16-sector registry, but runtime implementation is not complete until the corresponding engineering work is built and verified.
-
-## Runtime planning additions
-
-The taxonomy links the additive plans required to turn the existing registries into governed runtime configuration:
-
+- [Sector Pack Runtime Model](../architecture/sector-pack-runtime-model.md)
 - [Keyword Plan Application Map](keywords/keyword-plan-application-map.md)
-  - Authoritative reading and implementation sequence, additive boundaries, per-sector application rules, required composition, version connections and acceptance criteria.
 - [Sector Keyword Connection Matrix](keywords/01-sector-keyword-connection-matrix.md)
-  - Exact sector-to-domain-registry, activity-applicability and keyword-registry links for all 16 sectors.
 - [Keyword Profile Development Plan](keywords/keyword-profile-development-plan.md)
-  - Keyword layers, query composition, evidence behavior and profile-development approach.
 - [Keyword Profile Implementation Plan](keywords/keyword-profile-implementation-plan.md)
-  - User configuration, profile types, data objects, query preview, evidence capture, locale support, versioning, APIs, implementation slices, safeguards, and acceptance criteria.
 - [Keyword and Evidence Profile Integration Addendum](../architecture/keyword-evidence-profile-integration-addendum.md)
-  - Operating-plane placement, evidence-graph edges, confidence separation, source suitability, failure states, cross-product boundaries, security, and architectural verification scenarios.
+- [Keyword Profile Runtime Delivery Plan](../delivery/keyword-profile-runtime-delivery-plan.md)
 - [Keyword Profile Delivery Addendum](../delivery/keyword-profile-delivery-addendum.md)
-  - Existing-roadmap crosswalk, delivery gates, benchmark set, quality metrics, migration and rollout sequence, and exact definition of done.
+- [Agency Intelligence Implementation Sequence](../delivery/agency-intelligence-implementation-sequence.md)
 
-These additions do not replace the registries, the Services and Opportunity Model, the Intelligence Operating Model, or the authoritative 64-module roadmap. They define how the approved taxonomy participates in future implementation.
+## 12. Delivery boundary
+
+The taxonomy registries are controlled documentation datasets. Runtime completion requires:
+
+- database records and migrations;
+- immutable version and activation lifecycle;
+- tenant overlays;
+- APIs and frontend workspaces;
+- query preview and source execution;
+- evidence, coverage, contradiction, and provenance links;
+- qualification and Opportunity Scoring Model v3 integration;
+- sector and locale benchmark datasets;
+- security, privacy, accessibility, performance, migration, and exact-head release verification.
