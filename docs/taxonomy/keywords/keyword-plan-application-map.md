@@ -1,313 +1,139 @@
 # Harvester Keyword Plan Application Map
 
 Status: **Proposed**  
-Version: **1.0**  
+Version: **2.0**  
 Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
 This document applies the [Harvester Keyword Profile Development Plan](keyword-profile-development-plan.md) to the existing keyword Markdown registries without replacing, rewriting, collapsing, or reclassifying their current content.
 
-The existing keyword files remain the controlled datasets. The development plan defines how those datasets will later be composed, tested, executed, evidenced, qualified, reviewed, versioned, and integrated into lead generation.
+It is the authoritative documentation sequence for the keyword layer. Exact sector-to-domain-registry, activity-applicability and domain-keyword links are maintained in the [Sector Keyword Connection Matrix](01-sector-keyword-connection-matrix.md).
 
-## 1. Additive rule
+The existing keyword files remain controlled datasets. This map defines how they are composed, tested, executed, evidenced, qualified, reviewed, versioned, and integrated into lead generation.
 
-The relationship is:
+## 1. Documentation and implementation sequence
+
+```text
+1. Harvester roadmap and operating authority
+2. Services and provider-offering eligibility
+3. Broad-sector selection
+4. Sector domain registry
+5. Domain-to-activity applicability
+6. Domain keyword registry
+7. Shared activity keyword registry
+8. Organization and exclusion controls
+9. Active-offering lead-signal profiles
+10. Sector overlay
+11. Source suitability and source model
+12. Query composition and semantic expansion
+13. Evidence capture and entity resolution
+14. Classification, contradiction, freshness and coverage review
+15. Qualification and opportunity assessment
+16. Responsible-function and lawful-contact assessment
+17. Validation, benchmark, activation and rollback
+18. Runtime delivery through existing roadmap modules
+```
+
+Primary reading order:
+
+1. [`../../ROADMAP.md`](../../ROADMAP.md)
+2. [`../../architecture/agency-intelligence-rebaseline.md`](../../architecture/agency-intelligence-rebaseline.md)
+3. [`../../architecture/harvester-intelligence-operating-model.md`](../../architecture/harvester-intelligence-operating-model.md)
+4. [`../../SERVICES.md`](../../SERVICES.md)
+5. [`../../architecture/provider-portfolio-and-lead-generation-profile-model.md`](../../architecture/provider-portfolio-and-lead-generation-profile-model.md)
+6. [`../broad-sector-registry.md`](../broad-sector-registry.md)
+7. The selected sector domain registry
+8. [`../activity-registry.md`](../activity-registry.md) and the selected domain-activity mapping
+9. The selected sector domain keyword registry
+10. [`activity-keywords-part-1.md`](activity-keywords-part-1.md), [`activity-keywords-part-2.md`](activity-keywords-part-2.md), and [`activity-keywords-part-3.md`](activity-keywords-part-3.md)
+11. [`control-profiles.md`](control-profiles.md)
+12. [`provider-offering-keyword-profile-standard.md`](provider-offering-keyword-profile-standard.md)
+13. [`lead-generation-signal-registry.md`](lead-generation-signal-registry.md) and [`sector-lead-generation-overlays.md`](sector-lead-generation-overlays.md)
+14. [`source-signal-matrix.md`](source-signal-matrix.md) and the applicable source model
+15. [`source-query-template-library.md`](source-query-template-library.md), [`query-composition-and-evidence-rules.md`](query-composition-and-evidence-rules.md), and [`keyword-expansion-and-composition-engine.md`](keyword-expansion-and-composition-engine.md)
+16. [`semantic-entity-and-classification-expansion.md`](semantic-entity-and-classification-expansion.md)
+17. [`../../architecture/keyword-evidence-profile-integration-addendum.md`](../../architecture/keyword-evidence-profile-integration-addendum.md)
+18. [`keyword-quality-and-review-standard.md`](keyword-quality-and-review-standard.md), [`benchmark-and-gold-set-standard.md`](benchmark-and-gold-set-standard.md), and [`keyword-validation-plan.md`](keyword-validation-plan.md)
+19. [`keyword-profile-implementation-plan.md`](keyword-profile-implementation-plan.md) and [`../../delivery/keyword-profile-delivery-addendum.md`](../../delivery/keyword-profile-delivery-addendum.md)
+
+A later file may deepen an earlier rule. It cannot silently override provider eligibility, domain identity, activity applicability, evidence invariants, source restrictions, contact policy, tenant isolation, or the authoritative roadmap.
+
+## 2. Additive rule
 
 ```text
 Existing keyword registry
-+
-Keyword Profile Development Plan
-+
-This application map
-=
-controlled implementation specification
++ Keyword Profile Development Plan
++ this application map
++ Sector Keyword Connection Matrix
+= controlled implementation specification
 ```
 
-The plan does not supersede:
+This map does not supersede canonical domain or activity codes, identity terms, activity terms, organization cues, exclusions, evidence controls, signals, source suitability, query rules, decision-maker cues, contact safeguards, or product boundaries.
 
-- canonical domain codes
-- canonical activity codes
-- domain identity terms
-- activity terms
-- organization cues
-- exclusion profiles
-- evidence controls
-- lead-generation signals
-- source suitability rules
-- query composition rules
-- decision-maker cues
-- contact-route safeguards
-- cross-product boundaries
+Conflicts require explicit change control. Existing registry content is never silently replaced by generated plan language.
 
-When a conflict is discovered, it must be resolved through explicit change control. Existing registry content must not be silently replaced by generated plan language.
+## 3. Canonical activity keyword registries
 
-## 2. Canonical activity keyword registries
-
-These files supply the shared activity-term layer used by approved domain-specific activity selections:
+Shared activity-term authorities:
 
 - [Activity keywords, part 1](activity-keywords-part-1.md)
 - [Activity keywords, part 2](activity-keywords-part-2.md)
 - [Activity keywords, part 3](activity-keywords-part-3.md)
 
-Plan application:
+Rules:
 
 1. Preserve one canonical keyword identity per activity code.
-2. Compose activity terms only after the user approves that activity for the selected domain.
+2. Compose activity terms only after that activity is approved for the selected domain.
 3. Do not propagate activity selection between domains.
 4. Preserve match mode, language, term type, status, and profile version.
-5. Benchmark activity terms independently from domain identity terms.
-6. Treat an activity match as evidence, not proof that the organization performs the activity.
-
-## 3. Sector-specific domain keyword registries
-
-Each domain registry supplies identity terms, aliases, organization cues, exclusions, and evidence controls for its own canonical domains.
-
-### `BS-001 Healthcare`
-
-- [Healthcare domain keywords, part 1](healthcare-domain-keywords-part-1.md)
-- [Healthcare domain keywords, part 2](healthcare-domain-keywords-part-2.md)
-
-Plan application:
-
-- Keep medicines, devices, supplies, clinical services, digital health, operational support, research, education, and public-health profiles separate.
-- Apply sensitive-health exclusions and stronger source requirements where appropriate.
-- Do not infer clinical service delivery from product terminology or infer manufacturing from medicine mentions.
-
-### `BS-002 Education`
-
-- [Education domain keywords](education-domain-keywords.md)
-
-Plan application:
-
-- Keep institutions, education services, learning content, education technology, assessment, research, and support operations separate.
-- Distinguish schools, universities, training providers, content publishers, platforms, and education-service organizations.
-- Do not treat an individual course, student record, or job advertisement as an organization.
-
-### `BS-003 Food and Agriculture`
-
-- [Food and Agriculture domain keywords](food-agriculture-domain-keywords.md)
-
-Plan application:
-
-- Separate crops, livestock, fisheries, inputs, processing, food products, cold chain, distribution, and agricultural services.
-- Compose growing, processing, manufacturing, grading, storing, distributing, selling, and exporting activities independently.
-- Preserve food-safety, halal, seasonal, geographic, and commodity ambiguity controls.
-
-### `BS-004 Real Estate`
-
-- [Real Estate domain keywords](real-estate-domain-keywords.md)
-
-Plan application:
-
-- Separate development, brokerage, property management, facilities, valuation, leasing, investment, and property technology.
-- Distinguish a property listing from an operating organization.
-- Require corroboration for broad words such as property, asset, development, project, unit, and management.
-
-### `BS-005 Construction`
-
-- [Construction domain keywords](construction-domain-keywords.md)
-
-Plan application:
-
-- Separate contractors, engineering, architecture, materials, systems, equipment, installation, inspection, and project services.
-- Preserve the distinction between physical systems and software systems.
-- Compose manufacturing, supplying, installing, maintaining, renting, and recycling activities separately.
-
-### `BS-006 Legal`
-
-- [Legal domain keywords](legal-domain-keywords.md)
-
-Plan application:
-
-- Separate practice areas, legal institutions, legal operations, compliance services, dispute resolution, and legal technology.
-- Distinguish law firms and service providers from judgments, cases, articles, legislation, courts, and individual lawyers.
-- Treat role terms as responsibility cues, not guaranteed purchasing authority.
-
-### `BS-007 Finance`
-
-- [Finance domain keywords](finance-domain-keywords.md)
-
-Plan application:
-
-- Separate banking, payments, investment, Takaful, accounting, audit, tax, risk, compliance, and financial technology.
-- Apply strict ambiguity controls to terms such as trust, security, filing, asset, audit, capital, and account.
-- Preserve Islamic finance and Takaful identities rather than merging them into conventional finance profiles.
-
-### `BS-008 Retail`
-
-- [Retail domain keywords](retail-domain-keywords.md)
-
-Plan application:
-
-- Separate product categories, store formats, e-commerce, marketplaces, franchising, retail operations, and supporting systems.
-- Distinguish a retailer from a product listing, consumer review, promotional post, or reseller account.
-- Compose selling, retailing, reselling, promoting, distributing, warehousing, and fulfilment independently.
-
-### `BS-009 Hospitality`
-
-- [Hospitality domain keywords](hospitality-domain-keywords.md)
-
-Plan application:
-
-- Separate accommodation, food service, venues, events, guest services, property operations, and hospitality systems.
-- Keep Hospitality distinct from Travel while allowing explicit cross-sector mappings.
-- Distinguish a hotel, restaurant, venue, or operator from a booking listing or consumer review.
-
-### `BS-010 Travel`
-
-- [Travel domain keywords](travel-domain-keywords.md)
-
-Plan application:
-
-- Separate travel agencies, tour operations, destination services, pilgrimage services, ticketing, transport-linked travel, and travel systems.
-- Keep Travel distinct from Hospitality and Logistics.
-- Apply geographic, seasonal, itinerary, destination, and package ambiguity controls.
-
-### `BS-011 Manufacturing and Industry`
-
-- [Manufacturing and Industry domain keywords](manufacturing-industry-domain-keywords.md)
-
-Plan application:
-
-- Separate manufacturing families, fabrication, assembly, processing, industrial equipment, industrial services, quality, and industrial systems.
-- Distinguish a manufacturer from a distributor, supplier, reseller, repairer, or scrap operator.
-- Preserve physical manufacturing systems separately from digital manufacturing software.
-
-### `BS-012 Logistics`
-
-- [Logistics domain keywords](logistics-domain-keywords.md)
-
-Plan application:
-
-- Separate freight, postal and courier, last-mile delivery, warehousing, fulfilment, cold chain, fleets, ports, aviation, maritime, and logistics systems.
-- Keep postal and courier within the approved shared domain family while preserving their operational subtypes.
-- Compose transporting, sorting, storing, delivering, forwarding, clearing, tracking, and returning independently.
-
-### `BS-013 Energy`
-
-- [Energy domain keywords](energy-domain-keywords.md)
-
-Plan application:
-
-- Separate generation, transmission, distribution, renewables, fuels, utilities, water, efficiency, equipment, and energy systems.
-- Distinguish physical energy infrastructure from software, analytics, consulting, installation, and maintenance providers.
-- Require context for broad terms such as power, grid, solar, utility, plant, distribution, and energy management.
-
-### `BS-014 Technology`
-
-- [Technology domain keywords, part 1](technology-domain-keywords-part-1.md)
-- [Technology domain keywords, part 2](technology-domain-keywords-part-2.md)
-
-Plan application:
-
-- Separate software products, SaaS, IT services, infrastructure, cloud, data, cybersecurity, telecommunications, hardware, and technology operations.
-- Do not classify every domain containing the word system, platform, data, or network as software without family and organization context.
-- Compose developing, publishing, licensing, implementing, integrating, hosting, maintaining, supporting, and reselling independently.
-
-### `BS-015 Government`
-
-- [Government domain keywords](government-domain-keywords.md)
-
-Plan application:
-
-- Separate public administration, municipal services, regulators, public safety, emergency services, public infrastructure, citizen services, and government systems.
-- Distinguish a government organization from policy discussion, legislation, political commentary, news, or an individual office-holder.
-- Apply public-sector source, authority, procurement, and current-status controls.
-
-### `BS-016 Nonprofit`
-
-- [Nonprofit domain keywords](nonprofit-domain-keywords.md)
-
-Plan application:
-
-- Separate charities, foundations, NGOs, associations, chambers, religious institutions, development organizations, membership bodies, and nonprofit systems.
-- Distinguish an operating organization from a campaign, donation page, beneficiary story, event, or volunteer posting.
-- Apply mission, program, geography, funding, registration, and current-activity controls.
-
-## 4. Shared control and governance files
-
-### Keyword controls
+5. Benchmark activity terms separately from domain identity terms.
+6. Treat activity matches as evidence candidates, not proof.
+
+## 4. Sector-specific domain keyword registries
+
+The [Sector Keyword Connection Matrix](01-sector-keyword-connection-matrix.md) provides exact upstream domain and activity authorities for all 16 sectors.
+
+Sector application rules:
+
+- **Healthcare:** keep medicines, devices, supplies, care services, facilities, digital health, operations, research, education, and public health separate; apply sensitive-health restrictions.
+- **Education:** separate institutions, learning services, content, technology, assessment, research, and operations; never treat student records or individual courses as organizations.
+- **Food and Agriculture:** separate crops, livestock, fisheries, inputs, processing, products, cold chain, distribution, and services; preserve halal, food-safety, seasonal, and commodity controls.
+- **Real Estate:** separate development, brokerage, property management, facilities, valuation, leasing, investment, and property technology; distinguish listings from organizations.
+- **Construction:** separate contractors, engineering, architecture, materials, systems, equipment, installation, inspection, and project services; keep physical and digital systems distinct.
+- **Legal:** separate practice areas, institutions, operations, compliance, dispute resolution, and technology; distinguish firms from cases, legislation, courts, articles, and individual professionals.
+- **Finance:** separate banking, payments, investment, Islamic finance, Takaful, accounting, audit, tax, risk, compliance, and technology; enforce ambiguity and ethical controls.
+- **Retail:** separate product categories, store formats, e-commerce, marketplaces, franchising, operations, and systems; distinguish retailers from product listings and consumer posts.
+- **Hospitality:** separate accommodation, food service, venues, events, guest services, property operations, and systems; distinguish operators from booking listings and reviews.
+- **Travel:** separate agencies, tour operations, destination services, pilgrimage, ticketing, transport-linked travel, and systems; preserve geography and seasonality.
+- **Manufacturing and Industry:** separate manufacturing families, fabrication, assembly, processing, equipment, industrial services, quality, and systems; distinguish manufacturers from suppliers and repairers.
+- **Logistics:** separate freight, courier, delivery, warehousing, fulfilment, cold chain, fleets, ports, aviation, maritime, and systems.
+- **Energy:** separate generation, transmission, distribution, renewables, fuels, utilities, water, efficiency, equipment, and systems; distinguish physical infrastructure from software and services.
+- **Technology:** separate software products, SaaS, IT services, infrastructure, cloud, data, cybersecurity, telecommunications, hardware, and operations; broad technology words require context.
+- **Government:** separate administration, municipal services, regulators, public safety, emergency services, infrastructure, citizen services, and systems; distinguish institutions from policy discussion and office-holders.
+- **Nonprofit:** separate charities, foundations, NGOs, associations, chambers, religious institutions, development organizations, membership bodies, and systems; distinguish organizations from campaigns and donation pages.
+
+## 5. Shared governance files
 
 - [Keyword Control Profiles](control-profiles.md)
-
-Plan application:
-
-- Supply reusable organization cues, exclusions, ambiguity controls, sensitive-sector restrictions, and evidence requirements.
-- Remain independently versioned from domain and activity terms.
-
-### Keyword quality
-
 - [Keyword Quality and Review Standard](keyword-quality-and-review-standard.md)
-
-Plan application:
-
-- Govern draft, review, benchmark, approval, activation, monitoring, revision, deprecation, and rollback.
-- Prevent malformed stems, overbroad aliases, silent mutation, and untested generated terms.
-
-### Lead-generation signals
-
 - [Lead-Generation Signal Registry](lead-generation-signal-registry.md)
-
-Plan application:
-
-- Supply direct intent, procurement, expansion, hiring, technology, operational pain, compliance, maintenance, budget, contactability, and negative signals.
-- Activate only through an applicable active provider offering.
-
-### Sector overlays
-
 - [Sector Lead-Generation Overlays](sector-lead-generation-overlays.md)
-
-Plan application:
-
-- Add sector-specific triggers, operational indicators, scale cues, responsible functions, source guidance, and exclusions.
-- Do not replace the underlying domain or activity profiles.
-
-### Decision-makers and contacts
-
 - [Decision-Maker and Contact-Cue Registry](decision-maker-and-contact-cues.md)
-
-Plan application:
-
-- Begin after organization resolution.
-- Treat titles as responsibility cues rather than proof of authority.
-- Require current affiliation and lawful contact-route evidence.
-
-### Sources
-
 - [Source-to-Signal Matrix](source-signal-matrix.md)
-
-Plan application:
-
-- Determine which source classes can credibly support each signal.
-- Preserve source suitability, weakness, freshness, and reliability in evidence.
-
-### Query composition
-
 - [Query Composition and Evidence Rules](query-composition-and-evidence-rules.md)
-
-Plan application:
-
-- Generate precision, recall, entity, negative, and source-specific query families.
-- Preserve every contributing profile version, source, locale, geography, match mode, and exclusion.
-
-### Cross-product contract
-
 - [Cross-Product Keyword and Profile Contract](cross-product-keyword-contract.md)
 
-Plan application:
+These files own reusable ambiguity, source, evidence, signal, role, contact, query, quality, lifecycle, and cross-product rules. Sector registries cannot override them.
 
-- Expose only bounded references and approved outcomes to NEWAX Core or Communicator.
-- Do not copy Harvester's private keyword strategy or raw proprietary configuration into another product.
-
-## 5. Required composition sequence
-
-Every approved target configuration follows:
+## 6. Required composition sequence
 
 ```text
-Sector selection
+Provider and business unit
+→ active provider offering
+→ lead-generation profile
+→ sector selection
 → domain selection
 → separate activity approval for that domain
-→ active provider offering
 → domain keyword profile
 → activity keyword profile
 → organization-cue profile
@@ -318,24 +144,43 @@ Sector selection
 → geography and locale rules
 → versioned query plan
 → evidence observations
-→ contradiction and duplicate checks
+→ entity resolution
+→ domain and activity classification
+→ contradiction, freshness, coverage and duplicate-origin checks
 → qualification
 → supported opportunity
+→ responsible-function assessment
 → lawful contact readiness
 ```
 
-No step may be skipped merely because one keyword appears highly relevant.
+No step is skipped merely because a keyword appears persuasive.
 
-## 6. Preservation rule
+## 7. Required version connection
 
-This application map is additive.
+Every activated profile and Harvest Job preserves versions for provider, business unit, offering, lead-generation profile, broad sector, domain, sector-domain mapping, domain-activity assignment, activity, domain and activity keyword profiles, organization cues, exclusions, offering signals, sector overlay, source suitability, source model, locale pack, query templates, query composition, semantic and classification models, evidence policy, qualification, scoring, and contact policy.
 
-It does not authorize replacing the existing Markdown registries with summaries, generated prose, databases, spreadsheets, embeddings, or runtime configuration.
+Later changes apply only to future jobs unless an operator explicitly creates a replacement job.
 
-When runtime implementation begins, the approved Markdown records must remain traceable to generated records through stable codes and versions.
+## 8. Preservation rule
 
-## 7. Delivery boundary
+This map is additive. It does not authorize replacing controlled Markdown registries with summaries, generated prose, spreadsheets, databases, embeddings, or runtime configuration without stable codes, versions, traceability, review, and migration evidence.
 
-The development plan, this application map, and all linked registries are controlled documentation datasets.
+## 9. Acceptance criteria
 
-They do not implement database records, migrations, APIs, user interfaces, search execution, embeddings, classifiers, evidence scoring, opportunity scoring, contact eligibility, outreach, or releases.
+The keyword connection is acceptable only when:
+
+1. every sector resolves through the sector connection matrix;
+2. every domain and activity retains stable identity and a separate profile;
+3. activity applicability remains domain-specific;
+4. offering-specific signals require an active offering;
+5. queries preserve all contributing profile and source versions;
+6. matches preserve source, context, time, match mode, language, and profile origin;
+7. keyword matches cannot independently create gaps, opportunities, authority, consent, or contact-ready leads;
+8. positive evidence is evaluated with exclusions, contradictions, freshness, coverage, and duplicate-origin controls;
+9. role and contact discovery follows entity resolution and supported-opportunity gates;
+10. jobs remain reproducible from immutable snapshots;
+11. the Harvester roadmap remains the only top-level delivery roadmap.
+
+## 10. Delivery boundary
+
+The development plan, this map, the connection matrix, and linked registries are controlled documentation datasets. They do not implement database records, migrations, APIs, interfaces, search execution, embeddings, classifiers, evidence scoring, opportunity scoring, contact eligibility, outreach, or releases.

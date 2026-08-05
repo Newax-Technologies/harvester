@@ -1,7 +1,7 @@
 # Harvester Delivery Plans
 
 Status: **Authoritative delivery index**  
-Version: **2.0**  
+Version: **2.1**  
 Date: **6 August 2026**
 
 Delivery plans translate the 64-module roadmap and normative architecture into implementation slices. They remain subordinate to `docs/ROADMAP.md` and the authority order in `docs/README.md`.
@@ -20,6 +20,12 @@ Delivery plans translate the 64-module roadmap and normative architecture into i
   - Defines the complete configuration journey and full frontend coverage for current and planned operational domains.
   - Defines shared frontend architecture, responsive correction, accessibility, testing, security, and rollout requirements.
   - Its pull-request sequence must now follow the foundation, tenancy, source-governance, provider, market-definition, sector-pack, and universal-entity contracts established by the primary implementation sequence.
+
+- [Input-Page Output Selection Specification](input-page-output-selection-specification.md)
+  - Defines what an authorized operator may ask Harvester to produce from a configured provider and market.
+  - Covers result purpose, quantity, eligibility, fields, evidence depth, ranking, deduplication, destinations, formats, scheduling, retention, preview, review, activation, and history.
+  - Keeps result generation separate from export, publication, and outreach.
+  - Prohibits silent quality-threshold reduction merely to fill a requested quota.
 
 ## 3. Keyword and taxonomy runtime
 
