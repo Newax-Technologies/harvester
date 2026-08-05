@@ -1,246 +1,147 @@
 # Harvester Source Query Template Library
 
 Status: **Proposed**  
-Version: **2.0**  
+Version: **2.1**  
 Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-This library defines source-specific query and inspection patterns. It does not authorize scraping, bypassing access controls, violating platform terms, or collecting private data.
+This library defines the shared query-composition contract used by the fourteen separate [Harvester source specifications](sources/README.md).
+
+It does not authorize scraping, access-control bypass, private-data collection, provider-term violations, or source usage outside an approved adapter and authorization profile.
 
 ## 1. General rule
 
-A source adapter must translate canonical profiles into the fields and syntax actually supported by that source. It must not pretend every source is a general web search engine wearing a different logo.
-
-## 2. Organization websites
-
-### Discovery targets
-
-- page titles and headings;
-- About, Products, Services, Facilities, Locations, Careers, News, Procurement, Contact;
-- structured data and metadata;
-- downloadable brochures and catalogues;
-- public policies, certifications, and annual reports.
-
-### Templates
+A source adapter must translate canonical keyword profiles into the exact fields, filters, syntax, request limits, and authorization modes supported by that source.
 
 ```text
-site:<official-domain> <domain term>
-site:<official-domain> <approved activity>
-site:<official-domain> <event or procurement signal>
-site:<official-domain> <technology or integration term>
-site:<official-domain> <responsible function or official contact route>
+Canonical profile
+→ source-specific composition
+→ supported query or mapping
+→ bounded source execution
+→ contextual evidence candidate
+→ source, entity, freshness, duplication and contradiction review
 ```
 
-### Weaknesses
+Every source is different. A registry identifier lookup, a map text search, an official-site crawl, a tender filter, a CRM import mapping, and an inbound inquiry extraction are not interchangeable query types.
 
-- marketing language;
-- outdated pages;
-- missing content does not prove absence;
-- parent and branch content may be mixed.
+## 2. Separate source specifications
 
-## 3. Business directories and maps
+| Source code | Source specification |
+| --- | --- |
+| `SRC-WEB` | [Organization Websites](sources/organization-websites.md) |
+| `SRC-REG` | [Government and Professional Registries](sources/government-professional-registries.md) |
+| `SRC-PROC` | [Procurement and Tender Portals](sources/procurement-tender-portals.md) |
+| `SRC-JOBS` | [Job Boards and Careers Pages](sources/job-boards-careers-pages.md) |
+| `SRC-PROF` | [Authorized Professional Networks](sources/authorized-professional-networks.md) |
+| `SRC-NEWS` | [News and Media](sources/news-media.md) |
+| `SRC-MAPS` | [Maps and Business Listings](sources/maps-business-listings.md) |
+| `SRC-DIR` | [Business Directories](sources/business-directories.md) |
+| `SRC-SOCIAL` | [Social Platforms](sources/social-platforms.md) |
+| `SRC-TECH` | [App Marketplaces and Technology Directories](sources/app-marketplaces-technology-directories.md) |
+| `SRC-REPORT` | [Company Reports and Investor Publications](sources/company-reports-investor-publications.md) |
+| `SRC-CERT` | [Certification and Accreditation Sources](sources/certification-accreditation-sources.md) |
+| `SRC-IMPORT` | [Manual Authorized Imports](sources/manual-authorized-imports.md) |
+| `SRC-DIRECT` | [Direct Inquiries and Referrals](sources/direct-inquiries-referrals.md) |
 
-### Useful fields
+The individual source files define admissible fields, signal strengths, weaknesses, provenance, freshness, duplication, privacy, failure states, and acceptance criteria.
 
-- category;
-- business name;
-- address and location;
-- official website;
-- phone;
-- opening status;
-- branch count;
-- services or attributes;
-- verified owner data where legitimately available.
+## 3. Required query families
 
-### Controls
+A source adapter may support only the families that fit its interface.
 
-- category is identity evidence, not activity proof;
-- duplicate directories are not independent corroboration;
-- user reviews require cautious interpretation;
-- closed or moved status must be verified.
+### 3.1 Identity
 
-## 4. Government and regulator registries
+Purpose:
 
-### Useful fields
-
-- legal name;
-- registration or licence identifier;
-- status;
-- legal form;
-- registered address;
-- permitted activity or category;
-- effective and expiry dates;
-- directors or public officers only where lawful and necessary.
-
-### Query patterns
+- discover or verify an organization, branch, facility, product, service, or regulated record;
+- map source-native categories to candidate Harvester domains;
+- resolve aliases, legal names, brands, and identifiers.
 
 ```text
-exact legal name
-registration or licence number
-reviewed classification code
-status + effective date
-entity + regulator category
+<domain identity>
++ <organization cue>
++ <geography or identifier>
 ```
 
-### Evidence use
+### 3.2 Activity
 
-Authoritative for the exact fields governed by that registry. Not automatically authoritative for current operational capability, technology, demand, or contact intent.
+Purpose:
 
-## 5. Procurement and tender portals
-
-### Fields
-
-- notice identifier;
-- buyer;
-- title and description;
-- category;
-- publication and deadline dates;
-- amendment, cancellation, award, or completion status;
-- eligibility;
-- submission route;
-- value where officially disclosed.
-
-### Query families
+- discover evidence that a resolved target performs an approved activity inside a selected domain.
 
 ```text
-<offering or capability> + tender/RFP/RFQ/EOI
-<domain> + procurement + <geography>
-<buyer entity> + current notices
-<notice identifier> + amendment/cancellation/award
+<resolved target>
++ <selected domain>
++ <approved activity>
++ <supporting process, output, facility, equipment, or role cue>
 ```
 
-### Controls
+An activity match for one domain never activates that activity for another domain.
 
-- inspect the actual notice and attachments;
-- retain amendments and status changes;
-- do not contact outside the permitted procurement route;
-- expired, cancelled, or awarded notices cannot remain active.
+### 3.3 Precision
 
-## 6. Job boards and careers pages
-
-### Useful signals
-
-- expansion;
-- new capability;
-- technology footprint;
-- workflow ownership;
-- implementation or transformation activity;
-- location growth.
-
-### Templates
+Use exact phrases, stable identifiers, reviewed aliases, classification codes, and required co-occurrence to reduce false positives.
 
 ```text
-<entity> + <responsible role>
-<entity> + implementation/integration/automation role
-<domain> + new facility or operations hiring
+<exact or high-precision term>
++ <required context>
+- <known ambiguity>
 ```
 
-### Controls
+### 3.4 Recall
 
-A vacancy does not prove budget, outsourcing interest, project approval, or dissatisfaction with current systems.
+Use reviewed aliases, abbreviations, local terminology, transliteration, semantic seeds, and source-native categories within source, query-budget, geography, precision-tier, negative-context, and review controls.
 
-## 7. News and media
+### 3.5 Entity verification
 
-### Useful events
+```text
+<name or identifier>
++ <address/domain/phone/registry/location relationship>
+```
 
-- launch;
-- expansion;
-- funding;
-- acquisition;
-- facility opening;
-- partnership;
-- regulatory action;
-- project award;
-- public incident.
+### 3.6 Event
 
-### Controls
+```text
+<resolved entity>
++ <event profile>
++ <date or geography context>
+```
 
-- distinguish event date from publication date;
-- syndicated copies count as one origin;
-- opinion, allegation, and verified fact remain separate;
-- high-impact negative signals require authoritative support and review.
+Event date and publication date remain separate.
 
-## 8. Social and messaging platforms
+### 3.7 Procurement
 
-Use only public or authorized content under platform and jurisdiction rules.
+```text
+<offering or capability>
++ <tender/RFP/RFQ/EOI/procurement vocabulary>
++ <buyer, geography, or category>
+```
 
-Potential signals:
+Every positive procurement query must be paired with amendment, extension, cancellation, award, completion, and expiry checks.
 
-- official launch or branch announcement;
-- public service update;
-- recruitment;
-- event participation;
-- public inquiry route;
-- product or facility evidence.
+### 3.8 Technology and existing solution
 
-User comments and follower data are normally weak and must not be mined for sensitive or private inferences.
+```text
+<resolved entity>
++ <technology or existing-solution profile>
++ <official or source-supported context>
+```
 
-## 9. Technology-footprint sources
+Technology presence does not prove adoption, satisfaction, replacement intent, or absence of alternatives.
 
-Potential evidence:
+### 3.9 Role and contact route
 
-- official integration pages;
-- app-marketplace listings;
-- public technical documentation;
-- public DNS, headers, scripts, or metadata where lawful;
-- case studies naming the organization;
-- implementation-partner announcements.
+```text
+<resolved organization>
++ <responsible function>
++ <official or authorized contact-route cue>
+```
 
-Controls:
+A title does not prove authority. A public route does not create consent.
 
-- technology detection is probabilistic and time-sensitive;
-- shared hosting or third-party scripts may create false attribution;
-- presence does not prove satisfaction or replacement intent;
-- absence does not prove non-use.
+### 3.10 Negative and contradiction
 
-## 10. App marketplaces
-
-Useful fields:
-
-- product and vendor;
-- category;
-- integration relationship;
-- supported region;
-- listing status;
-- reviews or installation indicators only when reliable and lawful.
-
-A marketplace listing may support vendor capability, not necessarily customer adoption.
-
-## 11. Professional networks
-
-Use only authorized access and permitted public fields.
-
-Potential evidence:
-
-- current organization and role;
-- functional responsibility;
-- organization hiring or growth;
-- public company descriptions.
-
-Controls:
-
-- title does not prove authority;
-- current affiliation must be reverified;
-- personal contact details are not inferred or bypassed;
-- contact policy remains separate.
-
-## 12. User-authorized imports
-
-Imports supplied by the user may include CRM records, spreadsheets, notes, or permitted datasets.
-
-Requirements:
-
-- provenance;
-- authorization scope;
-- tenant isolation;
-- row-level validation;
-- suppression and consent state;
-- source record preservation;
-- no silent overwriting of stronger evidence.
-
-## 13. Source-specific negative queries
-
-For every material positive signal, inspect:
+Common logical terms include:
 
 ```text
 cancelled
@@ -250,22 +151,134 @@ closed
 expired
 suspended
 revoked
+withdrawn
 moved
 renamed
 merged
 superseded
+deprecated
+discontinued
+corrected
+denied
+filled
+delisted
 do not contact
 no longer employed
 ```
 
-Interpret the term in context. `closed for Eid` is not dissolution; software remains annoyingly dependent on reading the sentence.
+Terms must be interpreted in context. `Closed for Eid` is not dissolution, because sentences remain inconveniently important.
 
-## 14. Acceptance criteria
+## 4. Composition layers
 
-- Each source class has a defined evidentiary purpose and weakness.
-- Queries use only fields and syntax supported by the source.
-- Access controls, terms, rate limits, and privacy rules are respected.
-- Source suitability affects evidence confidence.
-- Event dates, amendments, cancellations, and awards are retained.
-- Duplicate origins do not inflate corroboration.
-- Source-specific absence is not treated as universal absence.
+```text
+sector
++ domain identity
++ approved domain-specific activity
++ organization cues
++ geography
++ language and locale
++ source overlay
++ active provider-offering signals
++ negative and contradiction controls
+```
+
+Optional layers may include entity identifiers, facility and equipment cues, classification codes, event windows, role groups, contact-route profiles, source-native categories, semantic expansion, proximity, and co-occurrence constraints.
+
+## 5. Offering isolation
+
+The following profiles are ineligible unless an active provider offering is selected and mapped to the target domain and activity:
+
+- buying and procurement intent;
+- operational pain;
+- replacement and migration;
+- integration and competitor;
+- existing solution and technology gap;
+- maintenance and expansion;
+- budget or funding;
+- service-gap hypothesis.
+
+A domain keyword cannot quietly become a sales claim merely because it appeared near the word `system`.
+
+## 6. Match and filter controls
+
+Every generated query or mapping must preserve:
+
+- source class, source mode, adapter version, and authorization state;
+- query family and contributing profile versions;
+- keyword type, precision tier, language, locale, and match mode;
+- geography and date window;
+- positive, negative, and contradiction inputs;
+- query budget, stopping rule, and source limitations.
+
+Supported match modes remain:
+
+```text
+EXACT
+PHRASE
+TOKEN_SET
+PROXIMITY
+REGEX
+ENTITY
+CLASSIFICATION_CODE
+SEMANTIC
+STRUCTURED_FIELD
+```
+
+A source may support only a subset.
+
+## 7. Source-specific execution rules
+
+1. Use only fields and syntax supported by the source.
+2. Do not manufacture operators for a source that does not support them.
+3. Do not convert an import mapping or direct inquiry into a public-search query.
+4. Do not expand collection because a keyword profile contains an interesting term.
+5. Source authorization, contract, provider policy, privacy, and rate limits override query breadth.
+6. Store source non-return separately from source failure.
+7. Preserve event, effective, expiry, publication, collection, and verification dates separately.
+8. Run negative and contradiction checks for material opportunities.
+9. Detect duplicate origins before counting evidence diversity.
+10. Preserve the exact query and profile versions used by completed Harvest Jobs.
+
+## 8. Query preview requirements
+
+Before activation, an authorized operator must be able to review:
+
+- source and query family;
+- rendered query or field mapping;
+- contributing domain, activity, offering, locale, and source profiles;
+- positive, negative, blocked, and unsupported terms;
+- estimated breadth, cost, and rate-limit effect where available;
+- bounded samples, policy warnings, and approval state.
+
+Preview does not authorize execution.
+
+## 9. Evidence handoff
+
+A query result becomes an evidence candidate only after preserving:
+
+- source and source-native identifier;
+- query or mapping;
+- matched field or text and surrounding context;
+- entity candidate, language, and locale;
+- event and collection times;
+- source suitability, duplication, negative, and contradiction states;
+- profile and adapter versions.
+
+Entity resolution, domain/activity assessment, opportunity analysis, qualification, and contact policy remain separate decisions.
+
+## 10. Acceptance criteria
+
+- All fourteen source classes have separate specifications.
+- Every source uses only supported fields, modes, syntax, and authorization.
+- Query families remain distinguishable.
+- Domain, activity, organization, offering, locale, source, and negative controls retain provenance.
+- Offering-specific sales signals cannot activate without an active provider offering.
+- Positive queries are paired with appropriate negative and contradiction checks.
+- Non-detection is not treated as universal absence.
+- Duplicate origins do not inflate evidence diversity.
+- Query preview is required before activation.
+- Runtime implementation is not falsely claimed.
+
+## 11. Delivery boundary
+
+This library and the individual source specifications are repository-integrated documentation after merge. They do not implement adapters, credentials, query rendering, source execution, storage, evidence resolution, scoring, approval, contact workflows, or releases.
