@@ -1,16 +1,17 @@
 # Harvester Retail Domain Keyword Registry
 
-
 Status: **Proposed**  
-Version: **1.1**  
-Date: **4 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-Review boundary: **Controlled discovery baseline. Human sector review and source-level validation are required before runtime activation.**
+Review boundary: **Controlled discovery baseline. Human sector review, source-level validation, locale review, benchmark testing, and approved activation are required before runtime use.**
 
-This file defines separate discovery keyword profiles for all **84** canonical domains in `BS-008 Retail`.
+This file defines separate discovery keyword profiles for the **84** canonical domains in the Retail sector.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
+
+Keywords identify evidence candidates. They do not independently prove that an organization belongs to a domain, performs an activity, needs a provider service, has buying intent, presents a service gap, or qualifies as a lead.
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
@@ -30,7 +31,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-RET-FAS-002-V1` | Footwear Retail | footwear retail | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-RET-FAS-003-V1` | Textile and Fabric Retail | textile and fabric retail; textile & fabric retail | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-RET-FAS-004-V1` | Jewellery Retail | jewellery retail | `ORG-COMMERCE` | `EX-PHRASE` |
-| `KW-RET-FAS-005-V1` | Watches and Accessories | watches and accessories; watches & accessories; watches and accessory | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-RET-FAS-005-V1` | Watches and Accessories | watches and accessories; watches & accessories | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-RET-FAS-006-V1` | Luxury Goods Retail | luxury goods retail | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-RET-FAS-007-V1` | Cosmetics Retail | cosmetics retail | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-RET-FAS-008-V1` | Beauty and Personal Care Retail | beauty and personal care retail; beauty & personal care retail | `ORG-COMMERCE` | `EX-PHRASE` |
@@ -89,7 +90,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-RET-OPS-005-V1` | Warehouse and Fulfilment for Retail | warehouse and fulfilment for retail; warehouse & fulfilment for retail | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-RET-OPS-006-V1` | Retail CRM and Loyalty | retail crm and loyalty; retail crm & loyalty | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-RET-OPS-007-V1` | Merchandising Systems | merchandising systems; merchandising system | `ORG-SOFTWARE` | `EX-BROAD` |
-| `KW-RET-OPS-008-V1` | Pricing and Promotion Systems | pricing and promotion systems; pricing & promotion systems; pricing and promotion system | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-RET-OPS-008-V1` | Pricing and Promotion Systems | pricing and promotion systems; pricing & promotion systems | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-RET-OPS-009-V1` | Retail Analytics | retail analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-RET-OPS-010-V1` | Store Operations Systems | store operations systems; store operations system | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-RET-OPS-011-V1` | Loss Prevention | loss prevention | `ORG-GENERIC` | `EX-PHRASE` |
@@ -99,4 +100,17 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-RET-OPS-015-V1` | Retail Payment Services | retail payment services; retail payment service; retail payment providers | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-RET-OPS-016-V1` | Retail Marketing Services | retail marketing services; retail marketing service; retail marketing providers | `ORG-COMMERCE` | `EX-PHRASE` |
 
-A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
+## Locked interpretation
+
+1. Every canonical domain retains a separate keyword profile and version.
+2. Domain terms identify the market or subject area; activity terms remain separately governed.
+3. Organization cues improve precision but are not mandatory when authoritative classification evidence exists.
+4. Broad or ambiguous phrases require sector, organization, activity, source, entity, proximity, or co-occurrence context.
+5. Service-gap, buying-intent, problem, competitor, replacement, integration, and existing-solution terms require an active provider offering and separate service-specific profiles.
+6. Urdu, Roman Urdu, and other locale aliases require reviewed locale packs and gold-set validation before activation.
+7. A matched phrase is an evidence candidate, not a domain, activity, opportunity, authority, consent, or lead decision.
+8. Completed Harvest Jobs preserve the exact keyword-profile and control-profile versions used when they ran.
+
+## Delivery boundary
+
+This Markdown registry is a controlled documentation dataset. It does not implement database records, APIs, search indexes, embeddings, source queries, classifiers, evidence scoring, opportunity scoring, contact discovery, outreach, or releases.

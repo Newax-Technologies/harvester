@@ -1,14 +1,17 @@
 # Harvester Finance Domain Keyword Registry
 
-
 Status: **Proposed**  
-Version: **1.0**  
-Date: **3 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-This file defines separate discovery keyword profiles for all **109** canonical domains in `BS-007 Finance`.
+Review boundary: **Controlled discovery baseline. Human sector review, source-level validation, locale review, benchmark testing, and approved activation are required before runtime use.**
+
+This file defines separate discovery keyword profiles for the **109** canonical domains in the Finance sector.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
+
+Keywords identify evidence candidates. They do not independently prove that an organization belongs to a domain, performs an activity, needs a provider service, has buying intent, presents a service gap, or qualifies as a lead.
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
@@ -54,7 +57,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-FIN-DIG-007-V1` | Treasury Management Systems | treasury management systems; treasury management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-FIN-DIG-008-V1` | Accounting Software | accounting software; accounting application | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-FIN-DIG-009-V1` | Enterprise Resource Planning for Finance | enterprise resource planning for finance; ERP; enterprise management software | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-FIN-DIG-010-V1` | Billing and Invoicing Systems | billing and invoicing systems; billing & invoicing systems; billing and invoicing system | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-FIN-DIG-010-V1` | Billing and Invoicing Systems | billing and invoicing systems; billing & invoicing systems | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-FIN-DIG-011-V1` | Collection Management Systems | collection management systems; collection management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-FIN-DIG-012-V1` | Reconciliation Systems | reconciliation systems; reconciliation system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-FIN-DIG-013-V1` | Regulatory Reporting Systems | regulatory reporting systems; regulatory reporting system | `ORG-SOFTWARE` | `EX-PHRASE` |
@@ -62,7 +65,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-FIN-DIG-015-V1` | Fraud Management Systems | fraud management systems; fraud management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-FIN-DIG-016-V1` | Customer Onboarding and eKYC | customer onboarding and ekyc; customer onboarding & ekyc | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-FIN-DIG-017-V1` | Finance Data and Analytics | finance data and analytics; finance data & analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-FIN-DIG-018-V1` | Open Banking and API Platforms | open banking and api platforms; open banking & api platforms; open banking and api platform | `ORG-SOFTWARE` | `EX-BANK` |
+| `KW-FIN-DIG-018-V1` | Open Banking and API Platforms | open banking and api platforms; open banking & api platforms | `ORG-SOFTWARE` | `EX-BANK` |
 | `KW-FIN-INV-001-V1` | Islamic Investment Management | islamic investment management | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-FIN-INV-002-V1` | Asset Management | asset management | `ORG-SERVICE` | `EX-ASSET` |
 | `KW-FIN-INV-003-V1` | Mutual Funds | mutual funds; mutual fund | `ORG-GENERIC` | `EX-PHRASE` |
@@ -122,4 +125,17 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-FIN-TAK-011-V1` | Takaful Distribution | takaful distribution | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-FIN-TAK-012-V1` | Risk Survey and Assessment | risk survey and assessment; risk survey & assessment | `ORG-GENERIC` | `EX-PHRASE` |
 
-A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
+## Locked interpretation
+
+1. Every canonical domain retains a separate keyword profile and version.
+2. Domain terms identify the market or subject area; activity terms remain separately governed.
+3. Organization cues improve precision but are not mandatory when authoritative classification evidence exists.
+4. Broad or ambiguous phrases require sector, organization, activity, source, entity, proximity, or co-occurrence context.
+5. Service-gap, buying-intent, problem, competitor, replacement, integration, and existing-solution terms require an active provider offering and separate service-specific profiles.
+6. Urdu, Roman Urdu, and other locale aliases require reviewed locale packs and gold-set validation before activation.
+7. A matched phrase is an evidence candidate, not a domain, activity, opportunity, authority, consent, or lead decision.
+8. Completed Harvest Jobs preserve the exact keyword-profile and control-profile versions used when they ran.
+
+## Delivery boundary
+
+This Markdown registry is a controlled documentation dataset. It does not implement database records, APIs, search indexes, embeddings, source queries, classifiers, evidence scoring, opportunity scoring, contact discovery, outreach, or releases.

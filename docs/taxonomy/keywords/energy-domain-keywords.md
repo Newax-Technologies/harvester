@@ -1,14 +1,17 @@
 # Harvester Energy Domain Keyword Registry
 
-
 Status: **Proposed**  
-Version: **1.0**  
-Date: **3 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-This file defines separate discovery keyword profiles for all **94** canonical domains in `BS-013 Energy`.
+Review boundary: **Controlled discovery baseline. Human sector review, source-level validation, locale review, benchmark testing, and approved activation are required before runtime use.**
+
+This file defines separate discovery keyword profiles for the **94** canonical domains in the Energy sector.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
+
+Keywords identify evidence candidates. They do not independently prove that an organization belongs to a domain, performs an activity, needs a provider service, has buying intent, presents a service gap, or qualifies as a lead.
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
@@ -27,23 +30,23 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-ENE-REN-001-V1` | Solar Panels | solar panels; solar panel | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-ENE-REN-002-V1` | Solar Inverters | solar inverters; solar inverter | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-ENE-REN-003-V1` | Solar Batteries | solar batteries; solar battery | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-ENE-REN-004-V1` | Solar Mounting Systems | solar mounting systems; solar mounting system | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-ENE-REN-004-V1` | Solar Mounting Systems | solar mounting systems; solar mounting system | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-ENE-REN-005-V1` | Solar Water Heating | solar water heating | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-ENE-REN-006-V1` | Wind Turbines | wind turbines; wind turbine | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-ENE-REN-007-V1` | Small Hydro Systems | small hydro systems; small hydro system | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-ENE-REN-008-V1` | Biogas Systems | biogas systems; biogas system | `ORG-GENERIC` | `EX-BROAD` |
+| `KW-ENE-REN-007-V1` | Small Hydro Systems | small hydro systems; small hydro system | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-ENE-REN-008-V1` | Biogas Systems | biogas systems; biogas system | `ORG-PRODUCT` | `EX-BROAD` |
 | `KW-ENE-REN-009-V1` | Renewable-Energy Engineering | renewable-energy engineering; renewable-power engineering | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-ENE-REN-010-V1` | Solar EPC Services | solar epc services; solar epc service; solar epc providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-ENE-REN-011-V1` | Renewable-Energy Operations and Maintenance | renewable-energy operations and maintenance; renewable-energy operations & maintenance; renewable-power operations and maintenance | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-ENE-REN-012-V1` | Energy Storage Systems | energy storage systems; energy storage system; power storage systems | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-ENE-REN-012-V1` | Energy Storage Systems | energy storage systems; energy storage system; power storage systems | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-ENE-REN-013-V1` | Electric Vehicle Charging | electric vehicle charging | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-ENE-REN-014-V1` | Renewable-Energy Financing | renewable-energy financing; renewable-power financing | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-ENE-GRD-001-V1` | Electricity Transmission | electricity transmission | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-ENE-GRD-002-V1` | Electricity Distribution | electricity distribution | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-ENE-GRD-003-V1` | Grid Operations | grid operations; grid operation | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-ENE-GRD-004-V1` | Substations | substations; substation | `ORG-GENERIC` | `EX-BROAD` |
-| `KW-ENE-GRD-005-V1` | Smart Grid Systems | smart grid systems; smart grid system | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-ENE-GRD-006-V1` | Metering and Smart Meters | metering and smart meters; metering & smart meters; metering and smart meter | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-ENE-GRD-005-V1` | Smart Grid Systems | smart grid systems; smart grid system | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-ENE-GRD-006-V1` | Metering and Smart Meters | metering and smart meters; metering & smart meters | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-ENE-GRD-007-V1` | Utility Billing | utility billing | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-ENE-GRD-008-V1` | Outage Management | outage management | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-ENE-GRD-009-V1` | Demand-Side Management | demand-side management | `ORG-SERVICE` | `EX-PHRASE` |
@@ -107,4 +110,17 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-ENE-DIG-015-V1` | Energy IoT and Telemetry | energy iot and telemetry; energy iot & telemetry; power iot and telemetry | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-ENE-DIG-016-V1` | Utility Cybersecurity | utility cybersecurity | `ORG-SOFTWARE` | `EX-PHRASE` |
 
-A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
+## Locked interpretation
+
+1. Every canonical domain retains a separate keyword profile and version.
+2. Domain terms identify the market or subject area; activity terms remain separately governed.
+3. Organization cues improve precision but are not mandatory when authoritative classification evidence exists.
+4. Broad or ambiguous phrases require sector, organization, activity, source, entity, proximity, or co-occurrence context.
+5. Service-gap, buying-intent, problem, competitor, replacement, integration, and existing-solution terms require an active provider offering and separate service-specific profiles.
+6. Urdu, Roman Urdu, and other locale aliases require reviewed locale packs and gold-set validation before activation.
+7. A matched phrase is an evidence candidate, not a domain, activity, opportunity, authority, consent, or lead decision.
+8. Completed Harvest Jobs preserve the exact keyword-profile and control-profile versions used when they ran.
+
+## Delivery boundary
+
+This Markdown registry is a controlled documentation dataset. It does not implement database records, APIs, search indexes, embeddings, source queries, classifiers, evidence scoring, opportunity scoring, contact discovery, outreach, or releases.

@@ -1,14 +1,17 @@
 # Harvester Logistics Domain Keyword Registry
 
-
 Status: **Proposed**  
-Version: **1.0**  
-Date: **3 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-This file defines separate discovery keyword profiles for all **101** canonical domains in `BS-012 Logistics`.
+Review boundary: **Controlled discovery baseline. Human sector review, source-level validation, locale review, benchmark testing, and approved activation are required before runtime use.**
+
+This file defines separate discovery keyword profiles for the **101** canonical domains in the Logistics sector.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
+
+Keywords identify evidence candidates. They do not independently prove that an organization belongs to a domain, performs an activity, needs a provider service, has buying intent, presents a service gap, or qualifies as a lead.
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
@@ -38,7 +41,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-LOG-PAR-010-V1` | Cash-on-Delivery Logistics | cash-on-delivery logistics; cash-on-delivery freight | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LOG-PAR-011-V1` | Reverse Pickup | reverse pickup | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LOG-PAR-012-V1` | Mailroom Services | mailroom services; mailroom service; mailroom providers | `ORG-SERVICE` | `EX-BROAD` |
-| `KW-LOG-PAR-013-V1` | Branch and Franchise Courier Networks | branch and franchise courier networks; branch & franchise courier networks; branch and franchise courier network | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-LOG-PAR-013-V1` | Branch and Franchise Courier Networks | branch and franchise courier networks; branch & franchise courier networks | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LOG-PAR-014-V1` | Delivery Aggregation Platforms | delivery aggregation platforms; delivery aggregation platform | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-LOG-WAR-001-V1` | General Warehousing | general warehousing; general warehouse | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LOG-WAR-002-V1` | Bonded Warehousing | bonded warehousing; bonded warehouse | `ORG-GENERIC` | `EX-PHRASE` |
@@ -95,7 +98,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-LOG-MAR-010-V1` | Freight Airports | freight airports; freight airport | `ORG-INSTITUTION` | `EX-PHRASE` |
 | `KW-LOG-MAR-011-V1` | Ship Chandling | ship chandling | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LOG-MAR-012-V1` | Marine Warehousing | marine warehousing; marine warehouse | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-LOG-MAR-013-V1` | Customs and Border Terminals | customs and border terminals; customs & border terminals; customs and border terminal | `ORG-GENERIC` | `EX-PORT` |
+| `KW-LOG-MAR-013-V1` | Customs and Border Terminals | customs and border terminals; customs & border terminals | `ORG-GENERIC` | `EX-PORT` |
 | `KW-LOG-DIG-001-V1` | Transport Management Systems | transport management systems; transport management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-LOG-DIG-002-V1` | Warehouse Management Systems | warehouse management systems; warehouse management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-LOG-DIG-003-V1` | Courier Management Systems | courier management systems; courier management system | `ORG-SOFTWARE` | `EX-BROAD` |
@@ -110,8 +113,21 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-LOG-DIG-012-V1` | Supply-Chain Visibility | supply-chain visibility | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-LOG-DIG-013-V1` | Customs Management Systems | customs management systems; customs management system | `ORG-SOFTWARE` | `EX-BROAD` |
 | `KW-LOG-DIG-014-V1` | Logistics Analytics | logistics analytics; freight analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-LOG-DIG-015-V1` | Barcode and RFID Systems | barcode and rfid systems; barcode & rfid systems; barcode and rfid system | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-LOG-DIG-015-V1` | Barcode and RFID Systems | barcode and rfid systems; barcode & rfid systems | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-LOG-DIG-016-V1` | Logistics Payment and Settlement | logistics payment and settlement; logistics payment & settlement; freight payment and settlement | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-LOG-DIG-017-V1` | Packaging and Pallet Services | packaging and pallet services; packaging & pallet services; packaging and pallet service; packaging and pallet providers | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-LOG-DIG-017-V1` | Packaging and Pallet Services | packaging and pallet services; packaging & pallet services; packaging and pallet providers | `ORG-SOFTWARE` | `EX-PHRASE` |
 
-A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
+## Locked interpretation
+
+1. Every canonical domain retains a separate keyword profile and version.
+2. Domain terms identify the market or subject area; activity terms remain separately governed.
+3. Organization cues improve precision but are not mandatory when authoritative classification evidence exists.
+4. Broad or ambiguous phrases require sector, organization, activity, source, entity, proximity, or co-occurrence context.
+5. Service-gap, buying-intent, problem, competitor, replacement, integration, and existing-solution terms require an active provider offering and separate service-specific profiles.
+6. Urdu, Roman Urdu, and other locale aliases require reviewed locale packs and gold-set validation before activation.
+7. A matched phrase is an evidence candidate, not a domain, activity, opportunity, authority, consent, or lead decision.
+8. Completed Harvest Jobs preserve the exact keyword-profile and control-profile versions used when they ran.
+
+## Delivery boundary
+
+This Markdown registry is a controlled documentation dataset. It does not implement database records, APIs, search indexes, embeddings, source queries, classifiers, evidence scoring, opportunity scoring, contact discovery, outreach, or releases.

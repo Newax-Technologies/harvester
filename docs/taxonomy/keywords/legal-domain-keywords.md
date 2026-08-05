@@ -1,14 +1,17 @@
 # Harvester Legal Domain Keyword Registry
 
-
 Status: **Proposed**  
-Version: **1.0**  
-Date: **3 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-This file defines separate discovery keyword profiles for all **97** canonical domains in `BS-006 Legal`.
+Review boundary: **Controlled discovery baseline. Human sector review, source-level validation, locale review, benchmark testing, and approved activation are required before runtime use.**
+
+This file defines separate discovery keyword profiles for the **97** canonical domains in the Legal sector.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
+
+Keywords identify evidence candidates. They do not independently prove that an organization belongs to a domain, performs an activity, needs a provider service, has buying intent, presents a service gap, or qualifies as a lead.
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
@@ -73,7 +76,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-LEG-REG-008-V1` | Board and Governance Advisory | board and governance advisory; board & governance advisory | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-LEG-REG-009-V1` | Policy Drafting | policy drafting | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-REG-010-V1` | Internal Investigations | internal investigations; internal investigation | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-LEG-REG-011-V1` | Whistleblowing and Ethics Programs | whistleblowing and ethics programs; whistleblowing & ethics programs; whistleblowing and ethics program | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-LEG-REG-011-V1` | Whistleblowing and Ethics Programs | whistleblowing and ethics programs; whistleblowing & ethics programs | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-REG-012-V1` | Legal Risk Management | legal risk management | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-LEG-REG-013-V1` | Contract Compliance | contract compliance | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-REG-014-V1` | Third-Party Due Diligence | third-party due diligence | `ORG-GENERIC` | `EX-PHRASE` |
@@ -84,7 +87,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-LEG-OPS-005-V1` | Document Review | document review | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-006-V1` | Due Diligence | due diligence | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-007-V1` | Legal Translation | legal translation | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-LEG-OPS-008-V1` | Court Filing and Process Services | court filing and process services; court filing & process services; court filing and process service; court filing and process providers | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-LEG-OPS-008-V1` | Court Filing and Process Services | court filing and process services; court filing & process services; court filing and process providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-LEG-OPS-009-V1` | Notary and Attestation | notary and attestation; notary & attestation | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-010-V1` | Trademark and Patent Filing | trademark and patent filing; trademark & patent filing | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-LEG-OPS-011-V1` | Company Registration Services | company registration services; company registration service; company registration providers | `ORG-SERVICE` | `EX-PHRASE` |
@@ -110,4 +113,17 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-LEG-DIG-013-V1` | Legal Analytics | legal analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-LEG-DIG-014-V1` | Intellectual Property Management Systems | intellectual property management systems; intellectual property management system | `ORG-SOFTWARE` | `EX-PHRASE` |
 
-A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
+## Locked interpretation
+
+1. Every canonical domain retains a separate keyword profile and version.
+2. Domain terms identify the market or subject area; activity terms remain separately governed.
+3. Organization cues improve precision but are not mandatory when authoritative classification evidence exists.
+4. Broad or ambiguous phrases require sector, organization, activity, source, entity, proximity, or co-occurrence context.
+5. Service-gap, buying-intent, problem, competitor, replacement, integration, and existing-solution terms require an active provider offering and separate service-specific profiles.
+6. Urdu, Roman Urdu, and other locale aliases require reviewed locale packs and gold-set validation before activation.
+7. A matched phrase is an evidence candidate, not a domain, activity, opportunity, authority, consent, or lead decision.
+8. Completed Harvest Jobs preserve the exact keyword-profile and control-profile versions used when they ran.
+
+## Delivery boundary
+
+This Markdown registry is a controlled documentation dataset. It does not implement database records, APIs, search indexes, embeddings, source queries, classifiers, evidence scoring, opportunity scoring, contact discovery, outreach, or releases.

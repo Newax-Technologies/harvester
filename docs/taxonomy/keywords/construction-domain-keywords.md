@@ -1,14 +1,17 @@
 # Harvester Construction Domain Keyword Registry
 
-
 Status: **Proposed**  
-Version: **1.0**  
-Date: **3 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-This file defines separate discovery keyword profiles for all **93** canonical domains in `BS-005 Construction`.
+Review boundary: **Controlled discovery baseline. Human sector review, source-level validation, locale review, benchmark testing, and approved activation are required before runtime use.**
+
+This file defines separate discovery keyword profiles for the **93** canonical domains in the Construction sector.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
+
+Keywords identify evidence candidates. They do not independently prove that an organization belongs to a domain, performs an activity, needs a provider service, has buying intent, presents a service gap, or qualifies as a lead.
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
@@ -54,14 +57,14 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-CON-TRD-001-V1` | Electrical Contracting | electrical contracting | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-TRD-002-V1` | Plumbing Contracting | plumbing contracting | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-TRD-003-V1` | HVAC Installation | hvac installation | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-CON-TRD-004-V1` | Fire-Safety Systems | fire-safety systems; fire-safety system | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-CON-TRD-004-V1` | Fire-Safety Systems | fire-safety systems; fire-safety system | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-CON-TRD-005-V1` | Elevator and Escalator Installation | elevator and escalator installation; elevator & escalator installation | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-CON-TRD-006-V1` | Solar Installation | solar installation | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-CON-TRD-007-V1` | Security-System Installation | security-system installation | `ORG-SERVICE` | `EX-SECURITY` |
 | `KW-CON-TRD-008-V1` | Low-Voltage and Networking Installation | low-voltage and networking installation; low-voltage & networking installation | `ORG-SERVICE` | `EX-PHRASE` |
-| `KW-CON-TRD-009-V1` | Glass and Aluminium Works | glass and aluminium works; glass & aluminium works; glass and aluminium work | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-CON-TRD-009-V1` | Glass and Aluminium Works | glass and aluminium works; glass & aluminium works | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-TRD-010-V1` | Carpentry and Joinery | carpentry and joinery; carpentry & joinery | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-CON-TRD-011-V1` | Masonry and Concrete Works | masonry and concrete works; masonry & concrete works; masonry and concrete work | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-CON-TRD-011-V1` | Masonry and Concrete Works | masonry and concrete works; masonry & concrete works | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-TRD-012-V1` | Steel Erection | steel erection | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-TRD-013-V1` | Roofing | roofing | `ORG-GENERIC` | `EX-BROAD` |
 | `KW-CON-TRD-014-V1` | Waterproofing | waterproofing | `ORG-GENERIC` | `EX-BROAD` |
@@ -70,20 +73,20 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-CON-TRD-017-V1` | Landscaping and Irrigation | landscaping and irrigation; landscaping & irrigation | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-MAT-001-V1` | Cement | cement | `ORG-GENERIC` | `EX-BROAD` |
 | `KW-CON-MAT-002-V1` | Concrete and Ready-Mix | concrete and ready-mix; concrete & ready-mix | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-CON-MAT-003-V1` | Bricks and Blocks | bricks and blocks; bricks & blocks; bricks and block | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-CON-MAT-003-V1` | Bricks and Blocks | bricks and blocks; bricks & blocks | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-MAT-004-V1` | Steel and Reinforcement | steel and reinforcement; steel & reinforcement | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-MAT-005-V1` | Structural Steel | structural steel | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-MAT-006-V1` | Aggregates and Sand | aggregates and sand; aggregates & sand | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-MAT-007-V1` | Glass | glass | `ORG-GENERIC` | `EX-BROAD` |
-| `KW-CON-MAT-008-V1` | Aluminium Systems | aluminium systems; aluminium system | `ORG-GENERIC` | `EX-BROAD` |
-| `KW-CON-MAT-009-V1` | Timber and Wood Products | timber and wood products; timber & wood products; timber and wood product | `ORG-PRODUCT` | `EX-PHRASE` |
-| `KW-CON-MAT-010-V1` | Doors and Windows | doors and windows; doors & windows; doors and window | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-CON-MAT-008-V1` | Aluminium Systems | aluminium systems; aluminium system | `ORG-PRODUCT` | `EX-BROAD` |
+| `KW-CON-MAT-009-V1` | Timber and Wood Products | timber and wood products; timber & wood products | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-CON-MAT-010-V1` | Doors and Windows | doors and windows; doors & windows | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-MAT-011-V1` | Roofing Materials | roofing materials; roofing material | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-CON-MAT-012-V1` | Insulation Materials | insulation materials; insulation material | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-CON-MAT-013-V1` | Waterproofing Materials | waterproofing materials; waterproofing material | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-CON-MAT-014-V1` | Tiles and Ceramics | tiles and ceramics; tiles & ceramics | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-CON-MAT-015-V1` | Paints and Coatings | paints and coatings; paints & coatings; paints and coating | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-CON-MAT-016-V1` | Pipes and Fittings | pipes and fittings; pipes & fittings; pipes and fitting | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-CON-MAT-015-V1` | Paints and Coatings | paints and coatings; paints & coatings | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-CON-MAT-016-V1` | Pipes and Fittings | pipes and fittings; pipes & fittings | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-MAT-017-V1` | Electrical Materials | electrical materials; electrical material | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-CON-MAT-018-V1` | HVAC Equipment | hvac equipment | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-CON-MAT-019-V1` | Sanitary Ware | sanitary ware | `ORG-GENERIC` | `EX-PHRASE` |
@@ -96,7 +99,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-CON-OPS-006-V1` | Construction Equipment Rental | construction equipment rental; building equipment rental | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-CON-OPS-007-V1` | Heavy Equipment Operations | heavy equipment operations; heavy equipment operation | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-CON-OPS-008-V1` | Site Logistics | site logistics; site freight | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-CON-OPS-009-V1` | Health and Safety Services | health and safety services; health & safety services; health and safety service; health and safety providers | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-CON-OPS-009-V1` | Health and Safety Services | health and safety services; health & safety services; health and safety providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-CON-OPS-010-V1` | Quality Inspection | quality inspection | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-OPS-011-V1` | Material Testing | material testing | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-OPS-012-V1` | Construction Waste Management | construction waste management; building waste management | `ORG-SERVICE` | `EX-PHRASE` |
@@ -104,6 +107,19 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-CON-OPS-014-V1` | Renovation and Refurbishment | renovation and refurbishment; renovation & refurbishment | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-OPS-015-V1` | Fit-Out Contracting | fit-out contracting | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-CON-OPS-016-V1` | Building Maintenance | building maintenance | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-CON-OPS-017-V1` | Construction Software and Field Systems | construction software and field systems; construction software & field systems; construction software and field system; building software and field systems; construction application and field systems | `ORG-SOFTWARE` | `EX-PHRASE` |
+| `KW-CON-OPS-017-V1` | Construction Software and Field Systems | construction software and field systems; construction software & field systems; building software and field systems; construction application and field systems | `ORG-SOFTWARE` | `EX-PHRASE` |
 
-A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
+## Locked interpretation
+
+1. Every canonical domain retains a separate keyword profile and version.
+2. Domain terms identify the market or subject area; activity terms remain separately governed.
+3. Organization cues improve precision but are not mandatory when authoritative classification evidence exists.
+4. Broad or ambiguous phrases require sector, organization, activity, source, entity, proximity, or co-occurrence context.
+5. Service-gap, buying-intent, problem, competitor, replacement, integration, and existing-solution terms require an active provider offering and separate service-specific profiles.
+6. Urdu, Roman Urdu, and other locale aliases require reviewed locale packs and gold-set validation before activation.
+7. A matched phrase is an evidence candidate, not a domain, activity, opportunity, authority, consent, or lead decision.
+8. Completed Harvest Jobs preserve the exact keyword-profile and control-profile versions used when they ran.
+
+## Delivery boundary
+
+This Markdown registry is a controlled documentation dataset. It does not implement database records, APIs, search indexes, embeddings, source queries, classifiers, evidence scoring, opportunity scoring, contact discovery, outreach, or releases.

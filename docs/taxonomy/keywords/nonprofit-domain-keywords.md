@@ -1,16 +1,17 @@
 # Harvester Nonprofit Domain Keyword Registry
 
-
 Status: **Proposed**  
-Version: **1.1**  
-Date: **4 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-Review boundary: **Controlled discovery baseline. Human sector review and source-level validation are required before runtime activation.**
+Review boundary: **Controlled discovery baseline. Human sector review, source-level validation, locale review, benchmark testing, and approved activation are required before runtime use.**
 
-This file defines separate discovery keyword profiles for all **92** canonical domains in `BS-016 Nonprofit`.
+This file defines separate discovery keyword profiles for the **92** canonical domains in the Nonprofit sector.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
+
+Keywords identify evidence candidates. They do not independently prove that an organization belongs to a domain, performs an activity, needs a provider service, has buying intent, presents a service gap, or qualifies as a lead.
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
@@ -24,22 +25,22 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-NPO-CHA-008-V1` | Orphan Support | orphan support | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-CHA-009-V1` | Refugee and Displacement Support | refugee and displacement support; refugee & displacement support | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-CHA-010-V1` | Emergency Cash Assistance | emergency cash assistance | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-NPO-CHA-011-V1` | Water and Sanitation Programs | water and sanitation programs; water & sanitation programs; water and sanitation program | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-NPO-CHA-011-V1` | Water and Sanitation Programs | water and sanitation programs; water & sanitation programs | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-CHA-012-V1` | Winterization and Seasonal Relief | winterization and seasonal relief; winterization & seasonal relief | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-FAI-001-V1` | Zakat Organizations | zakat organizations; zakat organization | `ORG-NONPROFIT` | `EX-PHRASE` |
 | `KW-NPO-FAI-002-V1` | Waqf Institutions | waqf institutions; waqf institution | `ORG-NONPROFIT` | `EX-PHRASE` |
-| `KW-NPO-FAI-003-V1` | Sadaqah and Charity Platforms | sadaqah and charity platforms; sadaqah & charity platforms; sadaqah and charity platform | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-NPO-FAI-004-V1` | Mosque and Religious Charities | mosque and religious charities; mosque & religious charities; mosque and religious charity | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-NPO-FAI-003-V1` | Sadaqah and Charity Platforms | sadaqah and charity platforms; sadaqah & charity platforms | `ORG-NONPROFIT` | `EX-PHRASE` |
+| `KW-NPO-FAI-004-V1` | Mosque and Religious Charities | mosque and religious charities; mosque & religious charities | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-FAI-005-V1` | Religious Education Charities | religious education charities; religious education charity; religious learning charities | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-FAI-006-V1` | Pilgrim Welfare Organizations | pilgrim welfare organizations; pilgrim welfare organization | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-FAI-007-V1` | Faith-Based Development Organizations | faith-based development organizations; faith-based development organization | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-NPO-FAI-008-V1` | Qurbani and Food Distribution Programs | qurbani and food distribution programs; qurbani & food distribution programs; qurbani and food distribution program | `ORG-COMMERCE` | `EX-PHRASE` |
+| `KW-NPO-FAI-008-V1` | Qurbani and Food Distribution Programs | qurbani and food distribution programs; qurbani & food distribution programs | `ORG-COMMERCE` | `EX-PHRASE` |
 | `KW-NPO-FAI-009-V1` | Islamic Endowment Management | islamic endowment management | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-NPO-DEV-001-V1` | Community Development | community development | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-DEV-002-V1` | Rural Development | rural development | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-DEV-003-V1` | Urban Community Programs | urban community programs; urban community program | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-DEV-004-V1` | Livelihood Development | livelihood development | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-NPO-DEV-005-V1` | Skills and Employment Programs | skills and employment programs; skills & employment programs; skills and employment program | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-NPO-DEV-005-V1` | Skills and Employment Programs | skills and employment programs; skills & employment programs | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-DEV-006-V1` | Microenterprise Support | microenterprise support | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-DEV-007-V1` | Women's Empowerment | women's empowerment | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-DEV-008-V1` | Youth Development | youth development | `ORG-GENERIC` | `EX-PHRASE` |
@@ -57,7 +58,7 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-NPO-HLT-006-V1` | Education NGOs | education ngos; education ngo; learning ngos | `ORG-NONPROFIT` | `EX-PHRASE` |
 | `KW-NPO-HLT-007-V1` | Scholarship Foundations | scholarship foundations; scholarship foundation | `ORG-GENERIC` | `EX-TRUST` |
 | `KW-NPO-HLT-008-V1` | Literacy Programs | literacy programs; literacy program | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-NPO-HLT-009-V1` | Research and Policy Organizations | research and policy organizations; research & policy organizations; research and policy organization | `ORG-SERVICE` | `EX-PHRASE` |
+| `KW-NPO-HLT-009-V1` | Research and Policy Organizations | research and policy organizations; research & policy organizations | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-NPO-HLT-010-V1` | Environmental Conservation | environmental conservation | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-HLT-011-V1` | Climate Action | climate action | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-HLT-012-V1` | Wildlife Protection | wildlife protection | `ORG-GENERIC` | `EX-PHRASE` |
@@ -84,9 +85,9 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-NPO-FND-008-V1` | Research Foundations | research foundations; research foundation | `ORG-SERVICE` | `EX-TRUST` |
 | `KW-NPO-FND-009-V1` | Education Foundations | education foundations; education foundation; learning foundations | `ORG-GENERIC` | `EX-TRUST` |
 | `KW-NPO-FND-010-V1` | Healthcare Foundations | healthcare foundations; health care foundations; healthcare foundation; medical foundations | `ORG-GENERIC` | `EX-TRUST` |
-| `KW-NPO-FND-011-V1` | Arts and Culture Foundations | arts and culture foundations; arts & culture foundations; arts and culture foundation | `ORG-GENERIC` | `EX-TRUST` |
+| `KW-NPO-FND-011-V1` | Arts and Culture Foundations | arts and culture foundations; arts & culture foundations | `ORG-GENERIC` | `EX-TRUST` |
 | `KW-NPO-FND-012-V1` | Endowment Management | endowment management | `ORG-SERVICE` | `EX-BROAD` |
-| `KW-NPO-OPS-001-V1` | Fundraising and Donations | fundraising and donations; fundraising & donations; fundraising and donation | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-NPO-OPS-001-V1` | Fundraising and Donations | fundraising and donations; fundraising & donations | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-NPO-OPS-002-V1` | Donor Management | donor management | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-NPO-OPS-003-V1` | Grant Management | grant management | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-NPO-OPS-004-V1` | Program and Project Management | program and project management; program & project management | `ORG-SERVICE` | `EX-PHRASE` |
@@ -104,7 +105,20 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-NPO-OPS-016-V1` | Donation Platforms | donation platforms; donation platform | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-NPO-OPS-017-V1` | Volunteer Platforms | volunteer platforms; volunteer platform | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-NPO-OPS-018-V1` | Beneficiary Portals | beneficiary portals; beneficiary portal | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-NPO-OPS-019-V1` | Nonprofit Data and Analytics | nonprofit data and analytics; nonprofit data & analytics; non-profit data and analytics; NGO data and analytics | `ORG-NONPROFIT` | `EX-PHRASE` |
+| `KW-NPO-OPS-019-V1` | Nonprofit Data and Analytics | nonprofit data and analytics; nonprofit data & analytics; non-profit data and analytics; NGO data and analytics | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-NPO-OPS-020-V1` | Field Operations and Mobile Data Collection | field operations and mobile data collection; field operations & mobile data collection | `ORG-GENERIC` | `EX-PHRASE` |
 
-A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
+## Locked interpretation
+
+1. Every canonical domain retains a separate keyword profile and version.
+2. Domain terms identify the market or subject area; activity terms remain separately governed.
+3. Organization cues improve precision but are not mandatory when authoritative classification evidence exists.
+4. Broad or ambiguous phrases require sector, organization, activity, source, entity, proximity, or co-occurrence context.
+5. Service-gap, buying-intent, problem, competitor, replacement, integration, and existing-solution terms require an active provider offering and separate service-specific profiles.
+6. Urdu, Roman Urdu, and other locale aliases require reviewed locale packs and gold-set validation before activation.
+7. A matched phrase is an evidence candidate, not a domain, activity, opportunity, authority, consent, or lead decision.
+8. Completed Harvest Jobs preserve the exact keyword-profile and control-profile versions used when they ran.
+
+## Delivery boundary
+
+This Markdown registry is a controlled documentation dataset. It does not implement database records, APIs, search indexes, embeddings, source queries, classifiers, evidence scoring, opportunity scoring, contact discovery, outreach, or releases.

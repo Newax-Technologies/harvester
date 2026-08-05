@@ -3,15 +3,17 @@
 Part **2 of 2**
 
 Status: **Proposed**  
-Version: **1.1**  
-Date: **4 August 2026**  
+Version: **1.2**  
+Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
-Review boundary: **Controlled discovery baseline. Human sector review and source-level validation are required before runtime activation.**
+Review boundary: **Controlled discovery baseline. Human sector review, source-level validation, locale review, benchmark testing, and approved activation are required before runtime use.**
 
-This file defines separate discovery keyword profiles for **47** of the **127** canonical domains in `BS-014 Technology`.
+This file defines separate discovery keyword profiles for a portion of the **127** canonical domains in the Technology sector.
 
 Domain aliases support discovery only. Activity keywords resolve through the canonical activity registry and the existing domain–activity mapping. Organization and exclusion codes resolve through [Keyword Control Profiles](control-profiles.md).
+
+Keywords identify evidence candidates. They do not independently prove that an organization belongs to a domain, performs an activity, needs a provider service, has buying intent, presents a service gap, or qualifies as a lead.
 
 | Profile | Domain | Reviewed domain terms | Organization profile | Exclusion profile |
 | --- | --- | --- | --- | --- |
@@ -23,15 +25,15 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-TEC-HWD-006-V1` | Barcode and RFID Equipment | barcode and rfid equipment; barcode & rfid equipment | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-TEC-HWD-007-V1` | Sensors and Telemetry | sensors and telemetry; sensors & telemetry | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-HWD-008-V1` | Internet of Things Platforms | internet of things platforms; internet of things platform; IoT; connected devices | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-TEC-HWD-009-V1` | Smart Building Systems | smart building systems; smart building system | `ORG-GENERIC` | `EX-PHRASE` |
-| `KW-TEC-HWD-010-V1` | Industrial Automation | industrial automation | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-TEC-HWD-011-V1` | Embedded Systems | embedded systems; embedded system | `ORG-GENERIC` | `EX-BROAD` |
+| `KW-TEC-HWD-009-V1` | Smart Building Systems | smart building systems; smart building system | `ORG-PRODUCT` | `EX-PHRASE` |
+| `KW-TEC-HWD-010-V1` | Industrial Automation | industrial automation | `ORG-GENERIC` | `EX-PHRASE` |
+| `KW-TEC-HWD-011-V1` | Embedded Systems | embedded systems; embedded system | `ORG-PRODUCT` | `EX-BROAD` |
 | `KW-TEC-HWD-012-V1` | Robotics | robotics | `ORG-GENERIC` | `EX-BROAD` |
 | `KW-TEC-HWD-013-V1` | Electronic Devices | electronic devices; electronic device | `ORG-PRODUCT` | `EX-PHRASE` |
 | `KW-TEC-HWD-014-V1` | Digital Signage | digital signage | `ORG-SOFTWARE` | `EX-PHRASE` |
 | `KW-TEC-HWD-015-V1` | Access-Control Hardware | access-control hardware | `ORG-GENERIC` | `EX-PHRASE` |
 | `KW-TEC-SRV-001-V1` | Software Development Services | software development services; software development service; application development services; software development providers | `ORG-SOFTWARE` | `EX-PHRASE` |
-| `KW-TEC-SRV-002-V1` | Systems Integration | systems integration | `ORG-GENERIC` | `EX-BROAD` |
+| `KW-TEC-SRV-002-V1` | Systems Integration | systems integration | `ORG-SERVICE` | `EX-BROAD` |
 | `KW-TEC-SRV-003-V1` | IT Consulting | it consulting | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-TEC-SRV-004-V1` | Managed IT Services | managed it services; managed it service; managed it providers | `ORG-SERVICE` | `EX-PHRASE` |
 | `KW-TEC-SRV-005-V1` | Technical Support | technical support | `ORG-GENERIC` | `EX-PHRASE` |
@@ -63,4 +65,17 @@ Domain aliases support discovery only. Activity keywords resolve through the can
 | `KW-TEC-COM-015-V1` | Government Technology | government technology; government tech; public sector technology | `ORG-PUBLIC` | `EX-PHRASE` |
 | `KW-TEC-COM-016-V1` | Travel Technology | travel technology; tourism technology; travel tech | `ORG-GENERIC` | `EX-PHRASE` |
 
-A keyword match is an evidence candidate, not proof of a domain, activity, service gap, opportunity, or qualified lead.
+## Locked interpretation
+
+1. Every canonical domain retains a separate keyword profile and version.
+2. Domain terms identify the market or subject area; activity terms remain separately governed.
+3. Organization cues improve precision but are not mandatory when authoritative classification evidence exists.
+4. Broad or ambiguous phrases require sector, organization, activity, source, entity, proximity, or co-occurrence context.
+5. Service-gap, buying-intent, problem, competitor, replacement, integration, and existing-solution terms require an active provider offering and separate service-specific profiles.
+6. Urdu, Roman Urdu, and other locale aliases require reviewed locale packs and gold-set validation before activation.
+7. A matched phrase is an evidence candidate, not a domain, activity, opportunity, authority, consent, or lead decision.
+8. Completed Harvest Jobs preserve the exact keyword-profile and control-profile versions used when they ran.
+
+## Delivery boundary
+
+This Markdown registry is a controlled documentation dataset. It does not implement database records, APIs, search indexes, embeddings, source queries, classifiers, evidence scoring, opportunity scoring, contact discovery, outreach, or releases.
