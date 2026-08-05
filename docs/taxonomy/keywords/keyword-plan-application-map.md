@@ -1,13 +1,63 @@
 # Harvester Keyword Plan Application Map
 
 Status: **Proposed**  
-Version: **1.0**  
+Version: **2.0**  
 Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
 This document applies the [Harvester Keyword Profile Development Plan](keyword-profile-development-plan.md) to the existing keyword Markdown registries without replacing, rewriting, collapsing, or reclassifying their current content.
 
+It is also the authoritative documentation sequence for the keyword layer. The exact sector-to-domain-registry, activity-applicability and domain-keyword links are maintained in the [Sector Keyword Connection Matrix](01-sector-keyword-connection-matrix.md).
+
 The existing keyword files remain the controlled datasets. The development plan defines how those datasets will later be composed, tested, executed, evidenced, qualified, reviewed, versioned, and integrated into lead generation.
+
+## Documentation and implementation sequence
+
+Read and apply the documentation in this order:
+
+```text
+1. Harvester roadmap and operating authority
+2. Services and provider-offering eligibility
+3. Broad-sector selection
+4. Sector domain registry
+5. Domain-to-activity applicability
+6. Domain keyword registry
+7. Shared activity keyword registry
+8. Organization and exclusion controls
+9. Active-offering lead-signal profiles
+10. Sector overlay
+11. Source suitability and source model
+12. Query composition and semantic expansion
+13. Evidence capture and entity resolution
+14. Classification, contradiction, freshness and coverage review
+15. Qualification and opportunity assessment
+16. Responsible-function and lawful-contact assessment
+17. Validation, benchmark, activation and rollback
+18. Runtime delivery through existing roadmap modules
+```
+
+Use these files as the main sequence:
+
+1. [`../../ROADMAP.md`](../../ROADMAP.md)
+2. [`../../architecture/harvester-intelligence-operating-model.md`](../../architecture/harvester-intelligence-operating-model.md)
+3. [`../../SERVICES.md`](../../SERVICES.md)
+4. [`../../architecture/provider-portfolio-and-lead-generation-profile-model.md`](../../architecture/provider-portfolio-and-lead-generation-profile-model.md)
+5. [`../broad-sector-registry.md`](../broad-sector-registry.md)
+6. The selected sector domain registry under `docs/taxonomy/`
+7. [`../activity-registry.md`](../activity-registry.md) and the selected sector activity mapping
+8. The selected sector domain keyword registry in this directory
+9. [`activity-keywords-part-1.md`](activity-keywords-part-1.md), [`activity-keywords-part-2.md`](activity-keywords-part-2.md), and [`activity-keywords-part-3.md`](activity-keywords-part-3.md)
+10. [`control-profiles.md`](control-profiles.md)
+11. [`provider-offering-keyword-profile-standard.md`](provider-offering-keyword-profile-standard.md)
+12. [`lead-generation-signal-registry.md`](lead-generation-signal-registry.md) and [`sector-lead-generation-overlays.md`](sector-lead-generation-overlays.md)
+13. [`source-signal-matrix.md`](source-signal-matrix.md) and the applicable model under [`../../sources/`](../../sources/README.md)
+14. [`source-query-template-library.md`](source-query-template-library.md), [`query-composition-and-evidence-rules.md`](query-composition-and-evidence-rules.md), and [`keyword-expansion-and-composition-engine.md`](keyword-expansion-and-composition-engine.md)
+15. [`semantic-entity-and-classification-expansion.md`](semantic-entity-and-classification-expansion.md)
+16. [`../../architecture/keyword-evidence-profile-integration-addendum.md`](../../architecture/keyword-evidence-profile-integration-addendum.md)
+17. [`keyword-quality-and-review-standard.md`](keyword-quality-and-review-standard.md), [`benchmark-and-gold-set-standard.md`](benchmark-and-gold-set-standard.md), and [`keyword-validation-plan.md`](keyword-validation-plan.md)
+18. [`keyword-profile-implementation-plan.md`](keyword-profile-implementation-plan.md) and [`../../delivery/keyword-profile-delivery-addendum.md`](../../delivery/keyword-profile-delivery-addendum.md)
+
+A later file may deepen an earlier rule. It may not silently override provider eligibility, domain identity, activity applicability, evidence invariants, source restrictions, contact policy or the authoritative roadmap.
 
 ## 1. Additive rule
 
@@ -19,6 +69,8 @@ Existing keyword registry
 Keyword Profile Development Plan
 +
 This application map
++
+Sector Keyword Connection Matrix
 =
 controlled implementation specification
 ```
@@ -61,6 +113,8 @@ Plan application:
 ## 3. Sector-specific domain keyword registries
 
 Each domain registry supplies identity terms, aliases, organization cues, exclusions, and evidence controls for its own canonical domains.
+
+The exact upstream domain and activity files for every sector are listed in the [Sector Keyword Connection Matrix](01-sector-keyword-connection-matrix.md).
 
 ### `BS-001 Healthcare`
 
@@ -304,10 +358,12 @@ Plan application:
 Every approved target configuration follows:
 
 ```text
-Sector selection
+Provider and business unit
+→ active provider offering
+→ lead-generation profile
+→ sector selection
 → domain selection
 → separate activity approval for that domain
-→ active provider offering
 → domain keyword profile
 → activity keyword profile
 → organization-cue profile
@@ -318,15 +374,52 @@ Sector selection
 → geography and locale rules
 → versioned query plan
 → evidence observations
-→ contradiction and duplicate checks
+→ entity resolution
+→ domain and activity classification
+→ contradiction, freshness, coverage and duplicate-origin checks
 → qualification
 → supported opportunity
+→ responsible-function assessment
 → lawful contact readiness
 ```
 
 No step may be skipped merely because one keyword appears highly relevant.
 
-## 6. Preservation rule
+## 6. Required version connection
+
+Every activated profile and Harvest Job must preserve the versions of:
+
+```text
+provider
+business unit
+offering
+lead-generation profile
+broad sector
+domain
+sector-domain mapping
+domain-activity assignment
+activity
+domain keyword profile
+activity keyword profile
+organization-cue profile
+exclusion profile
+offering-signal profiles
+sector overlay
+source suitability
+source model
+locale pack
+query template
+query composition
+semantic and classification model
+evidence policy
+qualification profile
+scoring profile
+contact policy
+```
+
+Later changes apply only to future jobs unless an operator explicitly creates a replacement job.
+
+## 7. Preservation rule
 
 This application map is additive.
 
@@ -334,8 +427,25 @@ It does not authorize replacing the existing Markdown registries with summaries,
 
 When runtime implementation begins, the approved Markdown records must remain traceable to generated records through stable codes and versions.
 
-## 7. Delivery boundary
+## 8. Connection acceptance criteria
 
-The development plan, this application map, and all linked registries are controlled documentation datasets.
+The documentation connection is acceptable only when:
+
+1. Every sector resolves to its domain registry, activity mapping and domain keyword registry through the sector connection matrix.
+2. Every canonical domain retains one stable identity and one separate keyword profile.
+3. Every canonical activity retains one stable identity and one separate activity keyword profile.
+4. Activity applicability remains domain-specific.
+5. Offering-specific signals require an active selected offering.
+6. Every query preserves all contributing profile and source versions.
+7. Every match preserves source, context, time, match mode and profile origin.
+8. Keyword matches cannot independently create gaps, opportunities or contact-ready leads.
+9. Positive evidence is evaluated with applicable exclusions, contradictions, freshness and duplicate-origin controls.
+10. Responsible-role and contact discovery cannot bypass organization resolution and supported-opportunity gates.
+11. Completed jobs remain reproducible from immutable snapshots.
+12. The Harvester roadmap remains the only top-level delivery roadmap.
+
+## 9. Delivery boundary
+
+The development plan, this application map, the sector connection matrix, and all linked registries are controlled documentation datasets.
 
 They do not implement database records, migrations, APIs, user interfaces, search execution, embeddings, classifiers, evidence scoring, opportunity scoring, contact eligibility, outreach, or releases.
