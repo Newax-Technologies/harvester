@@ -29,7 +29,7 @@ Broad Sector
 - [Broad Sector Registry and Selection Framework](broad-sector-registry.md)
 - [Canonical Activity Registry and Domain Mappings](activity-registry.md)
 - [Keyword Taxonomy and Lead-Signal Index](keywords/README.md)
-- [Keyword Documentation Sequence and Connection Plan](keywords/00-keyword-sequence-and-connections.md)
+- [Keyword Plan Application Map](keywords/keyword-plan-application-map.md)
 - [Sector Keyword Connection Matrix](keywords/01-sector-keyword-connection-matrix.md)
 - [Harvester Services and Opportunity Model](../SERVICES.md)
 - [Harvester Intelligence Operating Model](../architecture/harvester-intelligence-operating-model.md)
@@ -64,7 +64,7 @@ Lead-generation signals are reusable commercial-event and operational-evidence i
 
 ## Required reading sequence
 
-Use the [Keyword Documentation Sequence and Connection Plan](keywords/00-keyword-sequence-and-connections.md) for the authoritative reading and implementation order.
+Use the [Keyword Plan Application Map](keywords/keyword-plan-application-map.md) for the authoritative reading and implementation order.
 
 Use the [Sector Keyword Connection Matrix](keywords/01-sector-keyword-connection-matrix.md) to resolve every sector to:
 
@@ -78,7 +78,7 @@ sector domain registry
 → evidence and validation controls
 ```
 
-The connection matrix is navigation and dependency control. It does not replace the underlying registries.
+The application map and connection matrix provide navigation and dependency control. They do not replace the underlying registries.
 
 ## Sector-specific domain registries
 
@@ -185,10 +185,12 @@ The taxonomy documentation is strengthened for the current 16-sector registry, b
 
 The taxonomy links the additive plans required to turn the existing registries into governed runtime configuration:
 
-- [Keyword Documentation Sequence and Connection Plan](keywords/00-keyword-sequence-and-connections.md)
-  - Authority, reading order, runtime gates, object ownership, version snapshots, implementation stages and connection acceptance criteria.
+- [Keyword Plan Application Map](keywords/keyword-plan-application-map.md)
+  - Authoritative reading and implementation sequence, additive boundaries, per-sector application rules, required composition, version connections and acceptance criteria.
 - [Sector Keyword Connection Matrix](keywords/01-sector-keyword-connection-matrix.md)
   - Exact sector-to-domain-registry, activity-applicability and keyword-registry links for all 16 sectors.
+- [Keyword Profile Development Plan](keywords/keyword-profile-development-plan.md)
+  - Keyword layers, query composition, evidence behavior and profile-development approach.
 - [Keyword Profile Implementation Plan](keywords/keyword-profile-implementation-plan.md)
   - User configuration, profile types, data objects, query preview, evidence capture, locale support, versioning, APIs, implementation slices, safeguards, and acceptance criteria.
 - [Keyword and Evidence Profile Integration Addendum](../architecture/keyword-evidence-profile-integration-addendum.md)
