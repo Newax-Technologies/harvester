@@ -1,7 +1,7 @@
 # Harvester Source Query Template Library
 
 Status: **Proposed**  
-Version: **2.1**  
+Version: **2.2**  
 Date: **5 August 2026**  
 Implementation status: **Not implemented**
 
@@ -9,15 +9,20 @@ This library defines the shared query-composition contract used by the fourteen 
 
 It does not authorize scraping, access-control bypass, private-data collection, provider-term violations, or source usage outside an approved adapter and authorization profile.
 
+Read with the [Raw Source Response Preservation Standard](sources/raw-source-response-preservation-standard.md), which separates minimal source requests from long-term preservation of the responses actually returned.
+
 ## 1. General rule
 
 A source adapter must translate canonical keyword profiles into the exact fields, filters, syntax, request limits, and authorization modes supported by that source.
 
+It must request only the fields and records required for the approved purpose. It must not request every available field for possible future use.
+
 ```text
 Canonical profile
 → source-specific composition
-→ supported query or mapping
+→ minimum required field mask or mapping
 → bounded source execution
+→ immutable permitted raw response snapshot
 → contextual evidence candidate
 → source, entity, freshness, duplication and contradiction review
 ```
@@ -199,7 +204,7 @@ The following profiles are ineligible unless an active provider offering is sele
 
 A domain keyword cannot quietly become a sales claim merely because it appeared near the word `system`.
 
-## 6. Match and filter controls
+## 6. Match, field and filter controls
 
 Every generated query or mapping must preserve:
 
@@ -208,7 +213,9 @@ Every generated query or mapping must preserve:
 - keyword type, precision tier, language, locale, and match mode;
 - geography and date window;
 - positive, negative, and contradiction inputs;
-- query budget, stopping rule, and source limitations.
+- field mask, projection, selected attributes, or schema-mapping version;
+- query budget, page and record limits, stopping rule, and source limitations;
+- retention-policy and source-policy versions.
 
 Supported match modes remain:
 
@@ -229,15 +236,21 @@ A source may support only a subset.
 ## 7. Source-specific execution rules
 
 1. Use only fields and syntax supported by the source.
-2. Do not manufacture operators for a source that does not support them.
-3. Do not convert an import mapping or direct inquiry into a public-search query.
-4. Do not expand collection because a keyword profile contains an interesting term.
-5. Source authorization, contract, provider policy, privacy, and rate limits override query breadth.
-6. Store source non-return separately from source failure.
-7. Preserve event, effective, expiry, publication, collection, and verification dates separately.
-8. Run negative and contradiction checks for material opportunities.
-9. Detect duplicate origins before counting evidence diversity.
-10. Preserve the exact query and profile versions used by completed Harvest Jobs.
+2. Request only fields and records required for the approved source purpose.
+3. Do not request all available fields merely because the source exposes them.
+4. Version every field mask, projection, mapping, date range, geography, page limit, and enrichment profile.
+5. Do not manufacture operators for a source that does not support them.
+6. Do not convert an import mapping or direct inquiry into a public-search query.
+7. Do not expand collection because a keyword profile contains an interesting term.
+8. Source authorization, contract, provider policy, privacy, rate limits, and retention rules override query breadth and raw preservation.
+9. Preserve the complete returned response as an immutable raw snapshot where the applicable policy permits it.
+10. Preserve successful, empty, partial, failed, paginated, warning, rate-limit, retry, and provider-error outcomes separately where permitted.
+11. Default permitted raw responses to indefinite archival; apply stricter source-specific deletion or time limits when required.
+12. Store source non-return separately from source failure.
+13. Preserve event, effective, expiry, publication, collection, and verification dates separately.
+14. Run negative and contradiction checks for material opportunities.
+15. Detect duplicate origins before counting evidence diversity.
+16. Preserve the exact request, query, field-mask, profile, adapter, source-policy, and retention-policy versions used by completed Harvest Jobs.
 
 ## 8. Query preview requirements
 
@@ -245,32 +258,38 @@ Before activation, an authorized operator must be able to review:
 
 - source and query family;
 - rendered query or field mapping;
+- requested fields, field mask, projection, page scope, record scope, and enrichment stage;
 - contributing domain, activity, offering, locale, and source profiles;
 - positive, negative, blocked, and unsupported terms;
-- estimated breadth, cost, and rate-limit effect where available;
+- estimated breadth, cost, storage, retention, privacy, and rate-limit effect where available;
 - bounded samples, policy warnings, and approval state.
 
 Preview does not authorize execution.
 
 ## 9. Evidence handoff
 
-A query result becomes an evidence candidate only after preserving:
+A query result becomes an evidence candidate only after creating or referencing the permitted immutable raw source-response snapshot and preserving:
 
+- raw snapshot identifier and checksum;
 - source and source-native identifier;
-- query or mapping;
+- exact request, query, field mask, or mapping;
 - matched field or text and surrounding context;
 - entity candidate, language, and locale;
 - event and collection times;
 - source suitability, duplication, negative, and contradiction states;
-- profile and adapter versions.
+- profile, adapter, source-policy, and retention-policy versions.
 
-Entity resolution, domain/activity assessment, opportunity analysis, qualification, and contact policy remain separate decisions.
+Raw response preservation does not make every returned field verified evidence. Entity resolution, domain/activity assessment, opportunity analysis, qualification, and contact policy remain separate decisions.
 
 ## 10. Acceptance criteria
 
 - All fourteen source classes have separate specifications.
-- Every source uses only supported fields, modes, syntax, and authorization.
+- Every source uses only required supported fields, modes, syntax, and authorization.
+- Field masks, projections, mappings, page limits, and enrichment stages are versioned.
 - Query families remain distinguishable.
+- Complete permitted returned responses are preserved without broadening the request.
+- Permitted raw responses are immutable and indefinite by default.
+- Provider, legal, contractual, privacy, consent, and deletion requirements override indefinite retention.
 - Domain, activity, organization, offering, locale, source, and negative controls retain provenance.
 - Offering-specific sales signals cannot activate without an active provider offering.
 - Positive queries are paired with appropriate negative and contradiction checks.
@@ -281,4 +300,4 @@ Entity resolution, domain/activity assessment, opportunity analysis, qualificati
 
 ## 11. Delivery boundary
 
-This library and the individual source specifications are repository-integrated documentation after merge. They do not implement adapters, credentials, query rendering, source execution, storage, evidence resolution, scoring, approval, contact workflows, or releases.
+This library and the individual source specifications are repository-integrated documentation after merge. They do not implement adapters, credentials, query rendering, source execution, request minimization, raw-response storage, retention enforcement, deletion workflows, evidence resolution, scoring, approval, contact workflows, or releases.
