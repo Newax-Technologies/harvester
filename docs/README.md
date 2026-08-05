@@ -1,130 +1,162 @@
 # Harvester Documentation Map
 
-This directory contains the authoritative product, architecture, source, taxonomy, and delivery documentation for NEWAX Harvester.
+Status: **Authoritative documentation index**  
+Version: **2.0**  
+Date: **6 August 2026**
 
-Harvester is standalone lead-intelligence infrastructure. It converts a governed, provider-defined service market into evidence-backed, reviewable, and operationally usable opportunities while preserving customer ownership and control.
+Harvester is standalone Agency Intelligence Infrastructure. It converts governed provider and client markets into evidence-backed opportunities, market intelligence, competitor intelligence, and controlled outputs while preserving customer ownership, tenant isolation, source rights, and human control.
 
-## Authority order
+## 1. Authority order
 
-When documents overlap, use this order:
+When documents overlap, apply the first stricter rule in this sequence:
 
 1. [Harvester Standalone Product Roadmap](ROADMAP.md)
-   - Authoritative 64-module product and delivery roadmap
-   - Module ownership, outcomes, exclusions, acceptance criteria, delivery gates, and crosswalks
+   - Authoritative 64-module ownership and delivery roadmap.
+   - Module status changes only after implementation and exact-head verification.
 
-2. [Harvester Intelligence Operating Model](architecture/harvester-intelligence-operating-model.md)
-   - Normative operating, evidence, data, decision, confidence, learning, economics, and authority model
-   - Strengthens the existing 64 modules without creating a second roadmap
+2. [Agency Intelligence Re-baseline](architecture/agency-intelligence-rebaseline.md)
+   - Approved product and architecture delta.
+   - Preserves the 64-module count, standalone boundary, eight-plane architecture, Opportunity Scoring Model v3, and existing taxonomy work.
+   - Adds agency and client workspaces, universal entities, governed connectors, sector packs, AI governance, market intelligence, and competitor intelligence.
 
-3. [Harvester Services and Opportunity Model](SERVICES.md)
-   - Universal provider, service-offering, customer-market, lead-subject, opportunity-signal, qualification, and first-page lead-generation model
-   - Requires provider and active offering selection before the target market is commercially complete
-   - Supports B2B, B2C, referral, professional, healthcare, legal, local, remote, appointment, project, and recurring services
-   - Establishes service gap as one signal type rather than the universal product model
+3. [Harvester Intelligence Operating Model](architecture/harvester-intelligence-operating-model.md)
+   - Normative Control, Acquisition, Evidence, Resolution, Intelligence, Decision, Activation, and Operations and Learning model.
+   - Defines evidence, confidence, decisions, authority, economics, and learning invariants.
 
-4. [Provider Portfolio and Lead-Generation Profile Model](architecture/provider-portfolio-and-lead-generation-profile-model.md)
-   - Separates provider identity, business units, complete offering portfolios, reusable lead-generation profiles, profile versions, operational activation, schedules, and Harvest Jobs
-   - Allows a company to maintain many offerings and profiles without activating all of them
-   - Defines the Portfolio and Lead Definition Workspace, overlap control, shared-evidence reuse, capacity, budgets, permissions, profile analytics, and scale requirements
-   - Strengthens the existing 64 modules and does not create another module count
+4. [Standalone Product and Integration Framework](architecture/standalone-product-and-integration-framework.md)
+   - Product ownership, adapters, credentials, mappings, synchronization, destinations, tenancy, resilience, and recovery.
 
-5. [NEWAX Harvester Opportunity Scoring Model v3](architecture/opportunity-scoring-model-v3.md)
-   - NEWAX-specific provider scoring profile for business-infrastructure opportunities
-   - Defines opportunity value, pursuit readiness, infrastructure-gap, coverage, confidence, risk, and recommendation behavior for NEWAX offerings
-   - Remains subordinate to the universal services model and must not be applied to unrelated providers or unselected services
+5. [Provider Portfolio and Lead-Generation Profile Model](architecture/provider-portfolio-and-lead-generation-profile-model.md)
+   - Provider organizations, brands and business units, offering portfolios, reusable lead-generation profiles, activation, scheduling, capacity, overlap, and immutable job snapshots.
 
-6. [Standalone Product and Integration Framework](architecture/standalone-product-and-integration-framework.md)
-   - Product boundaries, connector framework, credentials, mappings, synchronization, destinations, tenancy, and recovery
+6. [Universal Entity and Evidence Model](architecture/universal-entity-and-evidence-model.md)
+   - Universal entities, identifiers, aliases, relationships, observations, artifacts, excerpts, assertions, claims, coverage, contradictions, resolution, lead profiles, and opportunity hypotheses.
 
-7. [Optional NEWAX Core Synchronization](architecture/newax-core-automatic-sync.md)
-   - Optional Harvester-to-Core streams, application identity, credentials, delivery, links, reconciliation, and failure behavior
+7. [Source Governance and Connector Runtime](architecture/source-governance-and-connector-runtime.md)
+   - Source and access classes, purposes, policy versions, credentials, connections, connector contracts, schemas, mappings, rate limits, pricing, execution gates, and restricted-source behavior.
 
-## Service and market taxonomy
+8. [AI Model Gateway and Evaluation](architecture/ai-model-gateway-and-evaluation.md)
+   - AI task contracts, provider and model registries, routing, redaction, evidence grounding, structured outputs, evaluations, cost control, human review, and agent isolation.
 
-Taxonomy documents define controlled registries and mappings used by the Services and Opportunity Model. They remain subordinate to `SERVICES.md` and cannot independently create an eligible service, gap, opportunity, or lead.
+9. [Agency, Market and Competitor Intelligence Model](architecture/agency-market-and-competitor-intelligence.md)
+   - Agency and client workspaces, research projects, markets, categories, competitors, analysis types, intelligence products, case studies, white-label outputs, and outcome learning.
 
-- [Sector, Domain, Activity and Keyword Taxonomy Index](taxonomy/README.md)
-  - Links all 16 broad-sector domain registries
-  - Covers 1,586 canonical product and service domains
-  - Covers 519 canonical business activities
-  - Confirms an explicit activity-profile assignment and separate keyword profile for every canonical domain
-  - Preserves multi-sector selection, independent domain activity groups, canonical identity reuse, and duplicate prevention
+10. [Sector Pack Runtime Model](architecture/sector-pack-runtime-model.md)
+    - Universal core plus independently versioned sector packs.
+    - Defines the operational Healthcare and Education packs and the runtime path for the remaining sectors.
 
-- [Canonical Activity Registry and Domain Mappings](taxonomy/activity-registry.md)
-  - Defines the shared 519-activity library with stable activity codes
-  - Maps all 1,586 domains to explicit `CORE`, `COMMON`, and `OPTIONAL` applicability profiles
-  - Treats activities absent from a profile as `NOT_APPLICABLE` by default
-  - Prevents one domain's activity selection from propagating to another domain
+11. [Harvester Services and Opportunity Model](SERVICES.md)
+    - Universal provider, offering, customer-market, lead-subject, signal, qualification, first-page definition, and lawful-contact rules.
+    - No active offering means no opportunity assessment.
 
-- [Keyword Taxonomy Index](taxonomy/keywords/README.md)
-  - Defines separate discovery profiles for all 1,586 domains and all 519 canonical activities
-  - Separates domain terms, activity terms, organization cues, exclusions, and negative context
-  - Defines exact, phrase, semantic, entity, and regex match-mode requirements
-  - Keeps problem, buying-intent, competitor, existing-solution, and service-gap keywords subordinate to selected active provider offerings
-  - Prohibits a keyword match from independently proving a domain, activity, service gap, opportunity, or qualified lead
+12. [Opportunity Scoring Model v3](architecture/opportunity-scoring-model-v3.md)
+    - Eligibility gates, capability conditions, Opportunity Value, Pursuit Readiness, coverage, confidence, risk, and recommended action.
+    - Remains the authoritative scoring direction; current runtime scoring is partial.
 
-- [Broad Sector Registry and Selection Framework](taxonomy/broad-sector-registry.md)
-  - Defines the first-stage registry of 16 broad sectors
-  - Supports multiple sectors, multiple domains per sector, and separate activity groups per selected domain
-  - Prevents activities from propagating across domains and prevents duplicate targets or scores across overlapping classifications
-  - Defines the minimum registry, applicability, selection, provenance, and acceptance requirements
+13. [Sector, Domain, Activity and Keyword Taxonomy Index](taxonomy/README.md)
+    - Canonical sectors, domains, activities, keywords, signals, roles, source guidance, and controlled runtime-delivery references.
 
-- [Healthcare Product and Service Domain Registry](taxonomy/healthcare-domain-registry.md)
-  - Defines the controlled domain registry for broad sector `BS-001 Healthcare`
-  - Includes 142 canonical domains across medicines, devices, supplies, facilities, digital health, operations, research, education, and public health
-  - Provides a 40-domain first-release presentation shortlist without replacing canonical domain identities
-  - Requires independent activity groups, approved domain-activity combinations, cross-sector reuse, evidence attribution, and duplicate prevention
+14. [Source Input and Formatting Index](sources/README.md)
+    - User-input storage, source envelopes, provider-specific formats, adapters, permissions, retention, and acquisition authorities.
 
-The taxonomy index links the remaining 15 sector registries.
+15. [Delivery Plans](delivery/README.md)
+    - Dependency-ordered implementation and release-verification plans.
+    - Delivery plans never independently prove runtime completion.
 
-## Source input and formatting
+## 2. Required reading paths
 
-Source documents define how user inputs become immutable job snapshots and how provider-native records enter the Harvester evidence model. They remain subordinate to the roadmap, operating model, services model, provider-portfolio model, applicable scoring profile, integration framework, and provider terms.
+### 2.1 Product or roadmap change
 
-- [Source Input and Formatting Index](sources/README.md)
-  - Links the user-input storage model, canonical source envelope, adapter template, named provider formats, and remaining approved source families
-  - Covers Google, Yandex, LinkedIn, Meta and Instagram, X, Bing, Indeed, Crunchbase, Apple Maps, Telegram, websites, official registries, directories, job boards, procurement, news, marketplaces, imports, APIs and feeds
+```text
+ROADMAP.md
+→ agency-intelligence-rebaseline.md
+→ owning architecture document
+→ delivery implementation sequence
+```
 
-- [User Input Storage Model](sources/user-input-storage-model.md)
-  - Defines tenant-isolated workspaces, providers, business units, offering portfolios, reusable profile versions, activation, market selections, domain-specific activities, keyword versions, sources, secret references, output policies and immutable Harvest Job input snapshots
-  - Separates approved configuration from operational activation
-  - Allows several profiles to remain inactive, paused, scheduled, suspended, or archived without participating in a job
-  - Prohibits plaintext credential storage and silent mutation of active configurations
+### 2.2 Source or connector change
 
-- [Canonical Source Record Format](sources/canonical-source-record-format.md)
-  - Defines requests, response outcomes, provider-native observations, artifacts, claims, provenance, quality, policy, retention and failure states shared by all adapters
-  - Preserves source meaning rather than flattening unrelated objects into one record type
+```text
+source-governance-and-connector-runtime.md
+→ sources/README.md
+→ provider-specific source model
+→ source-format contract
+→ source policy, schema, mapping, test, and delivery records
+```
 
-## Detailed source acquisition models
+### 2.3 Entity, evidence, or resolution change
 
-Detailed source models remain authoritative for provider-specific acquisition, coverage, query behavior, permissions, retention, attribution, cost and production gates.
+```text
+harvester-intelligence-operating-model.md
+→ universal-entity-and-evidence-model.md
+→ current model and migration contracts
+→ implementation sequence
+```
 
-- [Google API Source and Extraction Model](sources/google-api-source-model.md)
-  - Normative planned Google Places public-discovery and Google Business Profile authorized-data architecture
-  - Defines geographic coverage, Text Search, Nearby Search, Place Details, reviews, photos, posts, performance metrics, website handoff, scoring boundaries, cost, security, retention, attribution, and compliance gates
-  - Explicitly prohibits Google Maps website scraping and prevents non-detection from becoming confirmed absence
+### 2.4 AI change
 
-- [Yandex Maps API Source and Extraction Model](sources/yandex-maps-api-source-model.md)
-  - Normative planned Yandex Places public-discovery and customer-authorized Yandex Business export architecture
-  - Defines strict geographic search, pagination, saturation, documented-field extraction, independent verification, scoring boundaries, cost, security, temporary caching, attribution, deletion, and contract gates
-  - Marks the current connector restricted for production persistence until the intended Harvester workflow is covered by approved Yandex terms
+```text
+ai-model-gateway-and-evaluation.md
+→ task-specific contract
+→ evidence and data policy
+→ evaluation dataset
+→ rollout and rollback plan
+```
 
-- [LinkedIn Authorized Data Source Model](sources/linkedin-authorized-data-source-model.md)
-  - Normative planned architecture for authorized organization connections, member consent, approved Sales Navigator partnerships, customer-authorized imports, and bounded operator references
-  - Defines LinkedIn identity, organization activity, analytics, role evidence, scoring boundaries, consent, privacy, retention, deletion, API approval, and source-transition controls
-  - Records the current stealth crawler separately as a quarantined legacy component with a feature freeze, production block, data-remediation plan, and removal path rather than treating it as an approved interim source
+### 2.5 Sector change
 
-Previous versions remain available through Git history and pull-request history rather than duplicate archive documents inside the active repository.
+```text
+sector-pack-runtime-model.md
+→ taxonomy/README.md
+→ sector domain registry
+→ domain-activity mappings
+→ keyword and source guidance
+→ pack benchmark and policy tests
+```
 
-## Locked product boundaries
+### 2.6 Agency, market, or competitor change
+
+```text
+agency-market-and-competitor-intelligence.md
+→ provider portfolio and market definition
+→ universal entity and evidence model
+→ output and activation policies
+```
+
+## 3. Current versus planned boundary
+
+Status words are evidence terms:
+
+- **Current:** implemented and verified in the referenced branch.
+- **Partial:** useful foundations exist, but the complete governed workflow is not connected.
+- **Planned:** architecture or delivery is documented but runtime implementation is absent.
+- **Restricted:** disabled until legal, access, privacy, security, commercial, and operational approval exists.
+- **Correction required:** existing runtime data or behavior is untrusted until remediation is integrated and executed.
+
+A Markdown object, schema sketch, acceptance criterion, or PR title is not runtime completion.
+
+## 4. Immediate correction authority
+
+Before broad feature expansion, the implementation sequence requires:
+
+1. exact institution linkage for raw page snapshots;
+2. detection states that do not convert non-detection into confirmed absence;
+3. recomputation and trust marking of affected lead profiles;
+4. production disabling of contested professional-network account automation;
+5. production authentication and tenant isolation;
+6. source-policy execution gating;
+7. object-storage evidence retention and access controls.
+
+See [Agency Intelligence Implementation Sequence](delivery/agency-intelligence-implementation-sequence.md).
+
+## 5. Product boundaries
 
 ```text
 Harvester
-Owns provider organizations, business units, offering portfolios,
-lead-generation profiles, profile activation, market definition,
-source intake, observations, evidence, local resolution, lead profiles,
-qualification, opportunity intelligence, research, dossiers, selection,
-exports, publishing rules, and operations.
+Owns standalone agency and provider intelligence, client workspaces,
+market definitions, source intake, observations, evidence, local identity,
+lead and opportunity intelligence, market and competitor intelligence,
+reviews, selections, outputs, publication rules, and operations.
 
 Communicator
 Optionally receives approved lead and context packages.
@@ -133,32 +165,42 @@ conversations, consent, engagement, replies, and follow-up.
 
 NEWAX Core
 Optionally receives source-native observations, resolved entities,
-and approved Harvester-owned lead facets.
+and approved Harvester-owned facets.
 Owns enterprise existence, canonical identity, relationships,
-provenance, field governance, and cross-system identity links.
+provenance governance, and cross-system identity links.
 ```
 
-No product shares private database tables, database-owner credentials, migrations, internal schemas, or runtime availability.
+No product shares private tables, database-owner credentials, migrations, internal schemas, or runtime availability.
 
-## Change-control rule
+## 6. Controlled registries
 
-- Product delivery changes belong in `ROADMAP.md`.
-- Operating-model and decision-invariant changes belong in the intelligence operating model.
-- Provider types, service offerings, customer markets, lead-subject types, opportunity signals, qualification boundaries, first-page configuration, and universal generation rules belong in `SERVICES.md`.
-- Provider organizations, business units, offering portfolios, reusable lead-generation profiles, profile versions, activation, scheduling, overlap, capacity, budget, profile analytics, and profile lifecycle changes belong in the provider-portfolio model, subordinate to `SERVICES.md`.
-- Broad-sector registry, sector-to-domain applicability, and first-stage market-selection changes belong in `taxonomy/broad-sector-registry.md`, subordinate to `SERVICES.md`.
-- Sector-specific domain definitions, family assignments, first-release visibility, and cross-sector mappings belong in the registries listed by `taxonomy/README.md`.
-- Canonical activity definitions, applicability profiles, and domain-to-activity assignments belong under `taxonomy/activity-registry.md` and its linked mapping files.
-- Domain and activity discovery terms, organization cues, exclusions, negative context, match modes, and locale-specific keyword packs belong under `taxonomy/keywords/`.
-- Service-specific target terms, problem signals, buying-intent signals, competitor terms, existing-solution terms, and service-gap profiles require a selected active provider offering and remain subordinate to `SERVICES.md`.
-- Target-workspace and lead-generation-profile activity and keyword overrides must remain explicit, versioned selections and must not silently mutate canonical registries.
-- Provider-specific opportunity weights, rubrics, confidence, risk, and recommendations belong in an explicitly scoped scoring profile.
-- The NEWAX Opportunity Scoring Model applies only to selected NEWAX business-infrastructure offerings and must not be treated as the universal Harvester score.
-- User-input storage, approval, activation, versioning, source selections, credential references and immutable job snapshots belong in `sources/user-input-storage-model.md`.
-- Shared request, response, observation, claim, provenance, quality, retention and failure envelopes belong in `sources/canonical-source-record-format.md`.
-- Source query, extraction, field-mask, coverage, retention, attribution, failure, cost, field mapping and source-specific compliance changes belong in the relevant source model or source-format document.
-- Every new source requires a separate approved source-format document before production activation.
-- Source-specific models cannot override product boundaries, service eligibility, profile activation, evidence invariants, scoring separation, security requirements, or current provider terms.
-- Integration-boundary changes belong in the integration framework or the relevant adapter document.
-- Superseded versions remain in Git history rather than duplicate active documentation.
-- Do not create parallel roadmaps, duplicate module counts, hidden product dependencies, competing universal opportunity definitions, or undocumented source behavior.
+The repository currently documents:
+
+- 16 broad sectors;
+- 1,586 canonical product and service domains;
+- 519 canonical business activities;
+- 1,586 domain keyword profiles;
+- 519 activity keyword profiles;
+- reusable signal, role, contact, source, exclusion, and evidence-control profiles.
+
+These are documentation datasets until runtime records, migrations, APIs, interfaces, benchmarks, and release verification exist.
+
+## 7. Change-control ownership
+
+- Module ownership, delivery gates, and status belong in `ROADMAP.md`.
+- Re-baseline decisions belong in `architecture/agency-intelligence-rebaseline.md`.
+- Operating and decision invariants belong in the intelligence operating model.
+- Universal identity and evidence semantics belong in the universal entity and evidence model.
+- Source permission, connector, pricing, and execution behavior belongs in the source-governance model and applicable provider source documents.
+- AI task, provider, model, prompt, routing, evaluation, cost, and review behavior belongs in the AI gateway model.
+- Agency, client, market, competitor, analysis, and case-study behavior belongs in the agency intelligence model.
+- Sector-specific commercial and compliance depth belongs in versioned sector packs.
+- Provider, offering, profile, and market-definition behavior belongs in the provider portfolio and Services models.
+- Taxonomy identity belongs under `taxonomy/`; tenant overlays never mutate canonical records.
+- Implementation order belongs in `delivery/agency-intelligence-implementation-sequence.md`.
+
+Do not create another parallel roadmap, module count, universal lead definition, scoring authority, or undocumented source behavior.
+
+## 8. Historical documents
+
+Superseded versions remain available through Git and pull-request history. Active directories should contain one current authority for each concern rather than duplicate archives with indistinguishable names.
