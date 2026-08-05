@@ -7,7 +7,7 @@ Implementation status: **Documentation integrated; runtime not implemented**
 
 This matrix connects every broad sector to its canonical domain registry, domain-to-activity applicability source, domain keyword registry, shared activity keyword registry, and downstream offering, query, evidence and validation controls.
 
-Use this file after reading [Keyword Documentation Sequence and Connection Plan](00-keyword-sequence-and-connections.md).
+Use this file after reading the [Keyword Plan Application Map](keyword-plan-application-map.md).
 
 ---
 
