@@ -413,6 +413,7 @@ async def issue_service_credential(args: argparse.Namespace) -> int:
     hash is stored (services/auth_service.py::hash_token). Re-run this
     command to issue a replacement if it's lost.
     """
+    import datetime as dt
     import uuid
 
     from .database import get_session
@@ -437,17 +438,30 @@ async def issue_service_credential(args: argparse.Namespace) -> int:
     else:
         tenant_id = DEFAULT_TENANT_ID
 
+    expires_at = None
+    if args.ttl_days:
+        if args.ttl_days <= 0:
+            print(
+                f"Error: --ttl-days must be a positive integer, got {args.ttl_days}.",
+                file=sys.stderr,
+            )
+            return 1
+        expires_at = dt.datetime.now(dt.UTC) + dt.timedelta(days=args.ttl_days)
+
     try:
         async with get_session() as session:
             credential, raw_token = await issue(
-                session, name=args.name, role=role, tenant_id=tenant_id
+                session, name=args.name, role=role, tenant_id=tenant_id, expires_at=expires_at
             )
             name = credential.name
     except (TenantScopeIncompleteError, TenantNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    print(f"\n[Auth] Issued credential {name!r} (role={role.value}, tenant={tenant_id}).")
+    expiry_note = f", expires {expires_at.isoformat()}" if expires_at else " (no expiry)"
+    print(
+        f"\n[Auth] Issued credential {name!r} (role={role.value}, tenant={tenant_id}{expiry_note})."
+    )
     print(f"  Token (shown once, store it now): {raw_token}\n")
     return 0
 
@@ -465,6 +479,84 @@ async def revoke_service_credential_cmd(args: argparse.Namespace) -> int:
         return 1
 
     print(f"\n[Auth] Revoked credential {args.name!r}.\n")
+    return 0
+
+
+def _parse_config_value(raw: str, value_type) -> object:
+    from .config_registry import ConfigValueType
+
+    if value_type == ConfigValueType.BOOL:
+        if raw.lower() not in ("true", "false"):
+            raise ValueError(f"expected 'true' or 'false', got {raw!r}")
+        return raw.lower() == "true"
+    if value_type == ConfigValueType.INT:
+        return int(raw)
+    if value_type == ConfigValueType.STRING_LIST:
+        return [item.strip() for item in raw.split(",") if item.strip()]
+    return raw
+
+
+async def get_tenant_config_cmd(args: argparse.Namespace) -> int:
+    """Print a tenant's active value for a configuration key (or its registry default)."""
+    import uuid
+
+    from .config_registry import UnknownConfigKeyError
+    from .database import get_session
+    from .services.tenant_config_service import get_tenant_config
+
+    try:
+        tenant_id = uuid.UUID(args.tenant_id)
+    except ValueError:
+        print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
+        return 1
+
+    try:
+        async with get_session() as session:
+            value = await get_tenant_config(session, tenant_id, args.key)
+    except UnknownConfigKeyError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"{args.key} = {value!r}")
+    return 0
+
+
+async def set_tenant_config_cmd(args: argparse.Namespace) -> int:
+    """
+    Set a tenant's override for a configuration key -- always creates a
+    new version (docs/delivery/agency-intelligence-implementation-sequence.md
+    Slice 1.4); never overwrites the prior value in place.
+    """
+    import uuid
+
+    from .config_registry import ConfigValueTypeError, UnknownConfigKeyError, get_definition
+    from .database import get_session
+    from .services.tenant_config_service import set_tenant_config
+
+    try:
+        tenant_id = uuid.UUID(args.tenant_id)
+    except ValueError:
+        print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
+        return 1
+
+    try:
+        definition = get_definition(args.key)
+        value = _parse_config_value(args.value, definition.value_type)
+    except (UnknownConfigKeyError, ValueError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    try:
+        async with get_session() as session:
+            override = await set_tenant_config(
+                session, tenant_id, args.key, value, created_by=args.set_by
+            )
+            version = override.version
+    except (UnknownConfigKeyError, ConfigValueTypeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"\n[Config] {args.key} = {value!r} for tenant {tenant_id} (version {version}).\n")
     return 0
 
 
@@ -897,6 +989,12 @@ def build_parser() -> argparse.ArgumentParser:
             "Only the default tenant is currently accepted -- see TenantScopeIncompleteError."
         ),
     )
+    issue_credential.add_argument(
+        "--ttl-days",
+        type=int,
+        default=0,
+        help="Expire this credential after N days (default: 0, meaning no expiry)",
+    )
 
     # -- revoke-service-credential --------------------------------------------
     revoke_credential = subparsers.add_parser(
@@ -904,6 +1002,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Revoke a service credential by name so its token stops authenticating",
     )
     revoke_credential.add_argument("--name", required=True)
+
+    # -- get-tenant-config ----------------------------------------------------
+    get_config = subparsers.add_parser(
+        "get-tenant-config",
+        help="Print a tenant's active value for a configuration key (or its registry default)",
+    )
+    get_config.add_argument("--tenant-id", required=True)
+    get_config.add_argument("--key", required=True, help="See config_registry.CONFIG_REGISTRY")
+
+    # -- set-tenant-config ------------------------------------------------------
+    set_config = subparsers.add_parser(
+        "set-tenant-config",
+        help="Set a tenant's override for a configuration key (always creates a new version)",
+    )
+    set_config.add_argument("--tenant-id", required=True)
+    set_config.add_argument("--key", required=True, help="See config_registry.CONFIG_REGISTRY")
+    set_config.add_argument(
+        "--value",
+        required=True,
+        help="'true'/'false' for bool keys, an int, or a comma-separated list",
+    )
+    set_config.add_argument(
+        "--set-by", required=True, help="Identity recorded as this version's created_by"
+    )
 
     # -- purge-expired-records ----------------------------------------------
     purge = subparsers.add_parser(
@@ -1132,6 +1254,8 @@ def main() -> None:
         "revoke-service-credential": lambda: sys.exit(
             asyncio.run(revoke_service_credential_cmd(args))
         ),
+        "get-tenant-config": lambda: sys.exit(asyncio.run(get_tenant_config_cmd(args))),
+        "set-tenant-config": lambda: sys.exit(asyncio.run(set_tenant_config_cmd(args))),
         "purge-expired-records": lambda: sys.exit(asyncio.run(purge_expired_records(args))),
         "process-outbox": lambda: sys.exit(asyncio.run(process_outbox(args))),
         "export-leads": lambda: sys.exit(asyncio.run(export_leads(args))),

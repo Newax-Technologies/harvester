@@ -13,6 +13,7 @@ from lead_harvester.models.auth import ServiceRole
 from lead_harvester.services.auth_service import (
     issue_service_credential,
     revoke_service_credential,
+    wait_for_pending_last_used_writes,
 )
 
 
@@ -40,6 +41,7 @@ async def test_get_current_user_accepts_a_valid_issued_token(db_session):
         new=lambda: _fake_get_session(db_session),
     ):
         user = await get_current_user(credentials=_bearer(raw_token), session=db_session)
+        await wait_for_pending_last_used_writes()
 
     assert user.username == "dep-test-reviewer"
     assert user.role == "reviewer"

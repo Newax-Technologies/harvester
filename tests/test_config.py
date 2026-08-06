@@ -56,9 +56,11 @@ def test_rejects_restricted_sources_enabled_in_production():
         Settings(restricted_sources_enabled=True, app_env="production")
 
 
-def test_allows_restricted_sources_enabled_outside_production():
-    settings = Settings(restricted_sources_enabled=True, app_env="development")
-    assert settings.restricted_sources_enabled is True
+def test_allows_restricted_sources_enabled_in_development_or_test():
+    assert Settings(
+        restricted_sources_enabled=True, app_env="development"
+    ).restricted_sources_enabled
+    assert Settings(restricted_sources_enabled=True, app_env="test").restricted_sources_enabled
 
 
 def test_restricted_sources_disabled_by_default():
@@ -76,9 +78,9 @@ def test_rejects_dev_auth_enabled_in_production():
         Settings(dev_auth_enabled=True, app_env="production")
 
 
-def test_allows_dev_auth_enabled_outside_production():
-    settings = Settings(dev_auth_enabled=True, app_env="development")
-    assert settings.dev_auth_enabled is True
+def test_allows_dev_auth_enabled_in_development_or_test():
+    assert Settings(dev_auth_enabled=True, app_env="development").dev_auth_enabled
+    assert Settings(dev_auth_enabled=True, app_env="test").dev_auth_enabled
 
 
 def test_dev_auth_disabled_by_default():
@@ -96,6 +98,20 @@ def test_rejects_restricted_sources_enabled_regardless_of_app_env_spelling(spell
 def test_rejects_dev_auth_enabled_regardless_of_app_env_spelling(spelling):
     with pytest.raises(ValueError, match="DEV_AUTH_ENABLED"):
         Settings(dev_auth_enabled=True, app_env=spelling)
+
+
+@pytest.mark.parametrize("non_dev_env", ["staging", "qa", "preview", "uat", ""])
+def test_rejects_restricted_sources_enabled_in_any_non_dev_environment(non_dev_env):
+    # Not just "production" -- staging/QA/preview/etc. are real, reachable
+    # deployments too, and none of them is the literal string "production".
+    with pytest.raises(ValueError, match="RESTRICTED_SOURCES_ENABLED"):
+        Settings(restricted_sources_enabled=True, app_env=non_dev_env)
+
+
+@pytest.mark.parametrize("non_dev_env", ["staging", "qa", "preview", "uat", ""])
+def test_rejects_dev_auth_enabled_in_any_non_dev_environment(non_dev_env):
+    with pytest.raises(ValueError, match="DEV_AUTH_ENABLED"):
+        Settings(dev_auth_enabled=True, app_env=non_dev_env)
 
 
 def test_app_env_is_normalized_to_lowercase_and_stripped():

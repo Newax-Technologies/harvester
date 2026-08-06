@@ -14,6 +14,7 @@ from lead_harvester.services.auth_service import (
     hash_token,
     issue_service_credential,
     revoke_service_credential,
+    wait_for_pending_last_used_writes,
 )
 
 
@@ -23,14 +24,16 @@ async def _fake_get_session(session):
 
 
 def _route_last_used_writes_to(db_session):
-    # authenticate_token() records last_used_at on its own independent
-    # session (see auth_service.py::_record_last_used) so the write
-    # survives a later rollback in the caller's transaction -- that
-    # independent session normally comes from database.py's get_session(),
-    # bound to DATABASE_URL. Tests run against TEST_DATABASE_URL instead,
-    # so a successful authenticate_token() call must redirect that write
-    # to db_session, the same way api/dependencies.py's own tests redirect
-    # require_permission()'s audit write.
+    # authenticate_token() schedules (fire-and-forget) a last_used_at
+    # write on its own connection rather than awaiting it inline -- see
+    # auth_service.py::_schedule_last_used_write's docstring for why. That
+    # connection normally comes from database.py's get_session(), bound to
+    # DATABASE_URL. Tests run against TEST_DATABASE_URL instead, so a
+    # successful authenticate_token() call must redirect it to db_session,
+    # the same way api/dependencies.py's own tests redirect
+    # require_permission()'s audit write. The patch must still be active
+    # when the scheduled task actually runs -- callers pair this with
+    # await wait_for_pending_last_used_writes() *inside* the `with` block.
     return patch(
         "lead_harvester.services.auth_service.get_session",
         new=lambda: _fake_get_session(db_session),
@@ -58,13 +61,15 @@ async def test_issue_then_authenticate_round_trip(db_session):
 
     with _route_last_used_writes_to(db_session):
         authenticated = await authenticate_token(db_session, raw_token)
+        await wait_for_pending_last_used_writes()
 
     assert authenticated is not None
     assert authenticated.id == credential.id
     assert authenticated.role == ServiceRole.ADMIN
 
-    # last_used_at is recorded on a separate row by _record_last_used --
-    # `authenticated` itself (loaded before that write) won't reflect it.
+    # last_used_at is recorded on a separate row by a scheduled task, not
+    # inline -- `authenticated` itself (loaded before that write) won't
+    # reflect it even after waiting for the task above.
     await db_session.refresh(credential)
     assert credential.last_used_at is not None
 
@@ -80,6 +85,7 @@ async def test_issue_never_persists_the_raw_token(db_session):
     # credential row itself never carries the plaintext value anywhere.
     with _route_last_used_writes_to(db_session):
         authenticated = await authenticate_token(db_session, raw_token)
+        await wait_for_pending_last_used_writes()
     assert authenticated is not None
     assert authenticated.token_hash != raw_token
 
@@ -125,6 +131,7 @@ async def test_authenticate_accepts_credential_with_future_expiry(db_session):
 
     with _route_last_used_writes_to(db_session):
         assert await authenticate_token(db_session, raw_token) is not None
+        await wait_for_pending_last_used_writes()
 
 
 @pytest.mark.asyncio
@@ -176,6 +183,29 @@ async def test_issue_allows_reusing_a_name_after_the_prior_credential_is_revoked
 
 
 @pytest.mark.asyncio
+async def test_revoke_targets_the_active_credential_when_a_name_was_reissued(db_session):
+    # Regression: with an unfiltered, unordered lookup, revoking a
+    # reissued name could return the OLD (already-revoked) row and report
+    # "not found" while the real active replacement stayed unrevoked.
+    _first, _first_token = await issue_service_credential(
+        db_session, name="test-reissue-then-revoke", role=ServiceRole.ADMIN
+    )
+    await db_session.commit()
+    await revoke_service_credential(db_session, "test-reissue-then-revoke")
+    await db_session.commit()
+
+    second, _second_token = await issue_service_credential(
+        db_session, name="test-reissue-then-revoke", role=ServiceRole.ADMIN
+    )
+    await db_session.commit()
+
+    revoked = await revoke_service_credential(db_session, "test-reissue-then-revoke")
+
+    assert revoked is not None
+    assert revoked.id == second.id
+
+
+@pytest.mark.asyncio
 async def test_issue_rejects_reusing_a_name_still_active(db_session):
     await issue_service_credential(db_session, name="test-still-active", role=ServiceRole.ADMIN)
     await db_session.flush()
@@ -205,6 +235,7 @@ async def test_authenticate_rejects_a_credential_whose_tenant_is_suspended(db_se
 
     with _route_last_used_writes_to(db_session):
         assert await authenticate_token(db_session, raw_token) is not None
+        await wait_for_pending_last_used_writes()
 
     default_tenant = (
         await db_session.scalars(select(Tenant).where(Tenant.id == DEFAULT_TENANT_ID))
@@ -241,6 +272,31 @@ async def test_issue_rejects_a_tenant_id_matching_no_tenant_row(db_session):
         await issue_service_credential(
             db_session, name="test-no-tenant-row", role=ServiceRole.ADMIN
         )
+
+
+@pytest.mark.asyncio
+async def test_authenticate_returns_even_when_the_scheduled_last_used_write_fails(db_session):
+    # _schedule_last_used_write() fires the write without awaiting it --
+    # a failure in that background task (e.g. the independent connection
+    # can't be acquired) must never surface as an exception out of
+    # authenticate_token() itself, since nothing there is watching it.
+    from unittest.mock import AsyncMock
+
+    from lead_harvester.services import auth_service
+
+    _credential, raw_token = await issue_service_credential(
+        db_session, name="test-last-used-write-fails", role=ServiceRole.ADMIN
+    )
+    await db_session.commit()
+
+    with patch.object(
+        auth_service, "_record_last_used", new=AsyncMock(side_effect=RuntimeError("no connection"))
+    ):
+        authenticated = await authenticate_token(db_session, raw_token)
+        await wait_for_pending_last_used_writes()
+
+    assert authenticated is not None
+    assert authenticated.id == _credential.id
 
 
 @pytest.mark.asyncio

@@ -283,9 +283,12 @@ async def test_linkedin_run_isolates_a_db_level_failure_per_profile(
 async def test_issue_service_credential_prints_a_token_that_authenticates(db_session, capsys):
     from lead_harvester import cli
     from lead_harvester.models.auth import ServiceCredential
-    from lead_harvester.services.auth_service import authenticate_token
+    from lead_harvester.services.auth_service import (
+        authenticate_token,
+        wait_for_pending_last_used_writes,
+    )
 
-    args = argparse.Namespace(name="cli-test-admin", role="admin", tenant_id="")
+    args = argparse.Namespace(name="cli-test-admin", role="admin", tenant_id="", ttl_days=0)
 
     with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
         result = await cli.issue_service_credential(args)
@@ -312,6 +315,7 @@ async def test_issue_service_credential_prints_a_token_that_authenticates(db_ses
         new=lambda: _fake_get_session(db_session),
     ):
         authenticated = await authenticate_token(db_session, raw_token)
+        await wait_for_pending_last_used_writes()
     assert authenticated is not None
     assert authenticated.id == credential.id
 
@@ -320,7 +324,7 @@ async def test_issue_service_credential_prints_a_token_that_authenticates(db_ses
 async def test_issue_service_credential_rejects_invalid_role(db_session):
     from lead_harvester import cli
 
-    args = argparse.Namespace(name="cli-test-bad-role", role="superuser", tenant_id="")
+    args = argparse.Namespace(name="cli-test-bad-role", role="superuser", tenant_id="", ttl_days=0)
 
     result = await cli.issue_service_credential(args)
 
@@ -331,7 +335,9 @@ async def test_issue_service_credential_rejects_invalid_role(db_session):
 async def test_issue_service_credential_rejects_invalid_tenant_id(db_session):
     from lead_harvester import cli
 
-    args = argparse.Namespace(name="cli-test-bad-tenant", role="admin", tenant_id="not-a-uuid")
+    args = argparse.Namespace(
+        name="cli-test-bad-tenant", role="admin", tenant_id="not-a-uuid", ttl_days=0
+    )
 
     result = await cli.issue_service_credential(args)
 
@@ -353,7 +359,7 @@ async def test_issue_service_credential_rejects_a_non_default_tenant_id(db_sessi
     await db_session.flush()
 
     args = argparse.Namespace(
-        name="cli-test-explicit-tenant", role="admin", tenant_id=str(tenant.id)
+        name="cli-test-explicit-tenant", role="admin", tenant_id=str(tenant.id), ttl_days=0
     )
 
     with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
@@ -368,7 +374,10 @@ async def test_issue_service_credential_accepts_the_default_tenant_id_explicitly
     from lead_harvester.models.auth import ServiceCredential
 
     args = argparse.Namespace(
-        name="cli-test-explicit-default-tenant", role="admin", tenant_id=str(DEFAULT_TENANT_ID)
+        name="cli-test-explicit-default-tenant",
+        role="admin",
+        tenant_id=str(DEFAULT_TENANT_ID),
+        ttl_days=0,
     )
 
     with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
@@ -384,6 +393,62 @@ async def test_issue_service_credential_accepts_the_default_tenant_id_explicitly
         )
     ).scalar_one()
     assert credential.tenant_id == DEFAULT_TENANT_ID
+
+
+@pytest.mark.asyncio
+async def test_issue_service_credential_sets_expires_at_from_ttl_days(db_session):
+    import datetime as dt
+
+    from lead_harvester import cli
+    from lead_harvester.models.auth import ServiceCredential
+
+    args = argparse.Namespace(name="cli-test-ttl", role="admin", tenant_id="", ttl_days=7)
+
+    before = dt.datetime.now(dt.UTC)
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.issue_service_credential(args)
+    after = dt.datetime.now(dt.UTC)
+
+    assert result == 0
+
+    credential = (
+        await db_session.execute(
+            select(ServiceCredential).where(ServiceCredential.name == "cli-test-ttl")
+        )
+    ).scalar_one()
+    assert credential.expires_at is not None
+    assert before + dt.timedelta(days=7) <= credential.expires_at <= after + dt.timedelta(days=7)
+
+
+@pytest.mark.asyncio
+async def test_issue_service_credential_rejects_a_negative_ttl(db_session):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(name="cli-test-bad-ttl", role="admin", tenant_id="", ttl_days=-1)
+
+    result = await cli.issue_service_credential(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_issue_service_credential_defaults_to_no_expiry(db_session):
+    from lead_harvester import cli
+    from lead_harvester.models.auth import ServiceCredential
+
+    args = argparse.Namespace(name="cli-test-no-ttl", role="admin", tenant_id="", ttl_days=0)
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.issue_service_credential(args)
+
+    assert result == 0
+
+    credential = (
+        await db_session.execute(
+            select(ServiceCredential).where(ServiceCredential.name == "cli-test-no-ttl")
+        )
+    ).scalar_one()
+    assert credential.expires_at is None
 
 
 @pytest.mark.asyncio
@@ -780,5 +845,130 @@ async def test_linkedin_send_returns_one_when_automator_reports_policy_block(tmp
         new=AsyncMock(return_value=False),
     ):
         result = await cli.linkedin_send(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_get_tenant_config_cmd_prints_the_registry_default(db_session, capsys):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(tenant_id=str(DEFAULT_TENANT_ID), key="limit.export_max_rows")
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.get_tenant_config_cmd(args)
+
+    assert result == 0
+    assert "5000" in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+async def test_get_tenant_config_cmd_rejects_an_invalid_tenant_id():
+    from lead_harvester import cli
+
+    args = argparse.Namespace(tenant_id="not-a-uuid", key="limit.export_max_rows")
+
+    result = await cli.get_tenant_config_cmd(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_get_tenant_config_cmd_rejects_an_unknown_key(db_session):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(tenant_id=str(DEFAULT_TENANT_ID), key="not.a.real.key")
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.get_tenant_config_cmd(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_set_tenant_config_cmd_sets_a_bool_value(db_session, capsys):
+    from lead_harvester import cli
+    from lead_harvester.services.tenant_config_service import get_tenant_config
+
+    args = argparse.Namespace(
+        tenant_id=str(DEFAULT_TENANT_ID),
+        key="feature.restricted_sources_enabled",
+        value="true",
+        set_by="test-operator",
+    )
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.set_tenant_config_cmd(args)
+
+    assert result == 0
+    assert "version 1" in capsys.readouterr().out
+
+    value = await get_tenant_config(
+        db_session, DEFAULT_TENANT_ID, "feature.restricted_sources_enabled"
+    )
+    assert value is True
+
+
+@pytest.mark.asyncio
+async def test_set_tenant_config_cmd_sets_an_int_value(db_session):
+    from lead_harvester import cli
+    from lead_harvester.services.tenant_config_service import get_tenant_config
+
+    args = argparse.Namespace(
+        tenant_id=str(DEFAULT_TENANT_ID),
+        key="limit.export_max_rows",
+        value="42",
+        set_by="test-operator",
+    )
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.set_tenant_config_cmd(args)
+
+    assert result == 0
+    value = await get_tenant_config(db_session, DEFAULT_TENANT_ID, "limit.export_max_rows")
+    assert value == 42
+
+
+@pytest.mark.asyncio
+async def test_set_tenant_config_cmd_rejects_an_unknown_key(db_session):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(
+        tenant_id=str(DEFAULT_TENANT_ID), key="not.a.real.key", value="x", set_by="test-operator"
+    )
+
+    result = await cli.set_tenant_config_cmd(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_set_tenant_config_cmd_rejects_a_malformed_bool_value(db_session):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(
+        tenant_id=str(DEFAULT_TENANT_ID),
+        key="feature.restricted_sources_enabled",
+        value="not-a-bool",
+        set_by="test-operator",
+    )
+
+    result = await cli.set_tenant_config_cmd(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_set_tenant_config_cmd_rejects_an_invalid_tenant_id():
+    from lead_harvester import cli
+
+    args = argparse.Namespace(
+        tenant_id="not-a-uuid",
+        key="limit.export_max_rows",
+        value="10",
+        set_by="test-operator",
+    )
+
+    result = await cli.set_tenant_config_cmd(args)
 
     assert result == 1

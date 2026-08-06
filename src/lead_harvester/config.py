@@ -11,6 +11,15 @@ load_dotenv(".env", override=False)
 
 MIN_LEAD_SYNC_WEBHOOK_SECRET_LENGTH = 32
 
+# Allowlist, not a denylist -- DEV_AUTH_ENABLED and RESTRICTED_SOURCES_ENABLED
+# must only ever be true in an environment explicitly declared safe for
+# them. Blocking only the literal "production" string (the original
+# version of these guards) left every other real deployment -- staging,
+# QA, preview, UAT -- able to set either flag and get unauthenticated
+# admin access or run restricted LinkedIn automation, since none of
+# those spellings are "production".
+_ENVIRONMENTS_ALLOWING_DEV_GUARDS = frozenset({"development", "test"})
+
 
 class Settings(BaseSettings):
     database_url: str = (
@@ -123,23 +132,29 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def _forbid_restricted_sources_in_production(self) -> "Settings":
-        if self.restricted_sources_enabled and self.app_env == "production":
+    def _forbid_restricted_sources_outside_allowed_environments(self) -> "Settings":
+        if (
+            self.restricted_sources_enabled
+            and self.app_env not in _ENVIRONMENTS_ALLOWING_DEV_GUARDS
+        ):
             raise ValueError(
-                "RESTRICTED_SOURCES_ENABLED must not be true when APP_ENV=production -- "
-                "docs/ROADMAP.md Module 28 keeps LinkedIn account automation Restricted in "
-                "production regardless of this flag. It may only be set for explicitly "
-                "approved non-production access/legal/security/compliance review."
+                f"RESTRICTED_SOURCES_ENABLED must not be true when APP_ENV={self.app_env!r} -- "
+                "docs/ROADMAP.md Module 28 keeps LinkedIn account automation Restricted "
+                f"everywhere except {sorted(_ENVIRONMENTS_ALLOWING_DEV_GUARDS)}. A staging, QA, "
+                "or preview deployment is not 'production' by name but is still a real, "
+                "reachable environment this flag must not be true in."
             )
         return self
 
     @model_validator(mode="after")
-    def _forbid_dev_auth_in_production(self) -> "Settings":
-        if self.dev_auth_enabled and self.app_env == "production":
+    def _forbid_dev_auth_outside_allowed_environments(self) -> "Settings":
+        if self.dev_auth_enabled and self.app_env not in _ENVIRONMENTS_ALLOWING_DEV_GUARDS:
             raise ValueError(
-                "DEV_AUTH_ENABLED must not be true when APP_ENV=production -- it bypasses "
-                "credential checks entirely and grants every request admin access. It may "
-                "only be set for local development."
+                f"DEV_AUTH_ENABLED must not be true when APP_ENV={self.app_env!r} -- it bypasses "
+                "credential checks entirely and grants every request admin access. It may only "
+                f"be set when APP_ENV is one of {sorted(_ENVIRONMENTS_ALLOWING_DEV_GUARDS)}, not "
+                "merely 'not production' -- staging, QA, and preview deployments are real, "
+                "reachable environments too."
             )
         return self
 

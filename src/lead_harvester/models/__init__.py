@@ -22,6 +22,7 @@ from .sector import Sector
 from .signal import Signal, SignalType
 from .source import RawPageSnapshot, RawSourceRecord, RunStatus, SourceRun, SourceType
 from .tenancy import DEFAULT_TENANT_ID, Tenant, TenantStatus
+from .tenant_config import TenantConfigOverride
 from .verification import DataQualityFlag, FlagStatus, FlagType
 
 __all__ = [
@@ -77,5 +78,6 @@ __all__ = [
     "SuppressionEntry",
     "SuppressionReason",
     "Tenant",
+    "TenantConfigOverride",
     "TenantStatus",
 ]
