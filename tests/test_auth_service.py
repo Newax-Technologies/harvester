@@ -206,6 +206,19 @@ async def test_issue_allows_reusing_a_name_after_the_prior_credential_is_revoked
 
 
 @pytest.mark.asyncio
+async def test_issue_rejects_a_name_that_still_has_an_active_credential(db_session):
+    from lead_harvester.services.auth_service import CredentialNameInUseError
+
+    await issue_service_credential(db_session, name="test-duplicate-name", role=ServiceRole.ADMIN)
+    await db_session.commit()
+
+    with pytest.raises(CredentialNameInUseError):
+        await issue_service_credential(
+            db_session, name="test-duplicate-name", role=ServiceRole.VIEWER
+        )
+
+
+@pytest.mark.asyncio
 async def test_revoke_targets_the_active_credential_when_a_name_was_reissued(db_session):
     # Regression: with an unfiltered, unordered lookup, revoking a
     # reissued name could return the OLD (already-revoked) row and report

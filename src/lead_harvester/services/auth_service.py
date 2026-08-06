@@ -39,6 +39,10 @@ class TenantNotFoundError(ValueError):
     """Raised by issue_service_credential() when tenant_id matches no Tenant row."""
 
 
+class CredentialNameInUseError(ValueError):
+    """Raised by issue_service_credential() when `name` already has an active (non-revoked) credential."""
+
+
 class TenantScopeIncompleteError(ValueError):
     """
     Raised by issue_service_credential() for any tenant_id other than
@@ -73,7 +77,10 @@ async def issue_service_credential(
     TenantNotFoundError if tenant_id (even DEFAULT_TENANT_ID) matches no
     Tenant row -- a mistyped, stale, or not-yet-migrated tenant would
     otherwise reach the tenant_id foreign key at flush and surface as an
-    unhandled IntegrityError instead of a clean, catchable error.
+    unhandled IntegrityError instead of a clean, catchable error. Raises
+    CredentialNameInUseError if `name` already has an active credential --
+    same reasoning, but for the partial unique index
+    (uq_service_credentials_active_name) rather than a foreign key.
     """
     if tenant_id != DEFAULT_TENANT_ID:
         raise TenantScopeIncompleteError(
@@ -85,6 +92,19 @@ async def issue_service_credential(
 
     if await session.get(Tenant, tenant_id) is None:
         raise TenantNotFoundError(f"No tenant found with id {tenant_id}.")
+
+    existing = (
+        await session.scalars(
+            select(ServiceCredential).where(
+                ServiceCredential.name == name, ServiceCredential.revoked_at.is_(None)
+            )
+        )
+    ).first()
+    if existing is not None:
+        raise CredentialNameInUseError(
+            f"{name!r} already has an active credential -- revoke it first "
+            "(revoke-service-credential), or choose a different name."
+        )
 
     raw_token = generate_raw_token()
     credential = ServiceCredential(

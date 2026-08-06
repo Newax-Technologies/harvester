@@ -887,6 +887,20 @@ async def test_get_tenant_config_cmd_rejects_an_unknown_key(db_session):
 
 
 @pytest.mark.asyncio
+async def test_get_tenant_config_cmd_reports_a_clean_error_for_an_unknown_tenant(db_session):
+    # A syntactically valid but nonexistent tenant must not silently print
+    # the registry default and exit 0 as though that tenant existed.
+    from lead_harvester import cli
+
+    args = argparse.Namespace(tenant_id=str(uuid.uuid4()), key="limit.export_max_rows")
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.get_tenant_config_cmd(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
 async def test_set_tenant_config_cmd_sets_a_bool_value(db_session, capsys):
     from lead_harvester import cli
     from lead_harvester.services.tenant_config_service import get_tenant_config

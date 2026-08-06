@@ -21,9 +21,16 @@ async def get_tenant_config(session: AsyncSession, tenant_id: uuid.UUID, key: st
     """
     Returns the tenant's active override for `key`, or the registry
     default if none exists. Raises UnknownConfigKeyError for a key not
-    in CONFIG_REGISTRY (via get_definition).
+    in CONFIG_REGISTRY (via get_definition), or TenantNotFoundError if
+    tenant_id matches no Tenant row -- without this, a typo'd or stale
+    --tenant-id would silently print the registry default and exit 0, as
+    though that tenant existed and simply had no override.
     """
     definition = get_definition(key)
+
+    if await session.get(Tenant, tenant_id) is None:
+        raise TenantNotFoundError(f"No tenant found with id {tenant_id}.")
+
     override = (
         await session.scalars(
             select(TenantConfigOverride).where(
@@ -119,8 +126,18 @@ async def set_tenant_config(
 async def get_tenant_config_history(
     session: AsyncSession, tenant_id: uuid.UUID, key: str
 ) -> list[TenantConfigOverride]:
-    """Every version ever recorded for this (tenant, key), oldest first."""
+    """
+    Every version ever recorded for this (tenant, key), oldest first.
+    Raises UnknownConfigKeyError for an undeclared key, or
+    TenantNotFoundError for a tenant_id that matches no Tenant row (see
+    get_tenant_config's docstring for why this is checked explicitly
+    rather than just returning an empty list).
+    """
     get_definition(key)  # raises UnknownConfigKeyError for an undeclared key
+
+    if await session.get(Tenant, tenant_id) is None:
+        raise TenantNotFoundError(f"No tenant found with id {tenant_id}.")
+
     return list(
         await session.scalars(
             select(TenantConfigOverride)

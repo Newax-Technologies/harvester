@@ -419,7 +419,11 @@ async def issue_service_credential(args: argparse.Namespace) -> int:
     from .database import get_session
     from .models.auth import ServiceRole
     from .models.tenancy import DEFAULT_TENANT_ID
-    from .services.auth_service import TenantNotFoundError, TenantScopeIncompleteError
+    from .services.auth_service import (
+        CredentialNameInUseError,
+        TenantNotFoundError,
+        TenantScopeIncompleteError,
+    )
     from .services.auth_service import issue_service_credential as issue
 
     try:
@@ -454,7 +458,7 @@ async def issue_service_credential(args: argparse.Namespace) -> int:
                 session, name=args.name, role=role, tenant_id=tenant_id, expires_at=expires_at
             )
             name = credential.name
-    except (TenantScopeIncompleteError, TenantNotFoundError) as e:
+    except (TenantScopeIncompleteError, TenantNotFoundError, CredentialNameInUseError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
@@ -502,6 +506,7 @@ async def get_tenant_config_cmd(args: argparse.Namespace) -> int:
 
     from .config_registry import UnknownConfigKeyError
     from .database import get_session
+    from .services.auth_service import TenantNotFoundError
     from .services.tenant_config_service import get_tenant_config
 
     try:
@@ -513,7 +518,7 @@ async def get_tenant_config_cmd(args: argparse.Namespace) -> int:
     try:
         async with get_session() as session:
             value = await get_tenant_config(session, tenant_id, args.key)
-    except UnknownConfigKeyError as e:
+    except (UnknownConfigKeyError, TenantNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
