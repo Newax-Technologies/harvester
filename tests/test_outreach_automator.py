@@ -430,3 +430,94 @@ async def test_run_never_sends_to_a_suppressed_contact(db_session):
     mock_smtp.assert_not_called()
     await db_session.refresh(draft)
     assert draft.status == DraftStatus.APPROVED
+
+
+@pytest.mark.asyncio
+async def test_run_reports_failure_when_smtp_send_fails_for_every_claimed_draft(db_session):
+    # A claimed batch that genuinely failed to send (SMTP error) must not
+    # be reported as a successful run just because something was
+    # claimable -- a scheduler needs to be able to alert/retry on this,
+    # the same way it already can for a policy-blocked LinkedIn batch.
+    institution = CanonicalInstitution(
+        canonical_name="Smtp Failure School",
+        institution_type="school",
+        status=OperatingStatus.OPERATIONAL,
+        confidence_score=0.7,
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    brief = AccountBrief(institution_id=institution.id)
+    db_session.add(brief)
+    await db_session.flush()
+
+    draft = _draft(brief.id, "Smtp Failure Contact")
+    db_session.add(draft)
+    await db_session.flush()
+
+    automator = OutreachAutomator(
+        account_id="test-account",
+        smtp_host="smtp.example.com",
+        smtp_user="sender@example.com",
+        smtp_password="secret",
+    )
+
+    with (
+        patch(
+            "lead_harvester.outreach.automator.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch("lead_harvester.outreach.automator.within_working_hours", return_value=True),
+        patch("smtplib.SMTP", side_effect=OSError("connection refused")),
+    ):
+        result = await automator.run()
+
+    assert result is False
+    await db_session.refresh(draft)
+    assert draft.status == DraftStatus.APPROVED
+
+
+@pytest.mark.asyncio
+async def test_run_reports_success_in_dry_run_mode_even_though_nothing_is_confirmed_sent(
+    db_session,
+):
+    # Dry-run mode never actually sends anything by design (_send_email
+    # always returns False when dry_run is set) -- that must not be
+    # conflated with the SMTP-failure case above.
+    institution = CanonicalInstitution(
+        canonical_name="Dry Run School",
+        institution_type="school",
+        status=OperatingStatus.OPERATIONAL,
+        confidence_score=0.7,
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    brief = AccountBrief(institution_id=institution.id)
+    db_session.add(brief)
+    await db_session.flush()
+
+    draft = _draft(brief.id, "Dry Run Contact")
+    db_session.add(draft)
+    await db_session.flush()
+
+    automator = OutreachAutomator(
+        account_id="test-account",
+        smtp_host="smtp.example.com",
+        smtp_user="sender@example.com",
+        smtp_password="secret",
+        dry_run=True,
+    )
+
+    with (
+        patch(
+            "lead_harvester.outreach.automator.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch("lead_harvester.outreach.automator.within_working_hours", return_value=True),
+        patch("smtplib.SMTP") as mock_smtp,
+    ):
+        result = await automator.run()
+
+    assert result is True
+    mock_smtp.assert_not_called()

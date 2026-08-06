@@ -391,6 +391,51 @@ async def test_authenticate_returns_even_when_the_scheduled_last_used_write_fail
 
 
 @pytest.mark.asyncio
+async def test_schedule_last_used_write_coalesces_a_burst_into_one_writer(db_session):
+    # A sustained burst of requests on one shared credential must not
+    # spawn one task/transaction per request -- _schedule_last_used_write
+    # should keep exactly one writer in flight per credential_id and have
+    # it pick up the latest timestamp, not the first.
+    from lead_harvester.services import auth_service
+
+    credential, _raw = await issue_service_credential(
+        db_session, name="test-coalesce-burst", role=ServiceRole.VIEWER
+    )
+    await db_session.commit()
+
+    release_first_write = asyncio.Event()
+    real_record_last_used = auth_service._record_last_used
+
+    async def _blocking_then_real(credential_id, when):
+        await release_first_write.wait()
+        await real_record_last_used(credential_id, when)
+
+    with (
+        _route_last_used_writes_to(db_session),
+        patch.object(auth_service, "_record_last_used", new=_blocking_then_real),
+    ):
+        t1 = dt.datetime.now(dt.UTC)
+        t2 = t1 + dt.timedelta(seconds=5)
+
+        auth_service._schedule_last_used_write(credential.id, t1)
+        in_flight_after_first = len(auth_service._pending_last_used_writes)
+
+        # A second write for the SAME credential while the first is
+        # still blocked must coalesce, not spawn a second task.
+        auth_service._schedule_last_used_write(credential.id, t2)
+        in_flight_after_second = len(auth_service._pending_last_used_writes)
+
+        assert in_flight_after_first == 1
+        assert in_flight_after_second == 1
+
+        release_first_write.set()
+        await wait_for_pending_last_used_writes()
+
+    await db_session.refresh(credential)
+    assert credential.last_used_at == t2
+
+
+@pytest.mark.asyncio
 async def test_issue_accepts_the_default_tenant_id_explicitly(db_session):
     credential, _raw_token = await issue_service_credential(
         db_session,

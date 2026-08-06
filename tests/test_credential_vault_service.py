@@ -102,10 +102,16 @@ async def test_list_credentials_only_returns_active_versions(db_session):
     await store_credential(db_session, DEFAULT_TENANT_ID, "list-b", "v2", created_by="op")
 
     credentials = await list_credentials(db_session, DEFAULT_TENANT_ID)
-    names = {c.name for c in credentials}
+    by_name = {c.name: c for c in credentials}
 
-    assert names == {"list-a", "list-b"}
-    assert all(c.is_active for c in credentials)
+    assert set(by_name) == {"list-a", "list-b"}
+    assert by_name["list-b"].version == 2  # the rotated-over version, not v1's leftover row
+
+
+def test_list_credentials_returns_metadata_only_never_ciphertext():
+    from lead_harvester.services.credential_vault_service import CredentialSummary
+
+    assert not hasattr(CredentialSummary, "ciphertext")
 
 
 @pytest.mark.asyncio

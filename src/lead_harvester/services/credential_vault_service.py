@@ -23,6 +23,7 @@ exist) must call the one function whose name says what it does.
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
@@ -140,15 +141,36 @@ async def get_credential_fingerprint(
     )
 
 
-async def list_credentials(session: AsyncSession, tenant_id: uuid.UUID) -> list[VaultedCredential]:
-    """Every active credential for a tenant -- metadata/fingerprint only, never ciphertext or plaintext."""
-    return list(
-        await session.scalars(
-            select(VaultedCredential)
-            .where(VaultedCredential.tenant_id == tenant_id, VaultedCredential.is_active.is_(True))
-            .order_by(VaultedCredential.name.asc())
+@dataclass(frozen=True)
+class CredentialSummary:
+    """Metadata-only view of a VaultedCredential -- deliberately has no ciphertext field to leak."""
+
+    name: str
+    fingerprint: str
+    version: int
+    created_at: datetime
+    created_by: str
+
+
+async def list_credentials(session: AsyncSession, tenant_id: uuid.UUID) -> list[CredentialSummary]:
+    """
+    Every active credential for a tenant -- metadata/fingerprint only.
+    Selects only the safe columns (not `select(VaultedCredential)`) so a
+    caller can never reach `.ciphertext` through the returned rows, by
+    construction rather than by convention.
+    """
+    rows = await session.execute(
+        select(
+            VaultedCredential.name,
+            VaultedCredential.fingerprint,
+            VaultedCredential.version,
+            VaultedCredential.created_at,
+            VaultedCredential.created_by,
         )
+        .where(VaultedCredential.tenant_id == tenant_id, VaultedCredential.is_active.is_(True))
+        .order_by(VaultedCredential.name.asc())
     )
+    return [CredentialSummary(*row) for row in rows.all()]
 
 
 async def retrieve_plaintext_for_use(session: AsyncSession, tenant_id: uuid.UUID, name: str) -> str:

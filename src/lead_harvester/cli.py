@@ -572,7 +572,15 @@ async def vault_store_credential_cmd(args: argparse.Namespace) -> int:
     design (docs/delivery/agency-intelligence-implementation-sequence.md
     Slice 2.1). Prints the new version's fingerprint/metadata, never the
     value itself.
+
+    The value is never accepted as a CLI argument -- argv is visible in
+    shell history and to any other process on the box via `ps` for as
+    long as this command runs. Prompted with echo disabled by default;
+    --value-stdin reads one line from stdin instead, for scripted/piped
+    use (`... | lead-harvester vault-store-credential ... --value-stdin`),
+    which keeps the secret out of argv and shell history the same way.
     """
+    import getpass
     import uuid
 
     from .database import get_session
@@ -586,10 +594,18 @@ async def vault_store_credential_cmd(args: argparse.Namespace) -> int:
         print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
         return 1
 
+    if args.value_stdin:
+        value = sys.stdin.readline().rstrip("\n")
+    else:
+        value = getpass.getpass("Value (input hidden): ")
+    if not value:
+        print("Error: value must not be empty.", file=sys.stderr)
+        return 1
+
     try:
         async with get_session() as session:
             credential = await store_credential(
-                session, tenant_id, args.name, args.value, created_by=args.set_by
+                session, tenant_id, args.name, value, created_by=args.set_by
             )
             metadata = credential_metadata(credential)
     except (TenantNotFoundError, VaultNotConfiguredError) as e:
@@ -1140,7 +1156,14 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Stable identity for this credential, e.g. google_places_api_key",
     )
-    vault_store.add_argument("--value", required=True, help="The plaintext secret to encrypt")
+    vault_store.add_argument(
+        "--value-stdin",
+        action="store_true",
+        help=(
+            "Read the secret from stdin instead of an interactive hidden prompt "
+            "(for scripted/piped use). The value is never accepted as a CLI argument."
+        ),
+    )
     vault_store.add_argument(
         "--set-by", required=True, help="Identity recorded as this version's created_by"
     )

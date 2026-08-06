@@ -94,12 +94,18 @@ class OutreachAutomator:
     async def run(self) -> bool:
         """
         Send all approved outreach drafts that haven't been sent yet.
-        Returns False only when nothing was claimable this run because
-        every approved draft was a LinkedIn draft policy-blocked by
-        restricted_sources_enabled=False -- a scheduler must be able to
-        tell that apart from a genuinely successful (or truly empty) run.
-        A mixed batch whose email drafts still sent, or a run with no
-        approved drafts of any kind, both return True.
+        Returns False when a batch was claimed but nothing was actually
+        confirmed sent from it -- whether because every claimed draft was
+        a LinkedIn draft policy-blocked by restricted_sources_enabled=False,
+        or an SMTP failure/omission meant a claimed email draft never went
+        out either. A scheduler must be able to tell "claimed real work
+        and it didn't go out" apart from a genuinely successful run.
+        Two things are NOT failures even though confirmed_sent_ids ends up
+        empty: dry-run mode (nothing is ever actually sent by design), and
+        a batch where every claimed draft was suppressed (legitimately
+        nothing left to send, not a delivery failure). A mixed batch whose
+        email drafts still sent, or a run with no approved drafts of any
+        kind, both return True.
         """
         from sqlalchemy import select
 
@@ -220,7 +226,22 @@ class OutreachAutomator:
         finally:
             await self._release_unsent_drafts(claimed_ids, confirmed_sent_ids)
 
-        return True
+        if confirmed_sent_ids:
+            return True
+        if self.dry_run:
+            # Dry-run mode never actually sends anything by design -- an
+            # empty confirmed_sent_ids here doesn't mean the run failed.
+            return True
+        if suppressed_ids and len(suppressed_ids) == len(claimed_ids):
+            # Every claimed draft was suppressed -- legitimately nothing
+            # left to send, not a delivery failure.
+            return True
+
+        print(
+            f"[Automator] Claimed {len(claimed_ids)} draft(s) but confirmed 0 sent -- "
+            "reporting this run as failed so a scheduler can alert or retry."
+        )
+        return False
 
     async def _count_blocked_linkedin_backlog(self) -> int:
         from sqlalchemy import func, select

@@ -19,12 +19,21 @@ from lead_harvester.database import get_session
 from lead_harvester.models.auth import ServiceCredential, ServiceRole
 from lead_harvester.models.tenancy import DEFAULT_TENANT_ID, Tenant, TenantStatus
 
-# Keeps a strong reference to every in-flight _record_last_used task --
-# asyncio only holds a weak reference to a task once nothing else does,
-# so a fire-and-forget create_task() with no reference kept anywhere can
-# be garbage-collected mid-await, silently dropping the write. Discarded
-# from this set via its own done callback once it finishes.
+# Keeps a strong reference to every in-flight _drain_last_used_writes
+# task -- asyncio only holds a weak reference to a task once nothing else
+# does, so a fire-and-forget create_task() with no reference kept
+# anywhere can be garbage-collected mid-await, silently dropping the
+# write. Discarded from this set via its own done callback once it finishes.
 _pending_last_used_writes: set[asyncio.Task] = set()
+
+# Coalescing state for _schedule_last_used_write: at most one writer task
+# per credential_id at a time, however many requests authenticate with
+# that credential in a burst -- see _schedule_last_used_write's docstring.
+# _pending_last_used_timestamps holds the latest not-yet-written `when`
+# per credential_id; _in_flight_last_used_writers marks which credential_ids
+# currently have a _drain_last_used_writes task running.
+_pending_last_used_timestamps: dict[uuid.UUID, dt.datetime] = {}
+_in_flight_last_used_writers: set[uuid.UUID] = set()
 
 
 def hash_token(raw_token: str) -> str:
@@ -203,36 +212,72 @@ async def _record_last_used(credential_id: uuid.UUID, when: dt.datetime) -> None
         )
 
 
-async def _record_last_used_ignoring_errors(credential_id: uuid.UUID, when: dt.datetime) -> None:
-    # Runs unawaited by the caller (see _schedule_last_used_write) -- an
-    # exception here has nowhere to propagate to, so it must be swallowed
-    # explicitly rather than surface as an "exception was never retrieved"
-    # warning from a task nobody is watching. last_used_at is observability
-    # data, not a correctness-critical write; losing one occasionally is an
-    # acceptable trade for never blocking or failing the request it came
-    # from.
+async def _drain_last_used_writes(credential_id: uuid.UUID) -> None:
+    """
+    Writes _pending_last_used_timestamps[credential_id] and loops rather
+    than returning immediately, in case a newer timestamp for the SAME
+    credential_id was coalesced in (see _schedule_last_used_write) while
+    this write was in flight -- that timestamp needs a writer too, and by
+    looping here instead of spawning another task for it, at most one
+    writer (one task, one transaction) is ever in flight per credential_id,
+    however many requests authenticate with it in a burst. Runs unawaited
+    by the caller -- an exception here has nowhere to propagate to, so it
+    must be swallowed explicitly rather than surface as an "exception was
+    never retrieved" warning from a task nobody is watching. last_used_at
+    is observability data, not a correctness-critical write; losing one
+    occasionally is an acceptable trade for never blocking or failing the
+    request it came from.
+    """
     try:
-        await _record_last_used(credential_id, when)
+        while True:
+            when = _pending_last_used_timestamps.pop(credential_id, None)
+            if when is None:
+                return
+            await _record_last_used(credential_id, when)
     except Exception as e:
         print(f"[auth] Failed to record last_used_at for credential {credential_id}: {e}")
+    finally:
+        _in_flight_last_used_writers.discard(credential_id)
 
 
 def _schedule_last_used_write(credential_id: uuid.UUID, when: dt.datetime) -> None:
     """
-    Fires _record_last_used without awaiting it. authenticate_token()'s
-    caller (api/dependencies.py::get_current_user) already holds one
-    pooled connection via its own session argument -- awaiting a second
-    get_session() checkout inline, here, would mean every concurrent
-    authenticated request holds two pool connections at once. Under a
-    burst that fills the pool, every request's outer connection is then
-    stuck waiting for a second connection that's itself held by another
-    request stuck the same way -- nothing left to release one, so
-    authentication stalls until pool timeout. Not awaiting this task means
-    authenticate_token() returns as soon as its own (single) query
-    finishes; this task acquires its connection whenever the pool
-    actually has room, independent of the request's lifecycle.
+    Records `when` as the latest last_used_at to write for credential_id,
+    and ensures exactly one _drain_last_used_writes task is running for it
+    -- never a second one. Without this coalescing, a sustained burst of
+    requests on one shared credential would spawn one task and one
+    database transaction per request, with no bound: thousands of
+    pool-waiting tasks competing with real request traffic for
+    connections. Coalescing to "one writer per credential_id, always
+    writing the newest known timestamp" keeps the in-flight count bounded
+    by the number of distinct credentials in use, not the request rate.
+
+    Also avoids a second pool checkout on the caller's own connection:
+    authenticate_token()'s caller (api/dependencies.py::get_current_user)
+    already holds one pooled connection via its own session argument --
+    awaiting a second get_session() checkout inline, here, would mean
+    every concurrent authenticated request holds two pool connections at
+    once. Under a burst that fills the pool, every request's outer
+    connection is then stuck waiting for a second connection that's
+    itself held by another request stuck the same way -- nothing left to
+    release one, so authentication stalls until pool timeout. Not
+    awaiting this task means authenticate_token() returns as soon as its
+    own (single) query finishes; the writer task acquires its connection
+    whenever the pool actually has room, independent of the request's
+    lifecycle.
     """
-    task = asyncio.create_task(_record_last_used_ignoring_errors(credential_id, when))
+    existing = _pending_last_used_timestamps.get(credential_id)
+    if existing is None or when > existing:
+        _pending_last_used_timestamps[credential_id] = when
+
+    if credential_id in _in_flight_last_used_writers:
+        # A writer for this credential is already running (or about to
+        # loop again) -- it will pick up the timestamp just stored above.
+        # No new task needed.
+        return
+
+    _in_flight_last_used_writers.add(credential_id)
+    task = asyncio.create_task(_drain_last_used_writes(credential_id))
     _pending_last_used_writes.add(task)
     task.add_done_callback(_pending_last_used_writes.discard)
 

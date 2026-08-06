@@ -1019,8 +1019,10 @@ def _vault_key(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_vault_store_credential_cmd_stores_and_prints_fingerprint_not_the_value(
-    db_session, capsys, _vault_key
+    db_session, capsys, monkeypatch, _vault_key
 ):
+    import io
+
     from lead_harvester import cli
     from lead_harvester.services.credential_vault_service import retrieve_plaintext_for_use
     from lead_harvester.vault_crypto import fingerprint_secret
@@ -1028,9 +1030,10 @@ async def test_vault_store_credential_cmd_stores_and_prints_fingerprint_not_the_
     args = argparse.Namespace(
         tenant_id=str(DEFAULT_TENANT_ID),
         name="google_places_api_key",
-        value="the-real-secret-value",
+        value_stdin=True,
         set_by="test-operator",
     )
+    monkeypatch.setattr("sys.stdin", io.StringIO("the-real-secret-value\n"))
 
     with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
         result = await cli.vault_store_credential_cmd(args)
@@ -1048,8 +1051,10 @@ async def test_vault_store_credential_cmd_stores_and_prints_fingerprint_not_the_
 async def test_vault_store_credential_cmd_rejects_an_invalid_tenant_id(_vault_key):
     from lead_harvester import cli
 
+    # Invalid --tenant-id is rejected before ever reading a value, so
+    # this never touches stdin/getpass.
     args = argparse.Namespace(
-        tenant_id="not-a-uuid", name="some-key", value="x", set_by="test-operator"
+        tenant_id="not-a-uuid", name="some-key", value_stdin=True, set_by="test-operator"
     )
 
     result = await cli.vault_store_credential_cmd(args)
@@ -1059,16 +1064,37 @@ async def test_vault_store_credential_cmd_rejects_an_invalid_tenant_id(_vault_ke
 
 @pytest.mark.asyncio
 async def test_vault_store_credential_cmd_reports_a_clean_error_when_vault_is_unconfigured(
-    db_session,
+    db_session, monkeypatch
 ):
+    import io
+
     from lead_harvester import cli
 
     args = argparse.Namespace(
-        tenant_id=str(DEFAULT_TENANT_ID), name="some-key", value="x", set_by="test-operator"
+        tenant_id=str(DEFAULT_TENANT_ID), name="some-key", value_stdin=True, set_by="test-operator"
     )
+    monkeypatch.setattr("sys.stdin", io.StringIO("x\n"))
 
     with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
         result = await cli.vault_store_credential_cmd(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_vault_store_credential_cmd_rejects_an_empty_value(
+    db_session, monkeypatch, _vault_key
+):
+    import io
+
+    from lead_harvester import cli
+
+    args = argparse.Namespace(
+        tenant_id=str(DEFAULT_TENANT_ID), name="some-key", value_stdin=True, set_by="test-operator"
+    )
+    monkeypatch.setattr("sys.stdin", io.StringIO("\n"))
+
+    result = await cli.vault_store_credential_cmd(args)
 
     assert result == 1
 
