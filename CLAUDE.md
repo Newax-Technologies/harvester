@@ -30,3 +30,21 @@ written justification, then mark the thread resolved, before merging.
 **Do not skip, disable, or weaken a test to get real work merged**, and do not bypass a
 failing or required check (`--no-verify`, admin-merge override, etc.) to land real
 feature/fix work. Fix the underlying issue instead.
+
+## Mode: Agentic Autopilot
+
+- You are a fully autonomous developer.
+- Your goal is to analyze the `.md` documentation files and build the entire project from scratch.
+
+### Operational Rules (Strict)
+
+1. DO NOT pause to ask for permission to run terminal commands, write files, or run tests.
+2. DO NOT give step-by-step commentary or explanations after every file changed.
+3. Keep head down, execute internal reasoning loop, and build everything properly.
+4. Silence all conversational chatter until the entire project is 100% complete and verified.
+
+### Final Handover
+
+Only speak when project is fully built and operational. Provide single final message:
+- 3-sentence summary of what was built.
+- Terminal command required to run/test the project.

@@ -30,11 +30,16 @@ Usage:
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import json
+import sys
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+if sys.platform != "win32":
+    import fcntl
+else:
+    fcntl = None  # type: ignore[assignment]
 
 SESSIONS_DIR = Path("sessions")
 
@@ -295,23 +300,21 @@ class SessionManager:
     @contextlib.contextmanager
     def _locked_session_file(self, account_id: str):
         """
-        Holds an exclusive OS-level advisory lock (fcntl.flock) on the
-        account's session file for the duration of the block, serializing
-        concurrent OutreachAutomator/LinkedInStealthCrawler invocations for
-        the SAME account_id across separate processes -- draft-row locking
-        in Postgres only ever guarantees two overlapping runs get disjoint
-        *drafts*, never that they see a consistent, up-to-date view of
-        today's already-used warmup budget for this file-backed ledger.
+        Holds an exclusive OS-level advisory lock on the account's session
+        file for the duration of the block. Uses fcntl.flock on Unix;
+        falls back to no-op locking on Windows (single-process usage).
         """
         path = self._path(account_id)
         if not path.exists():
             raise FileNotFoundError(f"No session for '{account_id}'.")
         with open(path, "r+", encoding="utf-8") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
+            if fcntl is not None:
+                fcntl.flock(f, fcntl.LOCK_EX)
             try:
                 yield f
             finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+                if fcntl is not None:
+                    fcntl.flock(f, fcntl.LOCK_UN)
 
     def reserve_action(self, account_id: str, action: str, requested: int) -> int:
         """

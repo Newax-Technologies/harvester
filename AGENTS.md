@@ -62,3 +62,20 @@ service container for the backend test suite and a Semgrep static-analysis scan.
   a test is failing, fix the underlying issue. Do not bypass a failing or required check
   with `--no-verify`, an admin-merge override, or similar, to land real feature/fix work —
   a pull request only merges once its own tests and checks are genuinely green.
+
+## Mode: Autonomous Execution
+
+- You are operating in fully autonomous execution mode.
+- Your objective is to ingest the `.md` files in this repository, map out the dependencies, and build the entire codebase.
+
+### Strict Operational Boundaries
+
+1. **No Check-Ins:** Do not prompt for intermediate verification, permission to execute terminal commands, or file-writing authorizations.
+2. **No Commentary:** Do not provide step-by-step summaries, progress logs, or file-by-file explanations during the build process. Keep chat updates completely silent.
+3. **Task Completion:** Execute internal planning, code generation, compiling, and testing continuously until the software is entirely built and properly verified.
+
+### Handover Protocol
+
+Only return a text response once the project is 100% complete and fully operational. Final output must strictly consist of:
+- A short summary stating the project is ready.
+- The exact terminal command needed to execute or launch the completed project.
