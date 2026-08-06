@@ -21,6 +21,7 @@ retrieve_plaintext_for_use() for the one sanctioned caller.
 from __future__ import annotations
 
 import hashlib
+import hmac
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -35,7 +36,7 @@ class VaultDecryptionError(RuntimeError):
     """Raised when ciphertext can't be decrypted with the configured key (wrong key, corrupted value)."""
 
 
-def _fernet() -> Fernet:
+def _require_key() -> str:
     key = settings.vault_encryption_key
     if not key:
         raise VaultNotConfiguredError(
@@ -43,6 +44,11 @@ def _fernet() -> Fernet:
             '`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` '
             "and set it before storing or reading vaulted credentials."
         )
+    return key
+
+
+def _fernet() -> Fernet:
+    key = _require_key()
     try:
         return Fernet(key.encode("utf-8"))
     except (ValueError, TypeError) as e:
@@ -66,9 +72,23 @@ def decrypt_secret(ciphertext: str) -> str:
 
 def fingerprint_secret(plaintext: str) -> str:
     """
-    A one-way SHA-256 digest of the plaintext -- lets an operator confirm
-    "is this the credential I think it is" (e.g. compare against a known
-    value) or spot that two stored credentials share a value, without
-    ever decrypting either one. Never used to recover plaintext.
+    A keyed HMAC-SHA256 digest of the plaintext, keyed by
+    VAULT_ENCRYPTION_KEY -- lets an operator confirm "is this the
+    credential I think it is" (e.g. compare against a known value) or
+    spot that two stored credentials share a value, without ever
+    decrypting either one. Never used to recover plaintext.
+
+    Keyed, not a bare hash: a plain SHA-256 of the plaintext would let
+    anyone who ever reads the fingerprint column (a DB leak, a log line)
+    run an offline dictionary/brute-force search for a low-entropy
+    secret -- a human-chosen password, say, as opposed to a random API
+    key -- using nothing but a fast hash function and no knowledge of
+    VAULT_ENCRYPTION_KEY at all (CodeQL flags exactly this: an unsalted
+    fast hash on sensitive data). Keying the digest with the same secret
+    that protects the ciphertext means computing a matching fingerprint
+    for a guess also requires that key, closing the oracle. Raises
+    VaultNotConfiguredError under the same condition as
+    encrypt_secret/decrypt_secret.
     """
-    return hashlib.sha256(plaintext.encode("utf-8")).hexdigest()
+    key = _require_key()
+    return hmac.new(key.encode("utf-8"), plaintext.encode("utf-8"), hashlib.sha256).hexdigest()
