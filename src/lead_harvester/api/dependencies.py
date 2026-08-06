@@ -1,5 +1,3 @@
-import os
-
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +6,7 @@ from lead_harvester.api.errors import AuthenticationError, AuthorizationError
 from lead_harvester.config import settings
 from lead_harvester.database import get_session
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
+from lead_harvester.services.auth_service import authenticate_token
 
 security = HTTPBearer(auto_error=False)
 
@@ -19,30 +18,37 @@ class User:
         self.role = role
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
-    """
-    Dependency to get the current authenticated user.
-    For local development, DEV_AUTH_ENABLED can bypass strict token checks.
-    """
-    dev_auth = os.getenv("DEV_AUTH_ENABLED", "false").lower() == "true"
+async def get_db_session() -> AsyncSession:
+    """Dependency to get the database session"""
+    async with get_session() as session:
+        yield session
 
-    if dev_auth:
-        return User(
-            id="usr_dev_admin", username=os.getenv("DEV_AUTH_USER", "local-admin"), role="admin"
-        )
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    session: AsyncSession = Depends(get_db_session),
+) -> User:
+    """
+    Dependency to get the current authenticated user. Bearer tokens are
+    matched against ServiceCredential (models/auth.py) -- an unrecognized,
+    revoked, or expired token is rejected outright, not silently treated
+    as a valid low-privilege viewer (see models/auth.py's module docstring
+    for why that fallback existed and had to go).
+
+    For local development, Settings.dev_auth_enabled can bypass credential
+    checks -- Settings itself refuses to allow that in production.
+    """
+    if settings.dev_auth_enabled:
+        return User(id="usr_dev_admin", username=settings.dev_auth_user, role="admin")
 
     if not credentials:
         raise AuthenticationError()
 
-    # Mocking real JWT check for now
-    token = credentials.credentials
-    if token == "secret-admin-token":
-        return User(id="usr_admin", username="admin-user", role="admin")
-    elif token == "secret-reviewer-token":
-        return User(id="usr_reviewer", username="reviewer-user", role="reviewer")
-    else:
-        # Default fallback if token is passed but unknown could be a viewer
-        return User(id="usr_viewer", username="viewer-user", role="viewer")
+    credential = await authenticate_token(session, credentials.credentials)
+    if credential is None:
+        raise AuthenticationError()
+
+    return User(id=str(credential.id), username=credential.name, role=credential.role.value)
 
 
 def require_roles(*roles: str):
@@ -52,12 +58,6 @@ def require_roles(*roles: str):
         return current_user
 
     return role_checker
-
-
-async def get_db_session() -> AsyncSession:
-    """Dependency to get the database session"""
-    async with get_session() as session:
-        yield session
 
 
 _lead_sync_emitter = LeadSyncEmitter(settings)

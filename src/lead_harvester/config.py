@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     # the environment variable is set.
     restricted_sources_enabled: bool = False
 
+    # api/dependencies.py::get_current_user's local-development bypass --
+    # replaces the previous unconditional os.getenv("DEV_AUTH_ENABLED")
+    # read. False by default; the validator below refuses to let it be
+    # true in production even if the environment variable is set, so a
+    # deployment misconfiguration can't grant every request admin access.
+    dev_auth_enabled: bool = False
+    dev_auth_user: str = "local-admin"
+
     # WebCrawler settings
     user_agent: str = "LeadBot/1.0"
     request_timeout_seconds: float = 10.0
@@ -112,6 +120,16 @@ class Settings(BaseSettings):
                 "docs/ROADMAP.md Module 28 keeps LinkedIn account automation Restricted in "
                 "production regardless of this flag. It may only be set for explicitly "
                 "approved non-production access/legal/security/compliance review."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _forbid_dev_auth_in_production(self) -> "Settings":
+        if self.dev_auth_enabled and self.app_env == "production":
+            raise ValueError(
+                "DEV_AUTH_ENABLED must not be true when APP_ENV=production -- it bypasses "
+                "credential checks entirely and grants every request admin access. It may "
+                "only be set for local development."
             )
         return self
 

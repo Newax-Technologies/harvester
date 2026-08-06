@@ -405,6 +405,50 @@ async def suppress_contact(args: argparse.Namespace) -> int:
     return 0
 
 
+async def issue_service_credential(args: argparse.Namespace) -> int:
+    """
+    Create a new ServiceCredential and print its raw bearer token exactly
+    once (docs/delivery/agency-intelligence-implementation-sequence.md
+    Slice 1.2). The token is unrecoverable after this -- only its SHA-256
+    hash is stored (services/auth_service.py::hash_token). Re-run this
+    command to issue a replacement if it's lost.
+    """
+    from .database import get_session
+    from .models.auth import ServiceRole
+    from .services.auth_service import issue_service_credential as issue
+
+    try:
+        role = ServiceRole(args.role)
+    except ValueError:
+        valid = ", ".join(r.value for r in ServiceRole)
+        print(f"Error: --role must be one of: {valid}", file=sys.stderr)
+        return 1
+
+    async with get_session() as session:
+        credential, raw_token = await issue(session, name=args.name, role=role)
+        name = credential.name
+
+    print(f"\n[Auth] Issued credential {name!r} (role={role.value}).")
+    print(f"  Token (shown once, store it now): {raw_token}\n")
+    return 0
+
+
+async def revoke_service_credential_cmd(args: argparse.Namespace) -> int:
+    """Revoke a ServiceCredential by name so its token stops authenticating immediately."""
+    from .database import get_session
+    from .services.auth_service import revoke_service_credential
+
+    async with get_session() as session:
+        credential = await revoke_service_credential(session, args.name)
+
+    if credential is None:
+        print(f"Error: no active credential named {args.name!r} found.", file=sys.stderr)
+        return 1
+
+    print(f"\n[Auth] Revoked credential {args.name!r}.\n")
+    return 0
+
+
 async def purge_expired_records(args: argparse.Namespace) -> int:
     """Delete RawSourceRecord rows past retention that never produced provenance (docs/ROADMAP.md module 11)."""
     from .database import get_session
@@ -817,6 +861,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     suppress.add_argument("--note", default="")
 
+    # -- issue-service-credential --------------------------------------------
+    issue_credential = subparsers.add_parser(
+        "issue-service-credential",
+        help="Create a new API bearer credential and print its token once",
+    )
+    issue_credential.add_argument(
+        "--name", required=True, help="Unique identity for this credential"
+    )
+    issue_credential.add_argument("--role", required=True, choices=["admin", "reviewer", "viewer"])
+
+    # -- revoke-service-credential --------------------------------------------
+    revoke_credential = subparsers.add_parser(
+        "revoke-service-credential",
+        help="Revoke a service credential by name so its token stops authenticating",
+    )
+    revoke_credential.add_argument("--name", required=True)
+
     # -- purge-expired-records ----------------------------------------------
     purge = subparsers.add_parser(
         "purge-expired-records",
@@ -1040,6 +1101,10 @@ def main() -> None:
         "select-daily-leads": lambda: sys.exit(asyncio.run(select_daily_leads(args))),
         "verify-data-quality": lambda: sys.exit(asyncio.run(verify_data_quality(args))),
         "suppress-contact": lambda: sys.exit(asyncio.run(suppress_contact(args))),
+        "issue-service-credential": lambda: sys.exit(asyncio.run(issue_service_credential(args))),
+        "revoke-service-credential": lambda: sys.exit(
+            asyncio.run(revoke_service_credential_cmd(args))
+        ),
         "purge-expired-records": lambda: sys.exit(asyncio.run(purge_expired_records(args))),
         "process-outbox": lambda: sys.exit(asyncio.run(process_outbox(args))),
         "export-leads": lambda: sys.exit(asyncio.run(export_leads(args))),

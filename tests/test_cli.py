@@ -279,6 +279,74 @@ async def test_linkedin_run_isolates_a_db_level_failure_per_profile(
 
 
 @pytest.mark.asyncio
+async def test_issue_service_credential_prints_a_token_that_authenticates(db_session, capsys):
+    from lead_harvester import cli
+    from lead_harvester.models.auth import ServiceCredential
+    from lead_harvester.services.auth_service import authenticate_token
+
+    args = argparse.Namespace(name="cli-test-admin", role="admin")
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.issue_service_credential(args)
+
+    assert result == 0
+
+    credential = (
+        await db_session.execute(
+            select(ServiceCredential).where(ServiceCredential.name == "cli-test-admin")
+        )
+    ).scalar_one()
+    assert credential.role.value == "admin"
+
+    printed = capsys.readouterr().out
+    raw_token = printed.rsplit(": ", 1)[1].strip()
+
+    authenticated = await authenticate_token(db_session, raw_token)
+    assert authenticated is not None
+    assert authenticated.id == credential.id
+
+
+@pytest.mark.asyncio
+async def test_issue_service_credential_rejects_invalid_role(db_session):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(name="cli-test-bad-role", role="superuser")
+
+    result = await cli.issue_service_credential(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_revoke_service_credential_cmd_revokes_an_existing_credential(db_session):
+    from lead_harvester import cli
+    from lead_harvester.models.auth import ServiceRole
+    from lead_harvester.services.auth_service import issue_service_credential
+
+    await issue_service_credential(db_session, name="cli-test-revoke", role=ServiceRole.VIEWER)
+    await db_session.commit()
+
+    args = argparse.Namespace(name="cli-test-revoke")
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.revoke_service_credential_cmd(args)
+
+    assert result == 0
+
+
+@pytest.mark.asyncio
+async def test_revoke_service_credential_cmd_errors_for_unknown_name(db_session):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(name="cli-test-does-not-exist")
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.revoke_service_credential_cmd(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
 async def test_import_authorized_returns_error_for_missing_file(tmp_path):
     from lead_harvester import cli
 

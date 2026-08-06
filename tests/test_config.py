@@ -69,3 +69,18 @@ def test_restricted_sources_disabled_by_default():
 def test_allows_restricted_sources_disabled_in_production():
     settings = Settings(restricted_sources_enabled=False, app_env="production")
     assert settings.app_env == "production"
+
+
+def test_rejects_dev_auth_enabled_in_production():
+    with pytest.raises(ValueError, match="DEV_AUTH_ENABLED"):
+        Settings(dev_auth_enabled=True, app_env="production")
+
+
+def test_allows_dev_auth_enabled_outside_production():
+    settings = Settings(dev_auth_enabled=True, app_env="development")
+    assert settings.dev_auth_enabled is True
+
+
+def test_dev_auth_disabled_by_default():
+    settings = Settings()
+    assert settings.dev_auth_enabled is False

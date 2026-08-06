@@ -1,5 +1,6 @@
 from .allocation import LeadReservation, ReservationStatus
 from .audit import AuditLog
+from .auth import ServiceCredential, ServiceRole
 from .canonical import Branch, CanonicalInstitution, ContactPoint, OperatingStatus
 from .compliance import (
     DeletionRequest,
@@ -64,6 +65,8 @@ __all__ = [
     "ReviewOutcome",
     "RunStatus",
     "Sector",
+    "ServiceCredential",
+    "ServiceRole",
     "Signal",
     "SignalType",
     "SizeTier",
