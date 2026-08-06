@@ -16,7 +16,7 @@ for _stream in (sys.stdout, sys.stderr):
     if callable(reconfigure):
         try:
             reconfigure(encoding="utf-8", errors="replace")
-        except Exception:
+        except Exception:  # noqa: S110 -- best-effort only, encoding stays as-is on failure
             pass
 
 from pathlib import Path
