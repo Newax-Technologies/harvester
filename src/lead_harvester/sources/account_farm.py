@@ -42,6 +42,8 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+from ..compliance.source_policy import ensure_source_enabled
+from ..config import settings
 from ..database import get_session
 from ..models.source import RawSourceRecord, RunStatus, SourceRun, SourceType
 from .breadth_tracker import BreadthTracker
@@ -298,6 +300,14 @@ class AccountFarm:
         profiles used to satisfy BreadthTracker.needs_noise_visit for any
         account that's due one.
         """
+        # Enforced here, not only in cli.py's wrapper -- see
+        # sources/linkedin_stealth.py::LinkedInStealthCrawler.run()'s
+        # identical comment for why a direct Python caller must hit the
+        # same gate, not just the CLI's early-feedback check.
+        ensure_source_enabled(
+            SourceType.LINKEDIN, restricted_sources_enabled=settings.restricted_sources_enabled
+        )
+
         if not within_working_hours():
             print("[Farm] Outside working hours. Aborting.")
             return []

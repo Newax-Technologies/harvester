@@ -91,16 +91,35 @@ class OutreachAutomator:
     # Main run loop
     # ------------------------------------------------------------------
 
-    async def run(self) -> None:
-        """Send all approved outreach drafts that haven't been sent yet."""
+    async def run(self) -> bool:
+        """
+        Send all approved outreach drafts that haven't been sent yet.
+        Returns False only when nothing was claimable this run because
+        every approved draft was a LinkedIn draft policy-blocked by
+        restricted_sources_enabled=False -- a scheduler must be able to
+        tell that apart from a genuinely successful (or truly empty) run.
+        A mixed batch whose email drafts still sent, or a run with no
+        approved drafts of any kind, both return True.
+        """
         from sqlalchemy import select
 
         if not within_working_hours():
             print("[Automator] Outside working hours. Will not send messages now.")
-            return
+            return True
 
         if self.dry_run:
             print("[Automator] DRY RUN MODE — messages will be typed but NOT sent.")
+
+        # Excludes LinkedIn-shaped rows (target_contact_value is a URL) from
+        # the claim itself when restricted sources are disabled -- claiming
+        # them here only to immediately release them back to APPROVED still
+        # ate a slot in the .limit(10) batch, capable of starving approved
+        # email drafts behind a full page of policy-blocked LinkedIn rows on
+        # every single run.
+        restricted_sources_enabled = settings.restricted_sources_enabled
+        claim_query = select(OutreachDraft).where(OutreachDraft.status == DraftStatus.APPROVED)
+        if not restricted_sources_enabled:
+            claim_query = claim_query.where(~OutreachDraft.target_contact_value.startswith("http"))
 
         # Atomically claim a batch: lock candidate rows (skipping any another
         # concurrent run() already has locked) and flip them to SENDING in
@@ -112,19 +131,22 @@ class OutreachAutomator:
         # stale-SENDING sweep is separate follow-up work, not solved here.
         async with get_session() as session:
             drafts = list(
-                await session.scalars(
-                    select(OutreachDraft)
-                    .where(OutreachDraft.status == DraftStatus.APPROVED)
-                    .limit(10)
-                    .with_for_update(skip_locked=True)
-                )
+                await session.scalars(claim_query.limit(10).with_for_update(skip_locked=True))
             )
             for draft in drafts:
                 draft.status = DraftStatus.SENDING
 
         if not drafts:
+            if not restricted_sources_enabled:
+                blocked_backlog = await self._count_blocked_linkedin_backlog()
+                if blocked_backlog:
+                    print(
+                        f"[Automator] {blocked_backlog} approved LinkedIn draft(s) waiting -- "
+                        "blocked by policy (RESTRICTED_SOURCES_ENABLED=false), not sent."
+                    )
+                    return False
             print("[Automator] No approved drafts to send.")
-            return
+            return True
 
         print(f"[Automator] Found {len(drafts)} approved draft(s) to send.")
         claimed_ids = [d.id for d in drafts]
@@ -197,6 +219,23 @@ class OutreachAutomator:
                 confirmed_sent_ids |= await self._send_email_batch(email_drafts)
         finally:
             await self._release_unsent_drafts(claimed_ids, confirmed_sent_ids)
+
+        return True
+
+    async def _count_blocked_linkedin_backlog(self) -> int:
+        from sqlalchemy import func, select
+
+        async with get_session() as session:
+            return (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(OutreachDraft)
+                    .where(
+                        OutreachDraft.status == DraftStatus.APPROVED,
+                        OutreachDraft.target_contact_value.startswith("http"),
+                    )
+                )
+            ) or 0
 
     # ------------------------------------------------------------------
     # LinkedIn batch

@@ -79,12 +79,16 @@ def test_release_unused_daily_budget_gives_back_unused_portion(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_run_skips_account_still_in_captcha_cooldown(tmp_path):
+async def test_run_skips_account_still_in_captcha_cooldown(tmp_path, monkeypatch):
     # _check_for_captcha's own docstring claims a mandatory 24-hour rest
     # after any challenge, regardless of solve outcome -- but nothing
     # previously read that logged event back before starting the account
     # again. run() must refuse to even open a browser while the cooldown
     # from a prior challenge is still active.
+    from lead_harvester.config import settings
+
+    monkeypatch.setattr(settings, "restricted_sources_enabled", True)
+
     _backdate_to_week3(tmp_path, "burner_07")
     sm = SessionManager(tmp_path)
     sm.record_captcha_challenge("burner_07")

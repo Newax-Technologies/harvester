@@ -303,7 +303,15 @@ async def test_issue_service_credential_prints_a_token_that_authenticates(db_ses
     printed = capsys.readouterr().out
     raw_token = printed.rsplit(": ", 1)[1].strip()
 
-    authenticated = await authenticate_token(db_session, raw_token)
+    # authenticate_token() records last_used_at on its own independent
+    # session (database.py's get_session(), bound to DATABASE_URL) --
+    # redirect that to db_session the same way issue_service_credential
+    # above was redirected.
+    with patch(
+        "lead_harvester.services.auth_service.get_session",
+        new=lambda: _fake_get_session(db_session),
+    ):
+        authenticated = await authenticate_token(db_session, raw_token)
     assert authenticated is not None
     assert authenticated.id == credential.id
 
@@ -331,9 +339,13 @@ async def test_issue_service_credential_rejects_invalid_tenant_id(db_session):
 
 
 @pytest.mark.asyncio
-async def test_issue_service_credential_accepts_an_explicit_tenant_id(db_session):
+async def test_issue_service_credential_rejects_a_non_default_tenant_id(db_session):
+    # Tenant scoping only covers CanonicalInstitution/Branch/ContactPoint
+    # and InstitutionService's reads so far -- a credential actually
+    # authenticated as a non-default tenant would see every other
+    # tenant's data through every unscoped route, so issuance for one
+    # must be refused outright rather than silently look supported.
     from lead_harvester import cli
-    from lead_harvester.models.auth import ServiceCredential
     from lead_harvester.models.tenancy import Tenant
 
     tenant = Tenant(name="Explicit Tenant Co", slug="explicit-tenant-co")
@@ -347,14 +359,31 @@ async def test_issue_service_credential_accepts_an_explicit_tenant_id(db_session
     with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
         result = await cli.issue_service_credential(args)
 
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_issue_service_credential_accepts_the_default_tenant_id_explicitly(db_session):
+    from lead_harvester import cli
+    from lead_harvester.models.auth import ServiceCredential
+
+    args = argparse.Namespace(
+        name="cli-test-explicit-default-tenant", role="admin", tenant_id=str(DEFAULT_TENANT_ID)
+    )
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.issue_service_credential(args)
+
     assert result == 0
 
     credential = (
         await db_session.execute(
-            select(ServiceCredential).where(ServiceCredential.name == "cli-test-explicit-tenant")
+            select(ServiceCredential).where(
+                ServiceCredential.name == "cli-test-explicit-default-tenant"
+            )
         )
     ).scalar_one()
-    assert credential.tenant_id == tenant.id
+    assert credential.tenant_id == DEFAULT_TENANT_ID
 
 
 @pytest.mark.asyncio
@@ -706,5 +735,50 @@ async def test_linkedin_farm_run_rejects_proxies_file_with_malformed_line(
     )
 
     result = await cli._linkedin_farm_run(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_linkedin_send_returns_zero_when_automator_reports_success(tmp_path):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(
+        account="burner_01",
+        smtp_host="",
+        smtp_port="587",
+        smtp_user="",
+        from_name="",
+        proxy="",
+        dry_run=False,
+    )
+
+    with patch(
+        "lead_harvester.outreach.automator.OutreachAutomator.run", new=AsyncMock(return_value=True)
+    ):
+        result = await cli.linkedin_send(args)
+
+    assert result == 0
+
+
+@pytest.mark.asyncio
+async def test_linkedin_send_returns_one_when_automator_reports_policy_block(tmp_path):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(
+        account="burner_01",
+        smtp_host="",
+        smtp_port="587",
+        smtp_user="",
+        from_name="",
+        proxy="",
+        dry_run=False,
+    )
+
+    with patch(
+        "lead_harvester.outreach.automator.OutreachAutomator.run",
+        new=AsyncMock(return_value=False),
+    ):
+        result = await cli.linkedin_send(args)
 
     assert result == 1

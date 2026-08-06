@@ -26,7 +26,7 @@ import enum
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -43,6 +43,23 @@ class ServiceRole(str, enum.Enum):
 class ServiceCredential(Base):
     __tablename__ = "service_credentials"
 
+    # Partial unique index instead of a table-wide unique constraint on
+    # name -- revoked_at is set (never cleared) on revoke, never on
+    # delete, so name must only stay unique among ACTIVE (non-revoked)
+    # credentials. Otherwise re-issuing a replacement under the same
+    # identity after revoking a lost token (see cli.py's own "re-run to
+    # issue a replacement" guidance) would permanently fail on this
+    # constraint. Matches the partial index created in migration
+    # a5c7e9b1d3f5_add_service_credentials.py.
+    __table_args__ = (
+        Index(
+            "uq_service_credentials_active_name",
+            "name",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     # Which tenant this identity acts as -- api/dependencies.py::User
     # carries it forward from here on every authenticated request so
@@ -53,7 +70,7 @@ class ServiceCredential(Base):
     )
     # Human-readable identity of who/what holds this credential (e.g.
     # "alice@newax.co", "ci-export-worker") -- becomes User.username.
-    name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[ServiceRole] = mapped_column(Enum(ServiceRole), nullable=False)
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(

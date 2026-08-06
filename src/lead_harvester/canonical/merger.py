@@ -318,11 +318,16 @@ def _synthesize_branch_fields(records: list[RawSourceRecord]) -> dict:
 
 
 def _build_branch(
-    records: list[RawSourceRecord], institution_id: uuid.UUID, *, branch_name: str
+    records: list[RawSourceRecord],
+    institution_id: uuid.UUID,
+    *,
+    tenant_id: uuid.UUID,
+    branch_name: str,
 ) -> Branch:
     synthesized = _synthesize_branch_fields(records)
     return Branch(
         institution_id=institution_id,
+        tenant_id=tenant_id,
         branch_name=branch_name,
         address=synthesized["address"] or "",
         city=synthesized["city"] or _UNKNOWN_CITY,
@@ -340,14 +345,18 @@ def _create_branches(
     same_location: bool,
 ) -> list[Branch]:
     if same_location:
-        branch = _build_branch(records, institution.id, branch_name="Main Campus")
+        branch = _build_branch(
+            records, institution.id, tenant_id=institution.tenant_id, branch_name="Main Campus"
+        )
         session.add(branch)
         return [branch]
 
     branches = []
     for i, record in enumerate(records):
         name = "Main Campus" if i == 0 else "Additional Campus"
-        branch = _build_branch([record], institution.id, branch_name=name)
+        branch = _build_branch(
+            [record], institution.id, tenant_id=institution.tenant_id, branch_name=name
+        )
         session.add(branch)
         branches.append(branch)
     return branches
@@ -485,6 +494,7 @@ async def _add_contact_if_present(
         session.add(
             ContactPoint(
                 institution_id=institution.id,
+                tenant_id=institution.tenant_id,
                 contact_type=contact_type,
                 contact_value=contact_value,
                 person_name=person_name,
@@ -808,7 +818,12 @@ async def attach_record_to_institution(
         branch = target_branch
     else:
         is_new_evidence = True
-        branch = _build_branch([record], institution.id, branch_name="Additional Campus")
+        branch = _build_branch(
+            [record],
+            institution.id,
+            tenant_id=institution.tenant_id,
+            branch_name="Additional Campus",
+        )
         session.add(branch)
 
     await _add_contacts_and_provenance(session, institution, record)

@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Local development keeps ordinary configuration in .env and credentials in
@@ -87,6 +87,16 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator("app_env", mode="before")
+    @classmethod
+    def _normalize_app_env(cls, value: str) -> str:
+        # "Production"/"PRODUCTION"/"prod "/etc. must not silently evade
+        # the app_env == "production" guards below (RESTRICTED_SOURCES_ENABLED,
+        # DEV_AUTH_ENABLED) -- normalize once here rather than trusting every
+        # comparison site to defend itself (seed.py already had to add its
+        # own .lower() for exactly this reason).
+        return value.strip().lower() if isinstance(value, str) else value
 
     @model_validator(mode="after")
     def _require_strong_webhook_secret_when_enabled(self) -> "Settings":

@@ -45,15 +45,29 @@ def upgrade() -> None:
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_used_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("name"),
         sa.UniqueConstraint("token_hash"),
     )
     op.create_index(
         op.f("ix_service_credentials_token_hash"), "service_credentials", ["token_hash"]
     )
+    # Partial unique index instead of a table-wide UniqueConstraint("name")
+    # -- revoked_at is set (never cleared) on revoke, never on delete, so a
+    # flat unique constraint on name would permanently block re-issuing a
+    # replacement credential under the same identity after its predecessor
+    # is revoked, contradicting cli.py's own "re-run to issue a
+    # replacement if it's lost" guidance. Only ACTIVE (non-revoked)
+    # credentials need a unique name.
+    op.create_index(
+        "uq_service_credentials_active_name",
+        "service_credentials",
+        ["name"],
+        unique=True,
+        postgresql_where=sa.text("revoked_at IS NULL"),
+    )
 
 
 def downgrade() -> None:
+    op.drop_index("uq_service_credentials_active_name", table_name="service_credentials")
     op.drop_index(op.f("ix_service_credentials_token_hash"), table_name="service_credentials")
     op.drop_table("service_credentials")
     _service_role.drop(op.get_bind(), checkfirst=True)

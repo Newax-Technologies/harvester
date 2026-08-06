@@ -418,6 +418,7 @@ async def issue_service_credential(args: argparse.Namespace) -> int:
     from .database import get_session
     from .models.auth import ServiceRole
     from .models.tenancy import DEFAULT_TENANT_ID
+    from .services.auth_service import TenantNotFoundError, TenantScopeIncompleteError
     from .services.auth_service import issue_service_credential as issue
 
     try:
@@ -436,9 +437,15 @@ async def issue_service_credential(args: argparse.Namespace) -> int:
     else:
         tenant_id = DEFAULT_TENANT_ID
 
-    async with get_session() as session:
-        credential, raw_token = await issue(session, name=args.name, role=role, tenant_id=tenant_id)
-        name = credential.name
+    try:
+        async with get_session() as session:
+            credential, raw_token = await issue(
+                session, name=args.name, role=role, tenant_id=tenant_id
+            )
+            name = credential.name
+    except (TenantScopeIncompleteError, TenantNotFoundError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
     print(f"\n[Auth] Issued credential {name!r} (role={role.value}, tenant={tenant_id}).")
     print(f"  Token (shown once, store it now): {raw_token}\n")
@@ -708,8 +715,8 @@ async def linkedin_send(args: argparse.Namespace) -> int:
 
     mode = "DRY RUN" if args.dry_run else "LIVE"
     print(f"[Outreach] Starting automator ({mode})...")
-    await automator.run()
-    return 0
+    ok = await automator.run()
+    return 0 if ok else 1
 
 
 # ---------------------------------------------------------------------------
@@ -885,7 +892,10 @@ def build_parser() -> argparse.ArgumentParser:
     issue_credential.add_argument(
         "--tenant-id",
         default="",
-        help="Tenant UUID this credential belongs to (default: the default tenant)",
+        help=(
+            "Tenant UUID this credential belongs to (default: the default tenant). "
+            "Only the default tenant is currently accepted -- see TenantScopeIncompleteError."
+        ),
     )
 
     # -- revoke-service-credential --------------------------------------------

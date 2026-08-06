@@ -84,3 +84,20 @@ def test_allows_dev_auth_enabled_outside_production():
 def test_dev_auth_disabled_by_default():
     settings = Settings()
     assert settings.dev_auth_enabled is False
+
+
+@pytest.mark.parametrize("spelling", ["Production", "PRODUCTION", " production", "production "])
+def test_rejects_restricted_sources_enabled_regardless_of_app_env_spelling(spelling):
+    with pytest.raises(ValueError, match="RESTRICTED_SOURCES_ENABLED"):
+        Settings(restricted_sources_enabled=True, app_env=spelling)
+
+
+@pytest.mark.parametrize("spelling", ["Production", "PRODUCTION", " production", "production "])
+def test_rejects_dev_auth_enabled_regardless_of_app_env_spelling(spelling):
+    with pytest.raises(ValueError, match="DEV_AUTH_ENABLED"):
+        Settings(dev_auth_enabled=True, app_env=spelling)
+
+
+def test_app_env_is_normalized_to_lowercase_and_stripped():
+    settings = Settings(app_env=" Production ")
+    assert settings.app_env == "production"

@@ -32,7 +32,14 @@ async def test_get_current_user_accepts_a_valid_issued_token(db_session):
     )
     await db_session.commit()
 
-    user = await get_current_user(credentials=_bearer(raw_token), session=db_session)
+    # authenticate_token() (called by get_current_user) records
+    # last_used_at on its own independent session bound to DATABASE_URL --
+    # redirect that to db_session, same as the audit-write tests below.
+    with patch(
+        "lead_harvester.services.auth_service.get_session",
+        new=lambda: _fake_get_session(db_session),
+    ):
+        user = await get_current_user(credentials=_bearer(raw_token), session=db_session)
 
     assert user.username == "dep-test-reviewer"
     assert user.role == "reviewer"
@@ -128,3 +135,34 @@ async def test_require_permission_denies_unregistered_permission_by_default(db_s
         pytest.raises(AuthorizationError),
     ):
         await checker(current_user=user)
+
+
+@pytest.mark.asyncio
+async def test_require_permission_truncates_a_long_username_for_the_audit_actor_column(
+    db_session,
+):
+    # ServiceCredential.name allows up to 255 characters but AuditLog.actor
+    # is String(100) -- a long credential name must still get a clean
+    # AuthorizationError, not an IntegrityError from the audit write.
+    checker = require_permission("drafts.decide")
+    long_username = "a" * 255
+    user = User(id="u4", username=long_username, role="viewer")
+
+    with (
+        patch(
+            "lead_harvester.api.dependencies.get_session", new=lambda: _fake_get_session(db_session)
+        ),
+        pytest.raises(AuthorizationError),
+    ):
+        await checker(current_user=user)
+
+    audit_rows = (
+        (
+            await db_session.execute(
+                select(AuditLog).where(AuditLog.action == "authorization.denied")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert any(row.actor == long_username[:100] for row in audit_rows)

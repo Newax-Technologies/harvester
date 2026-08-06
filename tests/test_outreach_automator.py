@@ -266,9 +266,9 @@ async def test_run_does_not_requeue_draft_after_email_send_succeeds_but_mark_sen
 async def test_run_skips_linkedin_batch_when_restricted_sources_disabled(db_session):
     # docs/ROADMAP.md Module 28: LinkedIn account automation stays
     # Restricted until explicit approval. Settings.restricted_sources_enabled
-    # defaults to False, so the LinkedIn batch must never open a browser
-    # session -- the draft is left claimed-but-unsent and released back to
-    # APPROVED by the same path used for any other unattempted draft.
+    # defaults to False, so a LinkedIn draft must never even be claimed by
+    # the batch query -- it stays untouched (APPROVED) rather than being
+    # claimed, found policy-blocked, and released back.
     institution = CanonicalInstitution(
         canonical_name="Restricted Source School",
         institution_type="school",
@@ -304,8 +304,12 @@ async def test_run_skips_linkedin_batch_when_restricted_sources_disabled(db_sess
         ),
         patch("lead_harvester.outreach.automator.within_working_hours", return_value=True),
     ):
-        await automator.run()
+        result = await automator.run()
 
+    # A run whose ONLY approved work was policy-blocked LinkedIn drafts
+    # must report failure -- a scheduler must be able to tell that apart
+    # from a genuinely empty/successful run.
+    assert result is False
     automator._send_linkedin_batch.assert_not_awaited()
     await db_session.refresh(li_draft)
     assert li_draft.status == DraftStatus.APPROVED
@@ -358,8 +362,12 @@ async def test_run_still_sends_email_batch_when_linkedin_batch_is_restricted(db_
         patch("smtplib.SMTP") as mock_smtp,
     ):
         server = mock_smtp.return_value.__enter__.return_value
-        await automator.run()
+        result = await automator.run()
 
+    # A mixed batch whose email drafts sent is a success, even though the
+    # LinkedIn portion was policy-blocked (and, per the query filter,
+    # never claimed at all).
+    assert result is True
     server.sendmail.assert_called_once()
     automator._send_linkedin_batch.assert_not_awaited()
     await db_session.refresh(li_draft)

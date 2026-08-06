@@ -11,6 +11,7 @@ from lead_harvester.canonical.merger import (
 from lead_harvester.models.canonical import Branch, ContactPoint, OperatingStatus
 from lead_harvester.models.provenance import FieldProvenance
 from lead_harvester.models.sector import Sector
+from lead_harvester.models.tenancy import DEFAULT_TENANT_ID, Tenant
 
 from .factories import google_places_record, website_record
 
@@ -605,6 +606,50 @@ async def test_attach_record_to_institution_enriches_existing_branch(db_session,
         select(FieldProvenance).where(FieldProvenance.raw_record_id == b.id)
     )
     assert len(prov.scalars().all()) >= 1
+
+
+@pytest.mark.asyncio
+async def test_attach_record_to_institution_propagates_parent_tenant_to_new_branch_and_contacts(
+    db_session, source_run
+):
+    # A non-default-tenant institution enriched by the automated pipeline
+    # must not have its new branches/contacts silently fall back to the
+    # tenant_id column default -- they belong to the same tenant as the
+    # institution they're attached to.
+    other_tenant = Tenant(name="Merger Tenant Co", slug="merger-tenant-co")
+    db_session.add(other_tenant)
+    await db_session.flush()
+
+    a = google_places_record(source_run.id, name="Riverside Academy", phone="+923001111111")
+    db_session.add(a)
+    await db_session.flush()
+    institution = await merge_records(db_session, [a])
+    await db_session.flush()
+    assert institution.tenant_id == DEFAULT_TENANT_ID
+
+    institution.tenant_id = other_tenant.id
+    await db_session.flush()
+
+    b = google_places_record(
+        source_run.id,
+        name="Riverside Academy Annex",
+        phone="+923002222222",
+        source_id="gp:tenant-propagation-annex",
+    )
+    db_session.add(b)
+    await db_session.flush()
+
+    new_branch = await attach_record_to_institution(db_session, b, institution, target_branch=None)
+    await db_session.flush()
+
+    assert new_branch.tenant_id == other_tenant.id
+
+    contact = (
+        await db_session.execute(
+            select(ContactPoint).where(ContactPoint.contact_value == "+923002222222")
+        )
+    ).scalar_one()
+    assert contact.tenant_id == other_tenant.id
 
 
 @pytest.mark.asyncio

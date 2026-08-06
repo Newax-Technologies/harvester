@@ -89,7 +89,11 @@ def require_permission(permission: str):
                 audit_session.add(
                     AuditLog(
                         action="authorization.denied",
-                        actor=current_user.username,
+                        # ServiceCredential.name allows up to 255 characters
+                        # but AuditLog.actor is only String(100) -- a long
+                        # credential name would otherwise turn a clean 403
+                        # into a raised IntegrityError (500) here.
+                        actor=current_user.username[:100],
                         entity_type="Permission",
                         entity_id=_NO_ENTITY,
                         new_state={"permission": permission, "role": current_user.role},

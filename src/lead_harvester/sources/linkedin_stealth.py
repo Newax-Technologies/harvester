@@ -28,7 +28,8 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from ..compliance.source_policy import get_source_policy
+from ..compliance.source_policy import ensure_source_enabled, get_source_policy
+from ..config import settings
 from ..models.source import SourceType
 from .device_profile import DeviceProfileManager
 from .human_emulator import (
@@ -186,6 +187,15 @@ class LinkedInStealthCrawler:
         Main crawl loop. Returns a list of extracted profiles.
         Respects working hours and daily budgets automatically.
         """
+        # Enforced here, not only in cli.py's wrapper -- any direct caller
+        # of this class (a script, a future API route, a notebook) must
+        # hit the same gate the CLI does, not just get early feedback from
+        # it. cli.py's own check stays too, purely so an operator sees the
+        # error before a browser/session file is even touched.
+        ensure_source_enabled(
+            SourceType.LINKEDIN, restricted_sources_enabled=settings.restricted_sources_enabled
+        )
+
         policy = get_source_policy(SourceType.LINKEDIN)
         print(f"[Crawler] Source policy for LINKEDIN: {policy.authorization_basis.value}")
         print(f"[Crawler] {policy.notes}")
