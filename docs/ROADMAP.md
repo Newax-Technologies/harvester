@@ -4,11 +4,11 @@
 
 Status: **Planned and partially implemented**
 
-This is the authoritative top-level module roadmap for Harvester as an independent, standalone, resellable lead-intelligence application.
+This is the single authoritative top-level roadmap for Harvester as an independent, standalone, resellable lead-intelligence application.
 
-It **re-baselines all 64 top-level modules** around the approved product boundary. The former roadmap remains available in Git history and the pull-request diff for historical reference.
+It **re-baselines all 64 top-level modules** around the approved product boundary and includes the former standalone-product and optional-Core delivery crosswalks in this same document. Earlier versions remain available in Git history and the pull-request diff for historical reference.
 
-The earlier HSP workstreams are now a transition crosswalk, not an extra module count. Harvester has **64 top-level product modules**, not 64 modules plus another stack of architecture labels pretending arithmetic is a strategy.
+The earlier HSP and Core-sync workstreams are transition crosswalks, not extra module counts. Harvester has **64 top-level product modules**, not 64 modules plus another stack of architecture labels pretending arithmetic is a strategy.
 
 ## Locked product boundary
 
@@ -915,3 +915,175 @@ The roadmap is not satisfied until tests prove:
 10. The customer controls what leaves Harvester.
 11. The system should do the work; the operator should remain in control.
 12. Current, Partial, Planned and Restricted are evidence terms, not marketing adjectives.
+
+---
+
+# I. Standalone Product Transition Crosswalk
+
+## Crosswalk status
+
+Status: **Integrated into this authoritative 64-module roadmap**
+
+The standalone-product workstreams HSP-0 through HSP-11 are no longer an additional layer of product modules. Their requirements are incorporated directly into Modules 01–64.
+
+Harvester therefore has one authoritative count:
+
+> **64 top-level standalone product modules**
+
+This section preserves traceability from the earlier HSP labels to the numbered module identities.
+
+## HSP crosswalk
+
+| Earlier workstream | Integrated modules | Result |
+| --- | --- | --- |
+| HSP-0 Architecture and product boundary | 01–08 | Standalone application, tenancy, authentication, permissions, ownership, configuration and audit |
+| HSP-1 Connections and credentials | 09–10 | Credential vault and connection profiles |
+| HSP-2 Database adapter kernel | 11, 23 | Connector framework and database source adapters |
+| HSP-3 Source schemas and mappings | 12–14 | Schema registry, mappings, preview, validation and quarantine |
+| HSP-4 Harvester normalization boundary | 29–40 | Raw observations, evidence, resolution, Master Leads and lead intelligence |
+| HSP-5 Synchronization engine | 15–16, 56 | Checkpoints, retries, conflict handling, reconciliation and durable event exchange |
+| HSP-6 Publishing rules and output profiles | 49–52 | Filters, groups, exports, publishing rules, frozen audiences and payloads |
+| HSP-7 Direct Communicator integration | 53 | Optional direct adapter without Core |
+| HSP-8 Optional NEWAX Core adapter | 54 | Optional source-native publication and identity-link reconciliation |
+| HSP-9 Administration UI | 58 | Connections, secrets, schemas, mappings, sync, publication and adapter administration |
+| HSP-10 Multi-tenant resale | 03, 59–61 | Tenant isolation, product administration, licensing and controlled branding |
+| HSP-11 Packaging and rollout | 62–64 | Deployment, backup, restore, upgrades, security and release governance |
+
+## Decisions preserved
+
+1. Harvester operates without NEWAX Core or Communicator.
+2. Harvester owns its database, identifiers, mapping and lead-intelligence format.
+3. Every source and destination uses a versioned credentialed adapter.
+4. Direct Harvester-to-Communicator integration works without Core.
+5. Core remains an optional identity and governance destination.
+6. Publishing is controlled by filters, rules, frozen audiences, payload profiles and approvals.
+7. Multi-tenant resale, licensing, packaging, backup, restore and upgrades are first-class product requirements.
+8. No HSP workstream is counted as an extra top-level module.
+
+## Standalone roadmap change control
+
+Future standalone-product roadmap changes must modify the relevant numbered module in this document.
+
+Do not create another parallel top-level module count unless the existing 64-module architecture is formally re-baselined with an archived predecessor, explicit migration map and verified reason.
+
+---
+
+# J. Optional NEWAX Core Adapter Delivery Crosswalk
+
+## Core adapter status
+
+Status: **Planned optional integration**
+
+This section is the delivery crosswalk for the optional NEWAX Core adapter. It does not create additional top-level Harvester modules.
+
+The previous 9D, 19B, 23B, 33C, 36B, 52B and 63B labels are retired. Their requirements are incorporated into the authoritative standalone module architecture.
+
+## Core integration product boundary
+
+Harvester operates fully when NEWAX Core is absent, disabled or unavailable.
+
+```text
+Harvester local workflow
+→ source intake
+→ raw evidence
+→ Harvester resolution
+→ lead intelligence
+→ local commit
+→ optional Core outbox event
+→ asynchronous delivery
+```
+
+Core never participates in Harvester's local transaction and never defines Harvester's database schema.
+
+## Authoritative Core-adapter module mapping
+
+| Core-sync concern | Harvester module |
+| --- | --- |
+| Credentials and signing secrets | Module 09 — Credential Vault and Secret Lifecycle |
+| Core connection metadata and access mode | Module 10 — Connection Profiles and Access Modes |
+| Adapter capabilities and version | Module 11 — Connector Registry and Capability Framework |
+| Core-facing source schemas | Module 12 — Source Schema Registry |
+| Source-native outbound mapping | Module 13 — Mapping and Transformation Profiles |
+| Durable checkpoints and retry | Module 15 — Synchronization Engine and Checkpoints |
+| Reconciliation, backfill and repair | Module 16 — Synchronization Conflicts, Reconciliation and Repair |
+| Raw observation source | Module 29 — Raw Observation Store |
+| Evidence and provenance projection | Module 31 — Normalized Evidence and Provenance |
+| Harvester entity source | Module 33 — Master Lead Registry |
+| Optional Core adapter | Module 54 — Optional NEWAX Core Adapter |
+| Outbox delivery and command intake | Module 56 — Event Delivery, Feedback and Command Intake |
+| Core administration page | Module 58 — Integration Administration UI |
+| Compatibility and upgrade policy | Module 63 — Upgrade, Migration and Compatibility Management |
+| Security and release verification | Module 64 — Security, Quality and Release Governance |
+
+## Optional Core streams
+
+### Raw observations
+
+Every accepted source observation may be queued after durable local storage.
+
+### Resolved entities
+
+Every new or materially changed Harvester-resolved organization, person, location, contact or relationship may be queued after resolution and validation.
+
+### Lead context
+
+Selected Harvester-owned qualification, score, opportunity, research or dossier summaries may be published only through an approved payload profile and publishing rule.
+
+Lead context remains a source-owned facet. It is not Core identity truth.
+
+## Core adapter delivery requirements
+
+The adapter must provide:
+
+- Independent enable, pause and disable controls
+- Source-native versioned payloads
+- Stable event identity
+- Deterministic payload hashes
+- Exact-byte signing
+- Idempotent retries
+- Per-entity ordering where required
+- Dead letter
+- Circuit breaker
+- Backpressure
+- Live-work priority over backfill
+- Permanent optional Harvester-to-Core links
+- Reconciliation and repair
+- Metrics and audit
+
+## Core adapter acceptance criteria
+
+The optional Core integration is not complete until:
+
+1. Harvester performs its full local workflow with Core disabled.
+2. Core downtime never rolls back or blocks local Harvester commits.
+3. Raw, resolved-entity and lead-context streams can be controlled independently.
+4. Harvester sends source-native contracts rather than Core database rows.
+5. Core performs its own schema validation, normalization, identity resolution, provenance and merge policy.
+6. Harvester IDs remain valid before and after a Core link exists.
+7. Retries reuse the same event ID and exact serialized payload.
+8. A new material revision receives a new event ID.
+9. Backfill cannot starve live events.
+10. Direct Harvester-to-Communicator operation remains available without Core.
+11. Tenant, permission, signing, secret, replay and no-leak tests pass.
+12. The exact release commit passes Module 64 verification.
+
+## Core adapter implementation sequence
+
+```text
+Module 09–13 foundations
+→ Module 15–16 synchronization
+→ Module 29 and 31 source contracts
+→ Module 54 adapter
+→ Module 56 delivery and commands
+→ Module 58 administration
+→ Module 63 compatibility
+→ Module 64 release verification
+```
+
+No Core-specific work should be embedded into unrelated source connectors, lead scoring, qualification, exports or frontend pages.
+
+# Unified roadmap change-control rule
+
+All future Harvester roadmap changes must be made in this file against the relevant numbered module or crosswalk section.
+
+Do not create another parallel roadmap document unless a formally approved re-baseline requires an archived predecessor, migration map, ownership decision and verified reason.

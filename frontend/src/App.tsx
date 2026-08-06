@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { BrowserRouter, Routes, Route, Outlet, Link } from "react-router";
 import {
   LayoutDashboard,
@@ -7,6 +8,12 @@ import {
   CheckCircle2,
   AlertCircle,
   Plus,
+  TrendingUp,
+  Sparkles,
+  ShieldAlert,
+  ShieldCheck,
+  Download,
+  Activity,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { dashboardQueries } from "./api/queries";
@@ -16,7 +23,53 @@ import { ReadinessGate } from "./pages/ReadinessGate";
 import { ReadinessGateDetail } from "./pages/ReadinessGateDetail";
 import { ResolutionQueue } from "./pages/ResolutionQueue";
 import { ResolutionDetail } from "./pages/ResolutionDetail";
+import { LeadProfiles } from "./pages/LeadProfiles";
+import { DailyQueue } from "./pages/DailyQueue";
+import { DataQuality } from "./pages/DataQuality";
+import { Compliance } from "./pages/Compliance";
+import { Exports } from "./pages/Exports";
+import { Operations } from "./pages/Operations";
 import { ManualLeadDrawer } from "./components/ManualLeadDrawer";
+
+// Sidebar nav is grouped into sections (Pipeline/Review/Governance/Admin)
+// as each domain-specific page PR lands its own section entry -- see
+// frontend/platform-foundation and the stacked page PRs on top of it.
+function NavSection({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="px-3 pt-3 pb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function NavLink({
+  to,
+  icon,
+  children,
+}: {
+  to: string;
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      to={to}
+      className="flex items-center space-x-3 px-3 py-2 rounded-md hover:bg-secondary transition-colors"
+    >
+      {icon}
+      <span>{children}</span>
+    </Link>
+  );
+}
 
 // Layout Component
 function Layout() {
@@ -40,35 +93,45 @@ function Layout() {
             v0.1.0 · Dashboard
           </p>
         </div>
-        <nav className="p-4 space-y-2 flex-1">
-          <Link
-            to="/"
-            className="flex items-center space-x-3 px-3 py-2 rounded-md hover:bg-secondary transition-colors"
-          >
-            <LayoutDashboard size={18} />
-            <span>Command Center</span>
-          </Link>
-          <Link
-            to="/institutions"
-            className="flex items-center space-x-3 px-3 py-2 rounded-md hover:bg-secondary transition-colors"
-          >
-            <Building2 size={18} />
-            <span>Explorer</span>
-          </Link>
-          <Link
-            to="/resolution"
-            className="flex items-center space-x-3 px-3 py-2 rounded-md hover:bg-secondary transition-colors"
-          >
-            <Merge size={18} />
-            <span>Resolution Queue</span>
-          </Link>
-          <Link
-            to="/readiness"
-            className="flex items-center space-x-3 px-3 py-2 rounded-md hover:bg-secondary transition-colors"
-          >
-            <CheckCircle2 size={18} />
-            <span>Readiness Gate</span>
-          </Link>
+        <nav className="p-4 flex-1 overflow-y-auto">
+          <NavSection label="Pipeline">
+            <NavLink to="/" icon={<LayoutDashboard size={18} />}>
+              Command Center
+            </NavLink>
+            <NavLink to="/institutions" icon={<Building2 size={18} />}>
+              Explorer
+            </NavLink>
+            <NavLink to="/leads" icon={<TrendingUp size={18} />}>
+              Lead Profiles
+            </NavLink>
+            <NavLink to="/daily-queue" icon={<Sparkles size={18} />}>
+              Daily Queue
+            </NavLink>
+          </NavSection>
+          <NavSection label="Review">
+            <NavLink to="/resolution" icon={<Merge size={18} />}>
+              Resolution Queue
+            </NavLink>
+            <NavLink to="/readiness" icon={<CheckCircle2 size={18} />}>
+              Readiness Gate
+            </NavLink>
+            <NavLink to="/data-quality" icon={<ShieldAlert size={18} />}>
+              Data Quality
+            </NavLink>
+          </NavSection>
+          <NavSection label="Governance">
+            <NavLink to="/compliance" icon={<ShieldCheck size={18} />}>
+              Compliance
+            </NavLink>
+            <NavLink to="/exports" icon={<Download size={18} />}>
+              Exports
+            </NavLink>
+          </NavSection>
+          <NavSection label="Admin">
+            <NavLink to="/operations" icon={<Activity size={18} />}>
+              Operations
+            </NavLink>
+          </NavSection>
         </nav>
 
         {/* Add Lead button pinned to bottom of sidebar */}
@@ -203,10 +266,16 @@ function App() {
           <Route index element={<CommandCenter />} />
           <Route path="institutions" element={<InstitutionsExplorer />} />
           <Route path="institutions/:id" element={<EntityDossier />} />
+          <Route path="leads" element={<LeadProfiles />} />
+          <Route path="daily-queue" element={<DailyQueue />} />
           <Route path="resolution" element={<ResolutionQueue />} />
           <Route path="resolution/:id" element={<ResolutionDetail />} />
           <Route path="readiness" element={<ReadinessGate />} />
           <Route path="readiness/:id" element={<ReadinessGateDetail />} />
+          <Route path="data-quality" element={<DataQuality />} />
+          <Route path="compliance" element={<Compliance />} />
+          <Route path="exports" element={<Exports />} />
+          <Route path="operations" element={<Operations />} />
         </Route>
       </Routes>
     </BrowserRouter>

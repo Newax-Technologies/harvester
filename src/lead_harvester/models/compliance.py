@@ -12,6 +12,7 @@ from lead_harvester.database import Base
 class SuppressionReason(str, enum.Enum):
     OPT_OUT = "opt_out"
     BOUNCED = "bounced"
+    EMAIL_COMPLAINT = "email_complaint"
     LEGAL_REQUEST = "legal_request"
     MANUAL = "manual"
 

@@ -1,6 +1,7 @@
 import datetime
 import hashlib
 import uuid
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ from .models.resolution import ResolutionCandidate
 from .models.signal import Signal, SignalType
 from .resolution.normalize import normalize_domain, normalize_name, normalize_phone
 from .resolution.orchestrator import resolve_incoming_record
+from .services.lead_profile_service import link_page_snapshots_to_institution, refresh_lead_profile
 from .sources.apple_maps import AppleMapsConnector
 from .sources.authorized_imports import AuthorizedImportInstitution, parse_authorized_import_csv
 from .sources.geographic_tiling import build_queries_for_tile, generate_tiles
@@ -167,23 +169,39 @@ class LeadPipeline:
                 # not just the domain-aggregated Leads above -- see
                 # models/source.py::RawPageSnapshot's own docstring for why
                 # this exists separately from RawSourceRecord.
+                #
+                # Correction: a single crawl() call (and so a single
+                # SourceRun) fetches every seed domain in `seeds`, not just
+                # one -- source_run_id alone can't distinguish which
+                # institution's website a given snapshot belongs to.
+                # normalized_domain is stamped on every snapshot up front
+                # (always computable from final_url/url); raw_source_record_id/
+                # institution_id are backfilled below, once each domain's
+                # own RawSourceRecord exists and (for institution_id) has
+                # been resolved -- snapshots_by_domain keeps the just-added,
+                # still-uncommitted ORM objects addressable by domain for
+                # that backfill.
+                snapshots_by_domain: dict[str, list[RawPageSnapshot]] = defaultdict(list)
                 for snapshot in crawler.snapshots:
-                    session.add(
-                        RawPageSnapshot(
-                            source_run_id=run.id,
-                            url=snapshot.url,
-                            final_url=snapshot.final_url,
-                            status_code=snapshot.status_code,
-                            content_type=snapshot.content_type,
-                            html=snapshot.html,
-                            fetch_error=snapshot.fetch_error,
-                        )
+                    domain = normalize_domain(snapshot.final_url or snapshot.url)
+                    page_snapshot = RawPageSnapshot(
+                        source_run_id=run.id,
+                        url=snapshot.url,
+                        final_url=snapshot.final_url,
+                        normalized_domain=domain,
+                        status_code=snapshot.status_code,
+                        content_type=snapshot.content_type,
+                        html=snapshot.html,
+                        fetch_error=snapshot.fetch_error,
                     )
+                    session.add(page_snapshot)
+                    snapshots_by_domain[domain].append(page_snapshot)
 
                 try:
                     await self._retry_stranded_records(session, run, resync_ids)
 
                     for lead in leads:
+                        record_domain = normalize_domain(lead.website) if lead.website else None
                         record = RawSourceRecord(
                             source_run_id=run.id,
                             source_type=SourceType.WEBSITE,
@@ -205,14 +223,41 @@ class LeadPipeline:
                                 if lead.phone
                                 else None
                             ),
-                            normalized_domain=(
-                                normalize_domain(lead.website) if lead.website else None
-                            ),
+                            normalized_domain=record_domain,
                             location=None,
                         )
                         session.add(record)
                         await session.flush()
-                        await self._resolve_or_log(session, run, record, resync_ids)
+                        institution = await self._resolve_or_log(
+                            session, run, record, resync_ids, record_history=False
+                        )
+
+                        # Link every page fetched for this domain to the
+                        # record it produced -- see the snapshots_by_domain
+                        # comment above and models/source.py::RawPageSnapshot's
+                        # docstring. A plain in-memory attribute set, never
+                        # itself a failure point, so it stays outside the
+                        # savepoint below.
+                        record_snapshots = snapshots_by_domain.get(record_domain or "", [])
+                        for page_snapshot in record_snapshots:
+                            page_snapshot.raw_source_record_id = record.id
+
+                        # Correction: _resolve_or_log's own refresh_lead_profile
+                        # (called from inside resolve_incoming_record, before
+                        # it returns `institution` above) runs before this
+                        # record's detected-technology Signal rows
+                        # (_persist_detected_signals, also inside
+                        # _resolve_or_log) and before the snapshot linkage
+                        # below ever exists -- so that first refresh always
+                        # scores off ZERO of this crawl's own evidence.
+                        # Refresh again now that both are actually attached,
+                        # so website_quality_tier/service_gap_score/detection
+                        # status reflect the crawl that just ran, not just
+                        # whatever evidence predates it.
+                        if institution is not None:
+                            await self._link_snapshots_and_refresh(
+                                session, run, institution, page_snapshots=record_snapshots
+                            )
 
                     run.status = RunStatus.COMPLETED
                     run.completed_at = datetime.datetime.now(datetime.UTC)
@@ -908,7 +953,141 @@ class LeadPipeline:
         if stranded:
             print(f"Retrying resolution for {len(stranded)} previously-stranded record(s)...")
         for record in stranded:
-            await self._resolve_or_log(session, run, record, resync_ids)
+            institution = await self._resolve_or_log(
+                session, run, record, resync_ids, record_history=False
+            )
+            if institution is not None:
+                # Correction: a stranded WEBSITE record's RawPageSnapshot
+                # rows were already persisted (with raw_source_record_id
+                # set) back when the record was first created, in an
+                # earlier run that failed resolution -- unlike
+                # _run_web_crawler's own per-lead loop, there's no
+                # in-memory snapshots_by_domain here to backfill
+                # institution_id onto, since those objects belong to a
+                # different, already-committed session. Backfill by
+                # raw_source_record_id instead (a no-op for a non-WEBSITE
+                # record), then refresh so the profile reflects both the
+                # signals _resolve_or_log just persisted and this linkage,
+                # not just whatever refresh_lead_profile saw when it ran
+                # from inside resolve_incoming_record before either
+                # existed.
+                await self._link_snapshots_and_refresh(
+                    session, run, institution, raw_record_id=record.id
+                )
+
+        await self._retry_stranded_snapshot_links(session, run)
+
+    async def _retry_stranded_snapshot_links(self, session, run: SourceRun) -> None:
+        """
+        A record can become canonicalized (FieldProvenance written) while
+        its RawPageSnapshot rows still show institution_id IS NULL -- if
+        _link_snapshots_and_refresh's own linkage step itself failed (a
+        transient DB error, distinct from the fallible refresh that runs
+        after it in its own separate savepoint), the record is now
+        excluded from the stranded-resolution query above (which only
+        retries records with NO FieldProvenance at all), so nothing else
+        would ever attempt this linkage again -- self-healing the same
+        way _retry_stranded_records self-heals a resolution failure.
+
+        Claims the candidate RawPageSnapshot rows via SELECT ... FOR
+        UPDATE SKIP LOCKED before processing them -- without it, two
+        overlapping pipeline invocations could both select the same
+        stranded snapshots and each perform the linkage + refresh,
+        producing duplicate LeadScoreSnapshot history entries and
+        redundant scoring work. Same claim pattern as the stranded-
+        resolution query above and every other "atomically grab pending
+        work" query in this codebase.
+
+        Correction: restricted to snapshots whose raw record already has
+        a FieldProvenance row (i.e. actually canonicalized) before
+        locking -- a WEBSITE record still awaiting human review also has
+        institution_id IS NULL snapshots at this point, but this method
+        has nothing to link them to yet (no FieldProvenance means no
+        canonical_id) and can't repair them. Locking those anyway held
+        them for the rest of this transaction for no reason, needlessly
+        blocking a concurrent review decision's own
+        link_page_snapshots_to_institution update on the same rows.
+        """
+        canonicalized_raw_record_ids = select(FieldProvenance.raw_record_id).distinct()
+        candidate_rows = list(
+            (
+                await session.execute(
+                    select(RawPageSnapshot.id, RawPageSnapshot.raw_source_record_id)
+                    .where(RawPageSnapshot.institution_id.is_(None))
+                    .where(RawPageSnapshot.raw_source_record_id.is_not(None))
+                    .where(RawPageSnapshot.raw_source_record_id.in_(canonicalized_raw_record_ids))
+                    .with_for_update(skip_locked=True)
+                )
+            ).all()
+        )
+        raw_record_ids = {row.raw_source_record_id for row in candidate_rows}
+        if not raw_record_ids:
+            return
+
+        stranded_links = list(
+            (
+                await session.execute(
+                    select(FieldProvenance.raw_record_id, FieldProvenance.canonical_id)
+                    .where(FieldProvenance.raw_record_id.in_(raw_record_ids))
+                    .distinct()
+                )
+            ).all()
+        )
+        if stranded_links:
+            print(f"Retrying snapshot linkage for {len(stranded_links)} stranded record(s)...")
+        for raw_record_id, institution_id in stranded_links:
+            institution = await session.get(CanonicalInstitution, institution_id)
+            if institution is None:
+                continue
+            await self._link_snapshots_and_refresh(
+                session, run, institution, raw_record_id=raw_record_id
+            )
+
+    async def _link_snapshots_and_refresh(
+        self,
+        session,
+        run: SourceRun,
+        institution: CanonicalInstitution,
+        page_snapshots: list[RawPageSnapshot] | None = None,
+        raw_record_id: uuid.UUID | None = None,
+    ) -> None:
+        """
+        Correction: linkage and refresh used to share ONE savepoint -- when
+        refresh_lead_profile raised, the whole savepoint rolled back and
+        took the institution_id linkage down with it too, even though the
+        record itself was already committed/canonicalized outside this
+        savepoint's scope. Since _retry_stranded_records excludes
+        already-canonicalized records, that linkage would then never be
+        retried, permanently hiding those snapshots from website-quality
+        scoring. Persist the linkage in its own successful savepoint FIRST,
+        then attempt the refresh in a SEPARATE savepoint that can fail on
+        its own without undoing it.
+        """
+        try:
+            async with session.begin_nested():
+                if page_snapshots is not None:
+                    for page_snapshot in page_snapshots:
+                        page_snapshot.institution_id = institution.id
+                if raw_record_id is not None:
+                    await link_page_snapshots_to_institution(session, raw_record_id, institution.id)
+        except Exception as e:
+            self._record_post_link_refresh_failure(run, institution, e, stage="link")
+            return
+
+        try:
+            async with session.begin_nested():
+                await refresh_lead_profile(session, institution.id)
+        except Exception as e:
+            self._record_post_link_refresh_failure(run, institution, e, stage="refresh")
+
+    @staticmethod
+    def _record_post_link_refresh_failure(
+        run: SourceRun, institution: CanonicalInstitution, error: Exception, *, stage: str
+    ) -> None:
+        failed = list(run.run_metadata.get("post_link_refresh_failures", []))
+        failed.append({"institution_id": str(institution.id), "error": str(error), "stage": stage})
+        run.run_metadata = {**run.run_metadata, "post_link_refresh_failures": failed}
+        print(f"Post-resolution snapshot {stage} failed for institution {institution.id}: {error}")
 
     async def _resolve_or_log(
         self,
@@ -916,7 +1095,9 @@ class LeadPipeline:
         run: SourceRun,
         record: RawSourceRecord,
         resync_ids: set[uuid.UUID] | None = None,
-    ) -> None:
+        *,
+        record_history: bool = True,
+    ) -> CanonicalInstitution | None:
         # A resolution failure for one record must never abort the rest of
         # the run -- the outer per-run except/finally would otherwise mark
         # the whole run FAILED and stop processing every remaining
@@ -929,6 +1110,18 @@ class LeadPipeline:
         # "current transaction is aborted" until something rolls back. Catching
         # the exception here without a savepoint would still leave every
         # later record's flush, and the run's own final commit, broken.
+        #
+        # Returns the resolved institution (or None) -- _run_web_crawler
+        # uses this to stamp RawPageSnapshot.institution_id for the pages
+        # that fed this record's domain (see models/source.py::RawPageSnapshot's
+        # "Correction" docstring note). Every other caller ignores the
+        # return value, unaffected by this addition.
+        #
+        # record_history=False: passed by callers (the web-crawler path)
+        # that always immediately call _link_snapshots_and_refresh right
+        # after this returns -- that second, more complete refresh is the
+        # one that should land in LeadScoreSnapshot history, not this
+        # pre-linkage one. See refresh_lead_profile's own docstring.
         try:
             async with session.begin_nested():
                 # docs/ROADMAP.md module 16: job.yaml's optional `sector`
@@ -940,9 +1133,11 @@ class LeadPipeline:
                     record,
                     resync_ids=resync_ids,
                     job_sector_hint=self.settings.job_config.get("sector"),
+                    record_history=record_history,
                 )
                 if institution is not None:
                     LeadPipeline._persist_detected_signals(session, institution.id, record)
+                return institution
         except Exception as e:
             unresolved = list(run.run_metadata.get("unresolved_records", []))
             unresolved.append({"raw_record_id": str(record.id), "error": str(e)})
@@ -952,6 +1147,7 @@ class LeadPipeline:
             # actually marks `run` dirty.
             run.run_metadata = {**run.run_metadata, "unresolved_records": unresolved}
             print(f"Entity resolution failed for raw record {record.id}: {e}")
+            return None
 
     @staticmethod
     def _persist_detected_signals(

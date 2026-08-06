@@ -7,6 +7,15 @@ import phonenumbers
 def normalize_domain(url: str) -> str:
     """
     Strips http/https, www., and subpaths to return just the clean domain.
+
+    Correction: bounded to 255 chars -- every column this value is ever
+    written to (RawSourceRecord/RawPageSnapshot.normalized_domain,
+    CanonicalInstitution.domain) is String(255). A malformed or
+    adversarial URL's netloc (e.g. embedded userinfo, an
+    unreasonably long host) can otherwise exceed that, turning a single
+    bad seed URL into a flush-time "value too long" error that aborts an
+    entire crawler run instead of just leaving that one page's domain
+    unmatched.
     """
     if not url:
         return ""
@@ -19,7 +28,7 @@ def normalize_domain(url: str) -> str:
         parsed = urlparse(url)
         domain = parsed.netloc.lower()
         domain = domain.removeprefix("www.")
-        return domain
+        return domain[:255]
     except Exception as e:
         print(f"normalize_domain failed for {url!r}: {e}")
         return ""
