@@ -93,6 +93,16 @@ async def client_b(override_database_dependency):
 
 
 @pytest_asyncio.fixture
+async def client_viewer(override_database_dependency):
+    async def override_user_viewer():
+        return User(id="viewer_A", username="Vic", role="viewer")
+
+    app.dependency_overrides[get_current_user] = override_user_viewer
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+
+
+@pytest_asyncio.fixture
 async def seeded_draft(db_session: AsyncSession):
     inst = CanonicalInstitution(
         id=uuid.uuid4(), canonical_name="Test Institution", domain="test.edu", confidence_score=99.0

@@ -5,7 +5,12 @@ import pytest
 from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 
-from lead_harvester.api.dependencies import User, get_current_user, require_permission
+from lead_harvester.api.dependencies import (
+    User,
+    get_current_user,
+    require_permission,
+    wait_for_pending_denial_audits,
+)
 from lead_harvester.api.errors import AuthenticationError, AuthorizationError
 from lead_harvester.config import settings
 from lead_harvester.models.audit import AuditLog
@@ -102,13 +107,15 @@ async def test_require_permission_denies_and_audits_an_unpermitted_role(db_sessi
     checker = require_permission("drafts.decide")
     user = User(id="u2", username="a-viewer", role="viewer")
 
-    with (
-        patch(
-            "lead_harvester.api.dependencies.get_session", new=lambda: _fake_get_session(db_session)
-        ),
-        pytest.raises(AuthorizationError),
+    with patch(
+        "lead_harvester.api.dependencies.get_session", new=lambda: _fake_get_session(db_session)
     ):
-        await checker(current_user=user)
+        with pytest.raises(AuthorizationError):
+            await checker(current_user=user)
+        # The denial audit is fire-and-forget -- the patch must still be
+        # active while it actually runs, hence awaiting this inside the
+        # `with patch(...)` block rather than after it.
+        await wait_for_pending_denial_audits()
 
     audit_rows = (
         (
@@ -130,13 +137,12 @@ async def test_require_permission_denies_unregistered_permission_by_default(db_s
     checker = require_permission("not_a_real_permission")
     user = User(id="u3", username="admin-user", role="admin")
 
-    with (
-        patch(
-            "lead_harvester.api.dependencies.get_session", new=lambda: _fake_get_session(db_session)
-        ),
-        pytest.raises(AuthorizationError),
+    with patch(
+        "lead_harvester.api.dependencies.get_session", new=lambda: _fake_get_session(db_session)
     ):
-        await checker(current_user=user)
+        with pytest.raises(AuthorizationError):
+            await checker(current_user=user)
+        await wait_for_pending_denial_audits()
 
 
 @pytest.mark.asyncio
@@ -150,13 +156,12 @@ async def test_require_permission_truncates_a_long_username_for_the_audit_actor_
     long_username = "a" * 255
     user = User(id="u4", username=long_username, role="viewer")
 
-    with (
-        patch(
-            "lead_harvester.api.dependencies.get_session", new=lambda: _fake_get_session(db_session)
-        ),
-        pytest.raises(AuthorizationError),
+    with patch(
+        "lead_harvester.api.dependencies.get_session", new=lambda: _fake_get_session(db_session)
     ):
-        await checker(current_user=user)
+        with pytest.raises(AuthorizationError):
+            await checker(current_user=user)
+        await wait_for_pending_denial_audits()
 
     audit_rows = (
         (

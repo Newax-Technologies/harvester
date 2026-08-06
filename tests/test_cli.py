@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -970,5 +971,24 @@ async def test_set_tenant_config_cmd_rejects_an_invalid_tenant_id():
     )
 
     result = await cli.set_tenant_config_cmd(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_set_tenant_config_cmd_reports_a_clean_error_for_an_unknown_tenant(db_session):
+    # A syntactically valid UUID that matches no Tenant row must raise a
+    # controlled error, not an uncaught IntegrityError from the FK flush.
+    from lead_harvester import cli
+
+    args = argparse.Namespace(
+        tenant_id=str(uuid.uuid4()),
+        key="limit.export_max_rows",
+        value="10",
+        set_by="test-operator",
+    )
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.set_tenant_config_cmd(args)
 
     assert result == 1

@@ -75,6 +75,29 @@ async def test_issue_then_authenticate_round_trip(db_session):
 
 
 @pytest.mark.asyncio
+async def test_record_last_used_does_not_move_the_timestamp_backward(db_session):
+    # Concurrent requests on the same token can schedule these writes out
+    # of order -- a slower request's older `when` must not overwrite a
+    # faster request's already-recorded newer one.
+    from lead_harvester.services.auth_service import _record_last_used
+
+    credential, _raw = await issue_service_credential(
+        db_session, name="monotonic-last-used", role=ServiceRole.VIEWER
+    )
+    await db_session.commit()
+
+    newer = dt.datetime.now(dt.UTC)
+    older = newer - dt.timedelta(hours=1)
+
+    with _route_last_used_writes_to(db_session):
+        await _record_last_used(credential.id, newer)
+        await _record_last_used(credential.id, older)
+
+    await db_session.refresh(credential)
+    assert credential.last_used_at > older
+
+
+@pytest.mark.asyncio
 async def test_issue_never_persists_the_raw_token(db_session):
     _credential, raw_token = await issue_service_credential(
         db_session, name="test-no-raw-storage", role=ServiceRole.VIEWER

@@ -531,6 +531,7 @@ async def set_tenant_config_cmd(args: argparse.Namespace) -> int:
 
     from .config_registry import ConfigValueTypeError, UnknownConfigKeyError, get_definition
     from .database import get_session
+    from .services.auth_service import TenantNotFoundError
     from .services.tenant_config_service import set_tenant_config
 
     try:
@@ -552,7 +553,7 @@ async def set_tenant_config_cmd(args: argparse.Namespace) -> int:
                 session, tenant_id, args.key, value, created_by=args.set_by
             )
             version = override.version
-    except (UnknownConfigKeyError, ConfigValueTypeError) as e:
+    except (UnknownConfigKeyError, ConfigValueTypeError, TenantNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 

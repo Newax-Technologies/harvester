@@ -1,7 +1,11 @@
+import asyncio
+import uuid
+
 import pytest
 
 from lead_harvester.config_registry import ConfigValueTypeError, UnknownConfigKeyError
 from lead_harvester.models.tenancy import DEFAULT_TENANT_ID
+from lead_harvester.services.auth_service import TenantNotFoundError
 from lead_harvester.services.tenant_config_service import (
     get_tenant_config,
     get_tenant_config_history,
@@ -111,6 +115,69 @@ async def test_get_tenant_config_history_returns_every_version_oldest_first(db_s
 async def test_get_tenant_config_history_raises_for_an_unknown_key(db_session):
     with pytest.raises(UnknownConfigKeyError):
         await get_tenant_config_history(db_session, DEFAULT_TENANT_ID, "not.a.real.key")
+
+
+@pytest.mark.asyncio
+async def test_set_tenant_config_raises_for_a_nonexistent_tenant(db_session):
+    with pytest.raises(TenantNotFoundError):
+        await set_tenant_config(
+            db_session, uuid.uuid4(), "limit.export_max_rows", 1000, created_by="test-operator"
+        )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_first_writes_serialize_instead_of_racing_the_unique_index(async_engine):
+    # db_session wraps every test in one shared connection/transaction, so
+    # it can only prove sequential behavior. This opens two genuinely
+    # independent connections and calls set_tenant_config for the SAME
+    # (tenant, key) that has never been set before -- the "no existing row
+    # to SELECT ... FOR UPDATE on" case -- truly concurrently. Without the
+    # pg_advisory_xact_lock in set_tenant_config, both could read "no
+    # active version", both compute version=1, and one would fail with a
+    # raw IntegrityError against uq_tenant_config_one_active_version
+    # instead of simply waiting its turn and landing on version 2.
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from lead_harvester.models.tenancy import Tenant
+
+    setup_conn = await async_engine.connect()
+    setup_session = AsyncSession(bind=setup_conn, expire_on_commit=False)
+    tenant = Tenant(name="Race Co", slug="race-co")
+    setup_session.add(tenant)
+    await setup_session.commit()
+    tenant_id = tenant.id
+
+    conn_a = await async_engine.connect()
+    conn_b = await async_engine.connect()
+    session_a = AsyncSession(bind=conn_a, expire_on_commit=False)
+    session_b = AsyncSession(bind=conn_b, expire_on_commit=False)
+
+    async def _set_and_commit(session, value, actor):
+        # Commits inside the coroutine, not after gather() -- the
+        # advisory lock is released on commit, and the other coroutine
+        # is blocked waiting for exactly that release. Committing only
+        # after both coroutines "finish" would deadlock: neither can
+        # finish without the other's commit.
+        result = await set_tenant_config(
+            session, tenant_id, "limit.export_max_rows", value, created_by=actor
+        )
+        await session.commit()
+        return result
+
+    try:
+        results = await asyncio.gather(
+            _set_and_commit(session_a, 111, "a"),
+            _set_and_commit(session_b, 222, "b"),
+        )
+
+        assert sorted(r.version for r in results) == [1, 2]
+    finally:
+        await session_a.close()
+        await session_b.close()
+        await setup_session.close()
+        await conn_a.close()
+        await conn_b.close()
+        await setup_conn.close()
 
 
 @pytest.mark.asyncio

@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lead_harvester.api.dependencies import User, get_current_user, get_db_session
+from lead_harvester.api.dependencies import (
+    User,
+    get_current_user,
+    get_db_session,
+    require_permission,
+)
 from lead_harvester.models.compliance import DeletionRequestStatus
 from lead_harvester.schemas.compliance import (
     AddSuppressionRequest,
@@ -33,7 +38,11 @@ async def list_suppression_entries(
     return [SuppressionEntryResponse.model_validate(e) for e in entries]
 
 
-@router.post("/suppressions", response_model=SuppressionEntryResponse)
+@router.post(
+    "/suppressions",
+    response_model=SuppressionEntryResponse,
+    dependencies=[Depends(require_permission("compliance.suppressions.manage"))],
+)
 async def create_suppression_entry(
     payload: AddSuppressionRequest,
     session: AsyncSession = Depends(get_db_session),
@@ -52,7 +61,11 @@ async def create_suppression_entry(
     return SuppressionEntryResponse.model_validate(entry)
 
 
-@router.delete("/suppressions/{suppression_id}", status_code=204)
+@router.delete(
+    "/suppressions/{suppression_id}",
+    status_code=204,
+    dependencies=[Depends(require_permission("compliance.suppressions.manage"))],
+)
 async def delete_suppression_entry(
     suppression_id: str = Path(...),
     session: AsyncSession = Depends(get_db_session),
@@ -73,7 +86,11 @@ async def list_deletion_requests_route(
     return [DeletionRequestResponse.model_validate(r) for r in requests]
 
 
-@router.post("/deletion-requests", response_model=DeletionRequestResponse)
+@router.post(
+    "/deletion-requests",
+    response_model=DeletionRequestResponse,
+    dependencies=[Depends(require_permission("compliance.deletion_requests.create"))],
+)
 async def create_deletion_request(
     payload: CreateDeletionRequestRequest,
     session: AsyncSession = Depends(get_db_session),
@@ -87,7 +104,11 @@ async def create_deletion_request(
     return DeletionRequestResponse.model_validate(request)
 
 
-@router.post("/deletion-requests/{request_id}/fulfill", response_model=DeletionRequestResponse)
+@router.post(
+    "/deletion-requests/{request_id}/fulfill",
+    response_model=DeletionRequestResponse,
+    dependencies=[Depends(require_permission("compliance.deletion_requests.fulfill"))],
+)
 async def fulfill_deletion_request(
     request_id: str = Path(...),
     session: AsyncSession = Depends(get_db_session),
@@ -102,7 +123,11 @@ async def fulfill_deletion_request(
     return DeletionRequestResponse.model_validate(request)
 
 
-@router.post("/deletion-requests/{request_id}/reject", response_model=DeletionRequestResponse)
+@router.post(
+    "/deletion-requests/{request_id}/reject",
+    response_model=DeletionRequestResponse,
+    dependencies=[Depends(require_permission("compliance.deletion_requests.decide"))],
+)
 async def reject_deletion_request(
     payload: RejectDeletionRequest,
     request_id: str = Path(...),

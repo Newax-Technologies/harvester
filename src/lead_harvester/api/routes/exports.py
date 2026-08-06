@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lead_harvester.api.dependencies import User, get_current_user, get_db_session
+from lead_harvester.api.dependencies import (
+    User,
+    get_current_user,
+    get_db_session,
+    require_permission,
+)
 from lead_harvester.exports import build_lead_export_rows, rows_to_csv, rows_to_json
 from lead_harvester.models.canonical import OperatingStatus
 from lead_harvester.models.qualification import QualificationStatus
@@ -12,7 +17,7 @@ from lead_harvester.models.qualification import QualificationStatus
 router = APIRouter(prefix="/exports", tags=["Exports"])
 
 
-@router.get("/leads")
+@router.get("/leads", dependencies=[Depends(require_permission("exports.leads"))])
 async def export_leads_route(
     format: str = Query("csv", pattern="^(csv|json)$"),
     status: OperatingStatus | None = Query(None),

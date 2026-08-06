@@ -22,12 +22,19 @@ router = APIRouter(prefix="/resolution-reviews", tags=["Resolution Reviews"])
 
 
 @router.get("", response_model=list[ResolutionSummarySchema])
-async def list_reviews(session: AsyncSession = Depends(get_db_session)):
+async def list_reviews(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
     return await ResolutionService.list_pending(session)
 
 
 @router.get("/{review_id}", response_model=ResolutionCandidateSchema)
-async def get_review(review_id: UUID = Path(...), session: AsyncSession = Depends(get_db_session)):
+async def get_review(
+    review_id: UUID = Path(...),
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
     return await ResolutionService.get_review_detail(session, review_id)
 
 

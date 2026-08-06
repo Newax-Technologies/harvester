@@ -140,7 +140,17 @@ async def _record_last_used(credential_id: uuid.UUID, when: dt.datetime) -> None
     async with get_session() as session:
         await session.execute(
             update(ServiceCredential)
-            .where(ServiceCredential.id == credential_id)
+            .where(
+                ServiceCredential.id == credential_id,
+                # Concurrent requests on the same token schedule these
+                # writes out of order -- without this guard, a slower
+                # request's older `when` could land after a faster
+                # request's newer one and move last_used_at backward.
+                # Keeps the column monotonic instead of just "most
+                # recently written".
+                (ServiceCredential.last_used_at.is_(None))
+                | (ServiceCredential.last_used_at < when),
+            )
             .values(last_used_at=when)
             # This update runs against a different session than the one
             # that loaded `credential` in authenticate_token() -- there is

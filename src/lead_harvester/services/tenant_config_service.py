@@ -8,11 +8,13 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.config_registry import get_definition, validate_value
+from lead_harvester.models.tenancy import Tenant
 from lead_harvester.models.tenant_config import TenantConfigOverride
+from lead_harvester.services.auth_service import TenantNotFoundError
 
 
 async def get_tenant_config(session: AsyncSession, tenant_id: uuid.UUID, key: str) -> Any:
@@ -46,10 +48,28 @@ async def set_tenant_config(
     Inserts a new version and deactivates the prior active version (if
     any) in the same flush -- never updates a row's value in place, so
     get_tenant_config_history() always has the full sequence. Raises
-    UnknownConfigKeyError for a key not in CONFIG_REGISTRY, or
-    ConfigValueTypeError if `value` doesn't match that key's declared type.
+    UnknownConfigKeyError for a key not in CONFIG_REGISTRY,
+    ConfigValueTypeError if `value` doesn't match that key's declared type,
+    or TenantNotFoundError if tenant_id matches no row (a clean error
+    instead of the FK's IntegrityError -- same reasoning as
+    auth_service.issue_service_credential).
     """
     validate_value(key, value)
+
+    if await session.get(Tenant, tenant_id) is None:
+        raise TenantNotFoundError(f"No tenant found with id {tenant_id}.")
+
+    # Transaction-scoped advisory lock on (tenant_id, key), held until this
+    # transaction commits or rolls back. Needed even for the never-set-
+    # before case below, where there is no row yet for a SELECT ... FOR
+    # UPDATE to lock: without this, two concurrent callers can both read
+    # "no active version", both compute next_version=1, and race on the
+    # partial unique index (uq_tenant_config_one_active_version) -- one
+    # succeeds, the other gets a raw IntegrityError instead of simply
+    # waiting its turn and versioning on top of the winner.
+    await session.execute(
+        select(func.pg_advisory_xact_lock(func.hashtext(str(tenant_id)), func.hashtext(key)))
+    )
 
     previous_active = (
         await session.scalars(

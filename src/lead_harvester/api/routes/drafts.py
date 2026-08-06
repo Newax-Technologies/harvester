@@ -23,7 +23,10 @@ router = APIRouter(prefix="/drafts", tags=["Drafts"])
 
 
 @router.get("", response_model=list[dict])
-async def list_drafts(session: AsyncSession = Depends(get_db_session)):
+async def list_drafts(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
     stmt = (
         select(OutreachDraft)
         .options(selectinload(OutreachDraft.brief).selectinload(AccountBrief.institution))
@@ -48,7 +51,11 @@ async def list_drafts(session: AsyncSession = Depends(get_db_session)):
 
 
 @router.get("/{draft_id}", response_model=OutreachDraftSchema)
-async def get_draft(draft_id: UUID = Path(...), session: AsyncSession = Depends(get_db_session)):
+async def get_draft(
+    draft_id: UUID = Path(...),
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
     draft = await DraftReviewService.get_draft(session, draft_id)
     return OutreachDraftSchema.model_validate(draft)
 

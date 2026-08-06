@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 from fastapi import Depends
@@ -73,32 +74,65 @@ async def get_current_user(
     )
 
 
+_pending_denial_audits: set[asyncio.Task] = set()
+
+
+async def _write_denial_audit(actor: str, permission: str, role: str) -> None:
+    async with get_session() as session:
+        session.add(
+            AuditLog(
+                action="authorization.denied",
+                actor=actor,
+                entity_type="Permission",
+                entity_id=_NO_ENTITY,
+                new_state={"permission": permission, "role": role},
+            )
+        )
+
+
+async def _write_denial_audit_ignoring_errors(actor: str, permission: str, role: str) -> None:
+    # Runs unawaited (see _schedule_denial_audit) -- an exception here has
+    # nowhere to propagate to, so it must be swallowed explicitly. The 403
+    # already returned to the caller by the time this runs; losing an
+    # occasional denial-audit row to a transient DB error is an acceptable
+    # trade for never blocking or deadlocking the request that triggered it.
+    try:
+        await _write_denial_audit(actor, permission, role)
+    except Exception as e:
+        print(f"[authz] Failed to write denial audit for {actor!r}: {e}")
+
+
+def _schedule_denial_audit(actor: str, permission: str, role: str) -> None:
+    task = asyncio.create_task(_write_denial_audit_ignoring_errors(actor, permission, role))
+    _pending_denial_audits.add(task)
+    task.add_done_callback(_pending_denial_audits.discard)
+
+
+async def wait_for_pending_denial_audits() -> None:
+    """Test-only hook -- see services/auth_service.py's wait_for_pending_last_used_writes."""
+    pending = list(_pending_denial_audits)
+    if pending:
+        await asyncio.gather(*pending)
+
+
 def require_permission(permission: str):
     """
     Deny-by-default permission dependency (see authz.py's PERMISSIONS
-    catalog). A denial is audited on its own, immediately-committed
-    session -- the main request's session/transaction is about to be
-    rolled back by AuthorizationError propagating through get_session(),
-    which would silently discard the audit row too if it shared that
-    session.
+    catalog). A denial is audited fire-and-forget, on its own session --
+    the main request's get_db_session dependency is already checked out
+    for the whole request by this point (get_current_user depends on it),
+    so awaiting a second get_session() here would hold two pool
+    connections per denied request; under a burst that fills the pool,
+    every request could end up waiting on a connection nothing is free to
+    release. See services/auth_service.py's _schedule_last_used_write for
+    the same pattern and reasoning.
     """
 
     async def permission_checker(current_user: User = Depends(get_current_user)) -> User:
         if not is_permitted(permission, current_user.role):
-            async with get_session() as audit_session:
-                audit_session.add(
-                    AuditLog(
-                        action="authorization.denied",
-                        # ServiceCredential.name allows up to 255 characters
-                        # but AuditLog.actor is only String(100) -- a long
-                        # credential name would otherwise turn a clean 403
-                        # into a raised IntegrityError (500) here.
-                        actor=current_user.username[:100],
-                        entity_type="Permission",
-                        entity_id=_NO_ENTITY,
-                        new_state={"permission": permission, "role": current_user.role},
-                    )
-                )
+            # ServiceCredential.name allows up to 255 characters but
+            # AuditLog.actor is only String(100).
+            _schedule_denial_audit(current_user.username[:100], permission, current_user.role)
             raise AuthorizationError()
         return current_user
 

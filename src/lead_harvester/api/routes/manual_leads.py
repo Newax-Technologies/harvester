@@ -27,6 +27,7 @@ from lead_harvester.api.dependencies import (
     get_current_user,
     get_db_session,
     get_lead_sync_emitter,
+    require_permission,
 )
 from lead_harvester.config import settings
 from lead_harvester.database import get_session
@@ -170,6 +171,7 @@ async def _deliver_lead_sync_event(
     response_model=ManualLeadOut,
     status_code=status.HTTP_201_CREATED,
     summary="Submit a manually entered lead",
+    dependencies=[Depends(require_permission("manual_leads.create"))],
 )
 async def create_manual_lead(
     payload: ManualLeadIn,
