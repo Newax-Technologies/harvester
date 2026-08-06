@@ -173,3 +173,69 @@ async def test_require_permission_truncates_a_long_username_for_the_audit_actor_
         .all()
     )
     assert any(row.actor == long_username[:100] for row in audit_rows)
+
+
+@pytest.mark.asyncio
+async def test_schedule_denial_audit_batches_a_burst_into_one_writer_task(db_session):
+    # A sustained burst of denials (e.g. one valid-but-low-privilege
+    # credential repeatedly calling forbidden endpoints) must not spawn
+    # one task/transaction per denial -- exactly one writer task should
+    # be in flight at a time, batching whatever rows accumulated while it
+    # was running, however many denials happened in that window. Unlike
+    # auth_service's last_used_at coalescing (only the newest value
+    # matters there), every denial here is its own record that must
+    # still end up written -- coalescing must not drop any of them.
+    from lead_harvester.api import dependencies
+
+    checker = require_permission("drafts.decide")
+    user_a = User(id="u5", username="burst-viewer-a", role="viewer")
+    user_b = User(id="u6", username="burst-viewer-b", role="viewer")
+
+    with patch(
+        "lead_harvester.api.dependencies.get_session", new=lambda: _fake_get_session(db_session)
+    ):
+        with pytest.raises(AuthorizationError):
+            await checker(current_user=user_a)
+        in_flight_after_first = len(dependencies._pending_denial_audits)
+
+        with pytest.raises(AuthorizationError):
+            await checker(current_user=user_b)
+        in_flight_after_second = len(dependencies._pending_denial_audits)
+
+        assert in_flight_after_first == 1
+        assert in_flight_after_second == 1
+
+        await wait_for_pending_denial_audits()
+
+    audit_rows = (
+        (
+            await db_session.execute(
+                select(AuditLog).where(AuditLog.action == "authorization.denied")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    actors = {row.actor for row in audit_rows}
+    assert "burst-viewer-a" in actors
+    assert "burst-viewer-b" in actors
+
+
+@pytest.mark.asyncio
+async def test_schedule_denial_audit_drops_rows_past_the_pending_cap(db_session, monkeypatch):
+    # Bounds memory under a sustained burst -- a row beyond the cap is
+    # dropped rather than queued indefinitely.
+    from lead_harvester.api import dependencies
+
+    monkeypatch.setattr(dependencies, "_MAX_PENDING_DENIAL_AUDIT_ROWS", 2)
+    # Freeze the writer as "already running" so scheduled rows accumulate
+    # in the pending list instead of being drained immediately.
+    monkeypatch.setattr(dependencies, "_denial_audit_writer_running", True)
+
+    dependencies._schedule_denial_audit("actor-1", "drafts.decide", "viewer")
+    dependencies._schedule_denial_audit("actor-2", "drafts.decide", "viewer")
+    dependencies._schedule_denial_audit("actor-3", "drafts.decide", "viewer")
+
+    assert len(dependencies._pending_denial_audit_rows) == 2
+
+    dependencies._pending_denial_audit_rows.clear()

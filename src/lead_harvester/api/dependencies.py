@@ -74,36 +74,91 @@ async def get_current_user(
     )
 
 
+# Keeps a strong reference to every in-flight _drain_denial_audits task --
+# see services/auth_service.py's identical _pending_last_used_writes for why.
 _pending_denial_audits: set[asyncio.Task] = set()
 
+# Rows not yet written, and whether a drain task is currently running for
+# them -- see _schedule_denial_audit's docstring. Unlike last_used_at
+# (where only the newest value per credential matters, so coalescing can
+# just overwrite), every denial is its own audit record worth keeping;
+# these accumulate into one row list instead.
+_pending_denial_audit_rows: list[AuditLog] = []
+_denial_audit_writer_running = False
 
-async def _write_denial_audit(actor: str, permission: str, role: str) -> None:
-    async with get_session() as session:
-        session.add(
-            AuditLog(
-                action="authorization.denied",
-                actor=actor,
-                entity_type="Permission",
-                entity_id=_NO_ENTITY,
-                new_state={"permission": permission, "role": role},
-            )
-        )
+# Caps _pending_denial_audit_rows so a sustained burst of denials from one
+# credential can't grow this list -- and the memory it holds -- without
+# bound while a write is in flight. A row beyond this cap is dropped, not
+# queued; denial audits are best-effort observability, not a durability
+# guarantee (see the docstring below).
+_MAX_PENDING_DENIAL_AUDIT_ROWS = 1000
 
 
-async def _write_denial_audit_ignoring_errors(actor: str, permission: str, role: str) -> None:
-    # Runs unawaited (see _schedule_denial_audit) -- an exception here has
-    # nowhere to propagate to, so it must be swallowed explicitly. The 403
-    # already returned to the caller by the time this runs; losing an
-    # occasional denial-audit row to a transient DB error is an acceptable
-    # trade for never blocking or deadlocking the request that triggered it.
+async def _drain_denial_audits() -> None:
+    """
+    Writes every row in _pending_denial_audit_rows in one batched
+    transaction, and loops if more arrived while that write was in
+    flight -- the same single-writer-per-burst shape as
+    auth_service.py's _drain_last_used_writes, applied to a list of rows
+    instead of "the newest value per key", since every denial is its own
+    record worth keeping rather than one that supersedes the last. Caps
+    concurrent writer tasks/transactions at one, however many denials
+    happen concurrently -- one task and one transaction per *request*
+    (the previous shape) had no such bound, so a burst of forbidden
+    calls from a single valid-but-low-privilege credential could grow
+    both memory (unbounded pending tasks) and pool contention (unbounded
+    concurrent transactions) without limit. Runs unawaited by the
+    caller -- an exception here has nowhere to propagate to, so it must
+    be swallowed explicitly. Denial audits are observability data, not a
+    correctness-critical write; losing a batch to a transient DB error
+    is an acceptable trade for never blocking or deadlocking the
+    request that triggered it.
+    """
+    global _denial_audit_writer_running
     try:
-        await _write_denial_audit(actor, permission, role)
-    except Exception as e:
-        print(f"[authz] Failed to write denial audit for {actor!r}: {e}")
+        while _pending_denial_audit_rows:
+            batch = _pending_denial_audit_rows[:]
+            _pending_denial_audit_rows.clear()
+            try:
+                async with get_session() as session:
+                    session.add_all(batch)
+            except Exception as e:
+                print(f"[authz] Failed to write a denial-audit batch of {len(batch)}: {e}")
+    finally:
+        _denial_audit_writer_running = False
 
 
 def _schedule_denial_audit(actor: str, permission: str, role: str) -> None:
-    task = asyncio.create_task(_write_denial_audit_ignoring_errors(actor, permission, role))
+    """
+    Queues a denial-audit row and ensures exactly one _drain_denial_audits
+    task is running to write it -- never a second one, and never a new
+    task per request. See _drain_denial_audits' docstring for why.
+    """
+    global _denial_audit_writer_running
+    if len(_pending_denial_audit_rows) >= _MAX_PENDING_DENIAL_AUDIT_ROWS:
+        print(
+            f"[authz] Denial-audit queue full ({_MAX_PENDING_DENIAL_AUDIT_ROWS}) -- "
+            f"dropping a denial-audit row for {actor!r}."
+        )
+        return
+
+    _pending_denial_audit_rows.append(
+        AuditLog(
+            action="authorization.denied",
+            actor=actor,
+            entity_type="Permission",
+            entity_id=_NO_ENTITY,
+            new_state={"permission": permission, "role": role},
+        )
+    )
+
+    if _denial_audit_writer_running:
+        # A writer is already running (or about to loop again) -- it will
+        # pick up the row just appended above. No new task needed.
+        return
+
+    _denial_audit_writer_running = True
+    task = asyncio.create_task(_drain_denial_audits())
     _pending_denial_audits.add(task)
     task.add_done_callback(_pending_denial_audits.discard)
 
