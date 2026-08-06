@@ -1,9 +1,14 @@
+import contextlib
+from unittest.mock import patch
+
 import pytest
 from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy import select
 
-from lead_harvester.api.dependencies import get_current_user
-from lead_harvester.api.errors import AuthenticationError
+from lead_harvester.api.dependencies import User, get_current_user, require_permission
+from lead_harvester.api.errors import AuthenticationError, AuthorizationError
 from lead_harvester.config import settings
+from lead_harvester.models.audit import AuditLog
 from lead_harvester.models.auth import ServiceRole
 from lead_harvester.services.auth_service import (
     issue_service_credential,
@@ -13,6 +18,11 @@ from lead_harvester.services.auth_service import (
 
 def _bearer(token: str) -> HTTPAuthorizationCredentials:
     return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+
+
+@contextlib.asynccontextmanager
+async def _fake_get_session(session):
+    yield session
 
 
 @pytest.mark.asyncio
@@ -66,3 +76,55 @@ async def test_get_current_user_dev_bypass_short_circuits_before_any_token_check
 
     assert user.username == "local-admin"
     assert user.role == "admin"
+
+
+@pytest.mark.asyncio
+async def test_require_permission_allows_a_permitted_role():
+    checker = require_permission("drafts.decide")
+    user = User(id="u1", username="rev", role="reviewer")
+
+    result = await checker(current_user=user)
+
+    assert result is user
+
+
+@pytest.mark.asyncio
+async def test_require_permission_denies_and_audits_an_unpermitted_role(db_session):
+    checker = require_permission("drafts.decide")
+    user = User(id="u2", username="a-viewer", role="viewer")
+
+    with (
+        patch(
+            "lead_harvester.api.dependencies.get_session", new=lambda: _fake_get_session(db_session)
+        ),
+        pytest.raises(AuthorizationError),
+    ):
+        await checker(current_user=user)
+
+    audit_rows = (
+        (
+            await db_session.execute(
+                select(AuditLog).where(AuditLog.action == "authorization.denied")
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert any(
+        row.actor == "a-viewer" and row.new_state.get("permission") == "drafts.decide"
+        for row in audit_rows
+    )
+
+
+@pytest.mark.asyncio
+async def test_require_permission_denies_unregistered_permission_by_default(db_session):
+    checker = require_permission("not_a_real_permission")
+    user = User(id="u3", username="admin-user", role="admin")
+
+    with (
+        patch(
+            "lead_harvester.api.dependencies.get_session", new=lambda: _fake_get_session(db_session)
+        ),
+        pytest.raises(AuthorizationError),
+    ):
+        await checker(current_user=user)

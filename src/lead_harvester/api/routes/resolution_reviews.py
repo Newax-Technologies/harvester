@@ -8,7 +8,7 @@ from lead_harvester.api.dependencies import (
     get_current_user,
     get_db_session,
     get_lead_sync_emitter,
-    require_roles,
+    require_permission,
 )
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.schemas.resolution import (
@@ -34,7 +34,7 @@ async def get_review(review_id: UUID = Path(...), session: AsyncSession = Depend
 @router.post(
     "/{review_id}/decision",
     response_model=ResolutionCandidateSchema,
-    dependencies=[Depends(require_roles("reviewer", "admin"))],
+    dependencies=[Depends(require_permission("resolution_reviews.decide"))],
 )
 async def make_review_decision(
     req: ResolutionDecisionRequest,

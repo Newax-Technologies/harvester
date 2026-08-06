@@ -5,7 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from lead_harvester.api.dependencies import User, get_current_user, get_db_session, require_roles
+from lead_harvester.api.dependencies import (
+    User,
+    get_current_user,
+    get_db_session,
+    require_permission,
+)
 from lead_harvester.models.outreach import AccountBrief, DraftStatus, OutreachDraft
 from lead_harvester.schemas.outreach import (
     DraftDecisionRequest,
@@ -51,7 +56,7 @@ async def get_draft(draft_id: UUID = Path(...), session: AsyncSession = Depends(
 @router.patch(
     "/{draft_id}",
     response_model=OutreachDraftSchema,
-    dependencies=[Depends(require_roles("reviewer", "admin"))],
+    dependencies=[Depends(require_permission("drafts.edit"))],
 )
 async def edit_draft(
     req: DraftEditRequest,
@@ -66,7 +71,7 @@ async def edit_draft(
 @router.post(
     "/{draft_id}/decision",
     response_model=OutreachDraftSchema,
-    dependencies=[Depends(require_roles("reviewer", "admin"))],
+    dependencies=[Depends(require_permission("drafts.decide"))],
 )
 async def make_draft_decision(
     req: DraftDecisionRequest,
