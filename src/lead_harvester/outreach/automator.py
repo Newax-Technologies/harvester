@@ -27,12 +27,18 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
 
+from lead_harvester.compliance.source_policy import (
+    RestrictedSourceDisabledError,
+    ensure_source_enabled,
+)
+from lead_harvester.config import settings
 from lead_harvester.database import get_session
 from lead_harvester.models import (
     DraftStatus,
     OutreachDraft,
     OutreachOutcome,
 )
+from lead_harvester.models.source import SourceType
 from lead_harvester.services.compliance_service import is_eligible_to_contact
 from lead_harvester.sources.human_emulator import ActionBudget, within_working_hours
 from lead_harvester.sources.session_manager import SessionManager
@@ -173,7 +179,19 @@ class OutreachAutomator:
             email_drafts = [d for d in drafts if "@" in d.target_contact_value]
 
             if li_drafts:
-                confirmed_sent_ids |= await self._send_linkedin_batch(li_drafts)
+                try:
+                    ensure_source_enabled(
+                        SourceType.LINKEDIN,
+                        restricted_sources_enabled=settings.restricted_sources_enabled,
+                    )
+                except RestrictedSourceDisabledError as e:
+                    # Leave li_drafts claimed-but-unsent -- the finally
+                    # block's _release_unsent_drafts reverts them to
+                    # APPROVED below, same as any other unsent draft in
+                    # this batch, so a later enabled run retries them.
+                    print(f"[Automator] LinkedIn batch skipped: {e}")
+                else:
+                    confirmed_sent_ids |= await self._send_linkedin_batch(li_drafts)
 
             if email_drafts:
                 confirmed_sent_ids |= await self._send_email_batch(email_drafts)

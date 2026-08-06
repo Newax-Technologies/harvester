@@ -34,6 +34,17 @@ class Settings(BaseSettings):
     app_env: str = "development"
     allow_demo_seed: bool = False
 
+    # docs/ROADMAP.md Module 28 (Professional-Network Discovery) is
+    # Restricted: account automation against real LinkedIn accounts
+    # (stealth fingerprinting, CAPTCHA solving, human-emulated timing --
+    # sources/linkedin_stealth.py, sources/account_farm.py,
+    # outreach/automator.py) stays disabled until access, legal, security,
+    # compliance, and operational approval are recorded (see
+    # compliance/source_policy.py's LINKEDIN entry). False by default, and
+    # the validator below refuses to let it be true in production even if
+    # the environment variable is set.
+    restricted_sources_enabled: bool = False
+
     # WebCrawler settings
     user_agent: str = "LeadBot/1.0"
     request_timeout_seconds: float = 10.0
@@ -90,6 +101,17 @@ class Settings(BaseSettings):
                 "LEAD_SYNC_WEBHOOK_URL must be set when LEAD_SYNC_ENABLED is true -- "
                 "otherwise emit_institution_upserted() silently no-ops on every call, and "
                 "with no retry/outbox, every event is lost with no indication anything is wrong."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _forbid_restricted_sources_in_production(self) -> "Settings":
+        if self.restricted_sources_enabled and self.app_env == "production":
+            raise ValueError(
+                "RESTRICTED_SOURCES_ENABLED must not be true when APP_ENV=production -- "
+                "docs/ROADMAP.md Module 28 keeps LinkedIn account automation Restricted in "
+                "production regardless of this flag. It may only be set for explicitly "
+                "approved non-production access/legal/security/compliance review."
             )
         return self
 

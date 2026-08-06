@@ -125,3 +125,33 @@ def contested_sources() -> list[SourceType]:
         for source_type, policy in SOURCE_POLICIES.items()
         if policy.authorization_basis == AuthorizationBasis.ACCOUNT_AUTOMATION
     ]
+
+
+class RestrictedSourceDisabledError(RuntimeError):
+    """Raised when an ACCOUNT_AUTOMATION source is invoked while policy has it disabled."""
+
+
+def ensure_source_enabled(source_type: SourceType, *, restricted_sources_enabled: bool) -> None:
+    """
+    Enforcement point for docs/ROADMAP.md Module 28 (Restricted): actually
+    stop an ACCOUNT_AUTOMATION source from running unless the operator has
+    explicitly turned it on via Settings.restricted_sources_enabled (which
+    Settings itself refuses to allow in production -- see config.py). Every
+    caller of sources/linkedin_stealth.py, sources/account_farm.py, or
+    outreach/automator.py's LinkedIn send path must call this first; the
+    module-level SOURCE_POLICIES registry above is documentation only and
+    does not, by itself, stop anything from running.
+    """
+    policy = get_source_policy(source_type)
+    if policy.authorization_basis != AuthorizationBasis.ACCOUNT_AUTOMATION:
+        return
+    if restricted_sources_enabled:
+        return
+    raise RestrictedSourceDisabledError(
+        f"{source_type.value} is disabled: its declared authorization basis is "
+        f"'{policy.authorization_basis.value}', which docs/ROADMAP.md Module 28 "
+        "(Professional-Network Discovery) marks Restricted until access, legal, security, "
+        "compliance, and operational approval are recorded. Set "
+        "RESTRICTED_SOURCES_ENABLED=true (non-production only) to run it after that approval "
+        f"exists. {policy.notes}"
+    )

@@ -263,6 +263,112 @@ async def test_run_does_not_requeue_draft_after_email_send_succeeds_but_mark_sen
 
 
 @pytest.mark.asyncio
+async def test_run_skips_linkedin_batch_when_restricted_sources_disabled(db_session):
+    # docs/ROADMAP.md Module 28: LinkedIn account automation stays
+    # Restricted until explicit approval. Settings.restricted_sources_enabled
+    # defaults to False, so the LinkedIn batch must never open a browser
+    # session -- the draft is left claimed-but-unsent and released back to
+    # APPROVED by the same path used for any other unattempted draft.
+    institution = CanonicalInstitution(
+        canonical_name="Restricted Source School",
+        institution_type="school",
+        status=OperatingStatus.OPERATIONAL,
+        confidence_score=0.7,
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    brief = AccountBrief(institution_id=institution.id)
+    db_session.add(brief)
+    await db_session.flush()
+
+    li_draft = OutreachDraft(
+        brief_id=brief.id,
+        status=DraftStatus.APPROVED,
+        target_name="LinkedIn Contact",
+        target_role="Principal",
+        target_contact_value="https://www.linkedin.com/in/someone",
+        subject_line="Hello",
+        body="Hi there",
+    )
+    db_session.add(li_draft)
+    await db_session.flush()
+
+    automator = OutreachAutomator(account_id="test-account")
+    automator._send_linkedin_batch = AsyncMock(side_effect=AssertionError("must not be called"))
+
+    with (
+        patch(
+            "lead_harvester.outreach.automator.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch("lead_harvester.outreach.automator.within_working_hours", return_value=True),
+    ):
+        await automator.run()
+
+    automator._send_linkedin_batch.assert_not_awaited()
+    await db_session.refresh(li_draft)
+    assert li_draft.status == DraftStatus.APPROVED
+
+
+@pytest.mark.asyncio
+async def test_run_still_sends_email_batch_when_linkedin_batch_is_restricted(db_session):
+    # A mixed batch must not let a policy-disabled LinkedIn channel block an
+    # unrelated, fully-allowed email send in the same run() call.
+    institution = CanonicalInstitution(
+        canonical_name="Mixed Batch School",
+        institution_type="school",
+        status=OperatingStatus.OPERATIONAL,
+        confidence_score=0.7,
+    )
+    db_session.add(institution)
+    await db_session.flush()
+
+    brief = AccountBrief(institution_id=institution.id)
+    db_session.add(brief)
+    await db_session.flush()
+
+    li_draft = OutreachDraft(
+        brief_id=brief.id,
+        status=DraftStatus.APPROVED,
+        target_name="LinkedIn Contact",
+        target_role="Principal",
+        target_contact_value="https://www.linkedin.com/in/someone-else",
+        subject_line="Hello",
+        body="Hi there",
+    )
+    email_draft = _draft(brief.id, "Email Contact")
+    db_session.add_all([li_draft, email_draft])
+    await db_session.flush()
+
+    automator = OutreachAutomator(
+        account_id="test-account",
+        smtp_host="smtp.example.com",
+        smtp_user="sender@example.com",
+        smtp_password="secret",
+    )
+    automator._send_linkedin_batch = AsyncMock(side_effect=AssertionError("must not be called"))
+
+    with (
+        patch(
+            "lead_harvester.outreach.automator.get_session",
+            new=lambda: _fake_get_session(db_session),
+        ),
+        patch("lead_harvester.outreach.automator.within_working_hours", return_value=True),
+        patch("smtplib.SMTP") as mock_smtp,
+    ):
+        server = mock_smtp.return_value.__enter__.return_value
+        await automator.run()
+
+    server.sendmail.assert_called_once()
+    automator._send_linkedin_batch.assert_not_awaited()
+    await db_session.refresh(li_draft)
+    await db_session.refresh(email_draft)
+    assert li_draft.status == DraftStatus.APPROVED
+    assert email_draft.status == DraftStatus.SENT
+
+
+@pytest.mark.asyncio
 async def test_run_never_sends_to_a_suppressed_contact(db_session):
     # Nothing checked suppression before docs/ROADMAP.md module 11 --
     # OutreachAutomator sent to any APPROVED draft unconditionally, so an

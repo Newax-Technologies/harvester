@@ -107,6 +107,18 @@ async def linkedin_login(args: argparse.Namespace) -> int:
     Open a real (visible) Camoufox browser, navigate to linkedin.com/login,
     and wait for the user to log in manually. Then saves the session cookies.
     """
+    from .compliance.source_policy import RestrictedSourceDisabledError, ensure_source_enabled
+    from .config import settings
+    from .models.source import SourceType
+
+    try:
+        ensure_source_enabled(
+            SourceType.LINKEDIN, restricted_sources_enabled=settings.restricted_sources_enabled
+        )
+    except RestrictedSourceDisabledError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
     try:
         from camoufox.async_api import AsyncCamoufox
     except ImportError:
@@ -150,10 +162,20 @@ async def linkedin_run(args: argparse.Namespace) -> int:
     """
     import dataclasses
 
+    from .compliance.source_policy import RestrictedSourceDisabledError, ensure_source_enabled
+    from .config import settings
     from .database import get_session
     from .models import RawSourceRecord
     from .models.source import SourceType
     from .sources.linkedin_stealth import LinkedInStealthCrawler
+
+    try:
+        ensure_source_enabled(
+            SourceType.LINKEDIN, restricted_sources_enabled=settings.restricted_sources_enabled
+        )
+    except RestrictedSourceDisabledError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
     account_id = args.account
     proxy = args.proxy or _env("LINKEDIN_PROXY")
@@ -610,6 +632,9 @@ async def list_signals_cmd(args: argparse.Namespace) -> int:
 async def linkedin_send(args: argparse.Namespace) -> int:
     """
     Send all approved OutreachDraft records (LinkedIn messages or emails).
+    Email drafts still send when LinkedIn automation is policy-disabled --
+    see OutreachAutomator.run()'s gate, which applies only to the LinkedIn
+    (Camoufox browser) batch, not the whole command.
     """
     from .outreach.automator import OutreachAutomator
 
@@ -1050,7 +1075,18 @@ def _linkedin_status(args: argparse.Namespace) -> None:
 
 
 async def _linkedin_farm_run(args: argparse.Namespace) -> int:
+    from .compliance.source_policy import RestrictedSourceDisabledError, ensure_source_enabled
+    from .config import settings
+    from .models.source import SourceType
     from .sources.account_farm import AccountFarm
+
+    try:
+        ensure_source_enabled(
+            SourceType.LINKEDIN, restricted_sources_enabled=settings.restricted_sources_enabled
+        )
+    except RestrictedSourceDisabledError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
     accounts = [a.strip() for a in args.accounts.split(",") if a.strip()]
     captcha_key = args.captcha_key or _env("TWOCAPTCHA_API_KEY") or None

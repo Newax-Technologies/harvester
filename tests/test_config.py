@@ -49,3 +49,23 @@ def test_rejects_empty_webhook_url_when_sync_enabled():
 def test_allows_empty_webhook_url_when_sync_disabled():
     settings = Settings(lead_sync_enabled=False, lead_sync_webhook_url="")
     assert settings.lead_sync_enabled is False
+
+
+def test_rejects_restricted_sources_enabled_in_production():
+    with pytest.raises(ValueError, match="RESTRICTED_SOURCES_ENABLED"):
+        Settings(restricted_sources_enabled=True, app_env="production")
+
+
+def test_allows_restricted_sources_enabled_outside_production():
+    settings = Settings(restricted_sources_enabled=True, app_env="development")
+    assert settings.restricted_sources_enabled is True
+
+
+def test_restricted_sources_disabled_by_default():
+    settings = Settings()
+    assert settings.restricted_sources_enabled is False
+
+
+def test_allows_restricted_sources_disabled_in_production():
+    settings = Settings(restricted_sources_enabled=False, app_env="production")
+    assert settings.app_env == "production"
