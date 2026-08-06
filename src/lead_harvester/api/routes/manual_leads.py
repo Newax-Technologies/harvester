@@ -22,7 +22,12 @@ from fastapi import APIRouter, BackgroundTasks, Depends, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lead_harvester.api.dependencies import get_db_session, get_lead_sync_emitter
+from lead_harvester.api.dependencies import (
+    User,
+    get_current_user,
+    get_db_session,
+    get_lead_sync_emitter,
+)
 from lead_harvester.config import settings
 from lead_harvester.database import get_session
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
@@ -171,10 +176,14 @@ async def create_manual_lead(
     background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db_session),
     lead_sync_emitter: LeadSyncEmitter = Depends(get_lead_sync_emitter),
+    current_user: User = Depends(get_current_user),
 ) -> ManualLeadOut:
     """
     Record a lead discovered manually (cold call, referral, field visit, etc.)
-    into the same database pipeline as automated sources.
+    into the same database pipeline as automated sources. Requires
+    authentication (previously this endpoint had none) because writing a
+    tenant-scoped CanonicalInstitution/Branch/ContactPoint needs to know
+    which tenant the caller belongs to.
     """
     # 1. Create a SourceRun for this manual entry
     run = SourceRun(
@@ -244,6 +253,7 @@ async def create_manual_lead(
     full_address = ", ".join(filter(None, [payload.address, payload.city, payload.country]))
 
     institution = CanonicalInstitution(
+        tenant_id=current_user.tenant_id,
         canonical_name=payload.institution_name.strip(),
         institution_type=payload.institution_type,
         domain=domain,
@@ -285,6 +295,7 @@ async def create_manual_lead(
     # 5. Branch (physical location)
     branch = Branch(
         institution_id=institution.id,
+        tenant_id=current_user.tenant_id,
         branch_name=payload.institution_name.strip(),
         address=full_address,
         city=payload.city.strip(),
@@ -316,6 +327,7 @@ async def create_manual_lead(
         candidate = await resolve_person_candidate(session, institution.id, c.person_name)
         cp = ContactPoint(
             institution_id=institution.id,
+            tenant_id=current_user.tenant_id,
             contact_type=c.contact_type,
             contact_value=contact_value,
             person_name=c.person_name,

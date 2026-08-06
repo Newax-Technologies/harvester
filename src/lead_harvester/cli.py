@@ -413,8 +413,11 @@ async def issue_service_credential(args: argparse.Namespace) -> int:
     hash is stored (services/auth_service.py::hash_token). Re-run this
     command to issue a replacement if it's lost.
     """
+    import uuid
+
     from .database import get_session
     from .models.auth import ServiceRole
+    from .models.tenancy import DEFAULT_TENANT_ID
     from .services.auth_service import issue_service_credential as issue
 
     try:
@@ -424,11 +427,20 @@ async def issue_service_credential(args: argparse.Namespace) -> int:
         print(f"Error: --role must be one of: {valid}", file=sys.stderr)
         return 1
 
+    if args.tenant_id:
+        try:
+            tenant_id = uuid.UUID(args.tenant_id)
+        except ValueError:
+            print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
+            return 1
+    else:
+        tenant_id = DEFAULT_TENANT_ID
+
     async with get_session() as session:
-        credential, raw_token = await issue(session, name=args.name, role=role)
+        credential, raw_token = await issue(session, name=args.name, role=role, tenant_id=tenant_id)
         name = credential.name
 
-    print(f"\n[Auth] Issued credential {name!r} (role={role.value}).")
+    print(f"\n[Auth] Issued credential {name!r} (role={role.value}, tenant={tenant_id}).")
     print(f"  Token (shown once, store it now): {raw_token}\n")
     return 0
 
@@ -870,6 +882,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--name", required=True, help="Unique identity for this credential"
     )
     issue_credential.add_argument("--role", required=True, choices=["admin", "reviewer", "viewer"])
+    issue_credential.add_argument(
+        "--tenant-id",
+        default="",
+        help="Tenant UUID this credential belongs to (default: the default tenant)",
+    )
 
     # -- revoke-service-credential --------------------------------------------
     revoke_credential = subparsers.add_parser(

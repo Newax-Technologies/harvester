@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from lead_harvester.database import Base
+from lead_harvester.models.tenancy import DEFAULT_TENANT_ID
 
 
 class OperatingStatus(str, enum.Enum):
@@ -27,6 +28,15 @@ class CanonicalInstitution(Base):
     __tablename__ = "canonical_institutions"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    # docs/ROADMAP.md Module 03 / delivery sequence Slice 1.1. Defaults to
+    # DEFAULT_TENANT_ID so every existing write path (canonical/merger.py,
+    # intelligence/researcher.py, seed.py) that doesn't yet know about
+    # tenancy keeps inserting correctly -- only api/routes/manual_leads.py
+    # currently sets this explicitly, from the authenticated caller's tenant.
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id"), nullable=False, index=True, default=DEFAULT_TENANT_ID
+    )
 
     # Core Fields
     canonical_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
@@ -94,6 +104,13 @@ class Branch(Base):
     institution_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("canonical_institutions.id"), nullable=False
     )
+    # Denormalized from the parent institution's tenant_id rather than
+    # left to a join -- see CanonicalInstitution.tenant_id's comment and
+    # docs/CODE_REVIEW_LESSONS.md pattern 2 (a value used for scoping must
+    # be stored once, not reconstructed per query site).
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id"), nullable=False, index=True, default=DEFAULT_TENANT_ID
+    )
 
     branch_name: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     address: Mapped[str] = mapped_column(Text, default="", nullable=False)
@@ -125,6 +142,10 @@ class ContactPoint(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     institution_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("canonical_institutions.id"), nullable=False
+    )
+    # See Branch.tenant_id's comment -- same denormalization rationale.
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id"), nullable=False, index=True, default=DEFAULT_TENANT_ID
     )
 
     contact_type: Mapped[str] = mapped_column(

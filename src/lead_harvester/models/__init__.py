@@ -21,9 +21,11 @@ from .resolution import MatchAssessment, MatchDecision, ResolutionCandidate, Rev
 from .sector import Sector
 from .signal import Signal, SignalType
 from .source import RawPageSnapshot, RawSourceRecord, RunStatus, SourceRun, SourceType
+from .tenancy import DEFAULT_TENANT_ID, Tenant, TenantStatus
 from .verification import DataQualityFlag, FlagStatus, FlagType
 
 __all__ = [
+    "DEFAULT_TENANT_ID",
     "AccountBrief",
     "AuditLog",
     "Branch",
@@ -74,4 +76,6 @@ __all__ = [
     "SourceType",
     "SuppressionEntry",
     "SuppressionReason",
+    "Tenant",
+    "TenantStatus",
 ]

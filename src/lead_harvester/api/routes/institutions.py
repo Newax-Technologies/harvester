@@ -18,7 +18,9 @@ async def list_institutions(
     current_user: User = Depends(get_current_user),
 ):
     """List institutions with pagination and filtering."""
-    return await InstitutionService.get_institutions(session, limit, offset, city)
+    return await InstitutionService.get_institutions(
+        session, current_user.tenant_id, limit, offset, city
+    )
 
 
 @router.get("/{institution_id}", response_model=InstitutionDetailResponse)
@@ -28,7 +30,9 @@ async def get_institution(
     current_user: User = Depends(get_current_user),
 ):
     """Get the full dossier for a specific institution."""
-    institution = await InstitutionService.get_institution_detail(session, institution_id)
+    institution = await InstitutionService.get_institution_detail(
+        session, institution_id, current_user.tenant_id
+    )
     if not institution:
         raise ResourceNotFoundError("Institution not found")
     return InstitutionDetailResponse.model_validate(institution)

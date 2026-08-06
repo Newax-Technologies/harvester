@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.source import RawSourceRecord, SourceType
+from lead_harvester.models.tenancy import DEFAULT_TENANT_ID
 from lead_harvester.sources.account_farm import AccountResult
 from lead_harvester.sources.linkedin_stealth import LinkedInProfile
 
@@ -284,7 +285,7 @@ async def test_issue_service_credential_prints_a_token_that_authenticates(db_ses
     from lead_harvester.models.auth import ServiceCredential
     from lead_harvester.services.auth_service import authenticate_token
 
-    args = argparse.Namespace(name="cli-test-admin", role="admin")
+    args = argparse.Namespace(name="cli-test-admin", role="admin", tenant_id="")
 
     with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
         result = await cli.issue_service_credential(args)
@@ -297,6 +298,7 @@ async def test_issue_service_credential_prints_a_token_that_authenticates(db_ses
         )
     ).scalar_one()
     assert credential.role.value == "admin"
+    assert credential.tenant_id == DEFAULT_TENANT_ID
 
     printed = capsys.readouterr().out
     raw_token = printed.rsplit(": ", 1)[1].strip()
@@ -310,11 +312,49 @@ async def test_issue_service_credential_prints_a_token_that_authenticates(db_ses
 async def test_issue_service_credential_rejects_invalid_role(db_session):
     from lead_harvester import cli
 
-    args = argparse.Namespace(name="cli-test-bad-role", role="superuser")
+    args = argparse.Namespace(name="cli-test-bad-role", role="superuser", tenant_id="")
 
     result = await cli.issue_service_credential(args)
 
     assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_issue_service_credential_rejects_invalid_tenant_id(db_session):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(name="cli-test-bad-tenant", role="admin", tenant_id="not-a-uuid")
+
+    result = await cli.issue_service_credential(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_issue_service_credential_accepts_an_explicit_tenant_id(db_session):
+    from lead_harvester import cli
+    from lead_harvester.models.auth import ServiceCredential
+    from lead_harvester.models.tenancy import Tenant
+
+    tenant = Tenant(name="Explicit Tenant Co", slug="explicit-tenant-co")
+    db_session.add(tenant)
+    await db_session.flush()
+
+    args = argparse.Namespace(
+        name="cli-test-explicit-tenant", role="admin", tenant_id=str(tenant.id)
+    )
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.issue_service_credential(args)
+
+    assert result == 0
+
+    credential = (
+        await db_session.execute(
+            select(ServiceCredential).where(ServiceCredential.name == "cli-test-explicit-tenant")
+        )
+    ).scalar_one()
+    assert credential.tenant_id == tenant.id
 
 
 @pytest.mark.asyncio

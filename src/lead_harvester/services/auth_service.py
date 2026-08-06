@@ -9,11 +9,13 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import secrets
+import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.models.auth import ServiceCredential, ServiceRole
+from lead_harvester.models.tenancy import DEFAULT_TENANT_ID
 
 
 def hash_token(raw_token: str) -> str:
@@ -29,6 +31,7 @@ async def issue_service_credential(
     *,
     name: str,
     role: ServiceRole,
+    tenant_id: uuid.UUID = DEFAULT_TENANT_ID,
     expires_at: dt.datetime | None = None,
 ) -> tuple[ServiceCredential, str]:
     """
@@ -41,6 +44,7 @@ async def issue_service_credential(
     credential = ServiceCredential(
         name=name,
         role=role,
+        tenant_id=tenant_id,
         token_hash=hash_token(raw_token),
         expires_at=expires_at,
     )

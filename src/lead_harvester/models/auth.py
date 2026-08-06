@@ -26,11 +26,12 @@ import enum
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Enum, String
+from sqlalchemy import DateTime, Enum, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from lead_harvester.database import Base
+from lead_harvester.models.tenancy import DEFAULT_TENANT_ID
 
 
 class ServiceRole(str, enum.Enum):
@@ -43,6 +44,13 @@ class ServiceCredential(Base):
     __tablename__ = "service_credentials"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Which tenant this identity acts as -- api/dependencies.py::User
+    # carries it forward from here on every authenticated request so
+    # tenant-scoped queries (services/institution_service.py, for now)
+    # have a source of truth that isn't client-supplied.
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id"), nullable=False, index=True, default=DEFAULT_TENANT_ID
+    )
     # Human-readable identity of who/what holds this credential (e.g.
     # "alice@newax.co", "ci-export-worker") -- becomes User.username.
     name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)

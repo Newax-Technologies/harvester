@@ -28,7 +28,12 @@ def upgrade() -> None:
     silent unrecognized-token-becomes-viewer fallback previously in
     api/dependencies.py::get_current_user.
     """
-    _service_role.create(op.get_bind(), checkfirst=True)
+    # No standalone _service_role.create() here -- op.create_table() below
+    # creates the "servicerole" enum type itself as part of creating this
+    # brand-new table's "role" column; calling .create() first and then
+    # creating the table would issue CREATE TYPE twice and fail the
+    # second time with DuplicateObjectError, since create_table's own
+    # enum-creation dispatch does not pass checkfirst=True.
     op.create_table(
         "service_credentials",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),

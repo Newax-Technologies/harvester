@@ -10,6 +10,7 @@ from lead_harvester.config import settings
 from lead_harvester.database import get_session
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.models.audit import AuditLog
+from lead_harvester.models.tenancy import DEFAULT_TENANT_ID
 from lead_harvester.services.auth_service import authenticate_token
 
 security = HTTPBearer(auto_error=False)
@@ -22,10 +23,11 @@ _NO_ENTITY = uuid.UUID(int=0)
 
 
 class User:
-    def __init__(self, id: str, username: str, role: str):
+    def __init__(self, id: str, username: str, role: str, tenant_id: uuid.UUID = DEFAULT_TENANT_ID):
         self.id = id
         self.username = username
         self.role = role
+        self.tenant_id = tenant_id
 
 
 async def get_db_session() -> AsyncSession:
@@ -49,7 +51,12 @@ async def get_current_user(
     checks -- Settings itself refuses to allow that in production.
     """
     if settings.dev_auth_enabled:
-        return User(id="usr_dev_admin", username=settings.dev_auth_user, role="admin")
+        return User(
+            id="usr_dev_admin",
+            username=settings.dev_auth_user,
+            role="admin",
+            tenant_id=DEFAULT_TENANT_ID,
+        )
 
     if not credentials:
         raise AuthenticationError()
@@ -58,7 +65,12 @@ async def get_current_user(
     if credential is None:
         raise AuthenticationError()
 
-    return User(id=str(credential.id), username=credential.name, role=credential.role.value)
+    return User(
+        id=str(credential.id),
+        username=credential.name,
+        role=credential.role.value,
+        tenant_id=credential.tenant_id,
+    )
 
 
 def require_permission(permission: str):
