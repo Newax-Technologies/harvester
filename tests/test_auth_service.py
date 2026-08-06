@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import datetime as dt
 import uuid
@@ -216,6 +217,60 @@ async def test_issue_rejects_a_name_that_still_has_an_active_credential(db_sessi
         await issue_service_credential(
             db_session, name="test-duplicate-name", role=ServiceRole.VIEWER
         )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_issuance_of_the_same_name_serializes_instead_of_racing(async_engine):
+    # db_session wraps every test in one shared connection/transaction, so
+    # it can only prove sequential behavior -- it can't catch a check that
+    # is only safe when nothing else can interleave. This opens two
+    # genuinely independent connections and issues the SAME name truly
+    # concurrently: without the pg_advisory_xact_lock in
+    # issue_service_credential, both could pass the "no active credential"
+    # read before either commits, and one would fail with a raw
+    # IntegrityError against uq_service_credentials_active_name instead of
+    # the second one cleanly raising CredentialNameInUseError.
+    from sqlalchemy import delete
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from lead_harvester.models.auth import ServiceCredential
+    from lead_harvester.services.auth_service import CredentialNameInUseError
+
+    conn_a = await async_engine.connect()
+    conn_b = await async_engine.connect()
+    session_a = AsyncSession(bind=conn_a, expire_on_commit=False)
+    session_b = AsyncSession(bind=conn_b, expire_on_commit=False)
+
+    async def _issue_and_commit(session):
+        try:
+            await issue_service_credential(
+                session, name="test-concurrent-issue", role=ServiceRole.ADMIN
+            )
+        except CredentialNameInUseError:
+            await session.rollback()
+            return "rejected"
+        else:
+            await session.commit()
+            return "issued"
+
+    try:
+        results = await asyncio.gather(_issue_and_commit(session_a), _issue_and_commit(session_b))
+        assert sorted(results) == ["issued", "rejected"]
+    finally:
+        # Both sessions commit for real against the shared test database
+        # (that's the point -- proving true concurrent behavior) -- unlike
+        # db_session, nothing rolls this back afterward. Delete the row(s)
+        # this test created so they don't outlive it and break unrelated
+        # tests (e.g. a later test deleting the Tenant row this
+        # credential's tenant_id foreign-keys to).
+        await session_a.execute(
+            delete(ServiceCredential).where(ServiceCredential.name == "test-concurrent-issue")
+        )
+        await session_a.commit()
+        await session_a.close()
+        await session_b.close()
+        await conn_a.close()
+        await conn_b.close()
 
 
 @pytest.mark.asyncio

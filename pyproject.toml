@@ -30,6 +30,8 @@ dependencies = [
   "python-dotenv>=1.0",
   # Apple MapKit Server API developer-token signing (sources/apple_maps.py)
   "PyJWT[crypto]>=2.10,<3",
+  # Credential vault at-rest encryption (vault_crypto.py)
+  "cryptography>=42,<51",
 ]
 
 [project.optional-dependencies]

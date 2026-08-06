@@ -1006,3 +1006,136 @@ async def test_set_tenant_config_cmd_reports_a_clean_error_for_an_unknown_tenant
         result = await cli.set_tenant_config_cmd(args)
 
     assert result == 1
+
+
+@pytest.fixture
+def _vault_key(monkeypatch):
+    from cryptography.fernet import Fernet
+
+    from lead_harvester.config import settings
+
+    monkeypatch.setattr(settings, "vault_encryption_key", Fernet.generate_key().decode())
+
+
+@pytest.mark.asyncio
+async def test_vault_store_credential_cmd_stores_and_prints_fingerprint_not_the_value(
+    db_session, capsys, _vault_key
+):
+    from lead_harvester import cli
+    from lead_harvester.services.credential_vault_service import retrieve_plaintext_for_use
+    from lead_harvester.vault_crypto import fingerprint_secret
+
+    args = argparse.Namespace(
+        tenant_id=str(DEFAULT_TENANT_ID),
+        name="google_places_api_key",
+        value="the-real-secret-value",
+        set_by="test-operator",
+    )
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.vault_store_credential_cmd(args)
+
+    assert result == 0
+    output = capsys.readouterr().out
+    assert fingerprint_secret("the-real-secret-value") in output
+    assert "the-real-secret-value" not in output
+
+    value = await retrieve_plaintext_for_use(db_session, DEFAULT_TENANT_ID, "google_places_api_key")
+    assert value == "the-real-secret-value"
+
+
+@pytest.mark.asyncio
+async def test_vault_store_credential_cmd_rejects_an_invalid_tenant_id(_vault_key):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(
+        tenant_id="not-a-uuid", name="some-key", value="x", set_by="test-operator"
+    )
+
+    result = await cli.vault_store_credential_cmd(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_vault_store_credential_cmd_reports_a_clean_error_when_vault_is_unconfigured(
+    db_session,
+):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(
+        tenant_id=str(DEFAULT_TENANT_ID), name="some-key", value="x", set_by="test-operator"
+    )
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.vault_store_credential_cmd(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_vault_show_credential_cmd_prints_fingerprint_not_the_value(
+    db_session, capsys, _vault_key
+):
+    from lead_harvester import cli
+    from lead_harvester.services.credential_vault_service import store_credential
+    from lead_harvester.vault_crypto import fingerprint_secret
+
+    await store_credential(
+        db_session, DEFAULT_TENANT_ID, "show-me", "the-real-secret-value", created_by="op"
+    )
+    await db_session.commit()
+
+    args = argparse.Namespace(tenant_id=str(DEFAULT_TENANT_ID), name="show-me")
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.vault_show_credential_cmd(args)
+
+    assert result == 0
+    output = capsys.readouterr().out
+    assert fingerprint_secret("the-real-secret-value") in output
+    assert "the-real-secret-value" not in output
+
+
+@pytest.mark.asyncio
+async def test_vault_show_credential_cmd_reports_a_clean_error_for_an_unknown_name(db_session):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(tenant_id=str(DEFAULT_TENANT_ID), name="never-stored")
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.vault_show_credential_cmd(args)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_vault_revoke_credential_cmd_revokes_the_active_credential(db_session, _vault_key):
+    from lead_harvester import cli
+    from lead_harvester.services.credential_vault_service import (
+        get_credential_fingerprint,
+        store_credential,
+    )
+
+    await store_credential(db_session, DEFAULT_TENANT_ID, "revoke-me", "value", created_by="op")
+    await db_session.commit()
+
+    args = argparse.Namespace(tenant_id=str(DEFAULT_TENANT_ID), name="revoke-me")
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.vault_revoke_credential_cmd(args)
+
+    assert result == 0
+    assert await get_credential_fingerprint(db_session, DEFAULT_TENANT_ID, "revoke-me") is None
+
+
+@pytest.mark.asyncio
+async def test_vault_revoke_credential_cmd_reports_a_clean_error_for_an_unknown_name(db_session):
+    from lead_harvester import cli
+
+    args = argparse.Namespace(tenant_id=str(DEFAULT_TENANT_ID), name="never-stored")
+
+    with patch("lead_harvester.database.get_session", new=lambda: _fake_get_session(db_session)):
+        result = await cli.vault_revoke_credential_cmd(args)
+
+    assert result == 1

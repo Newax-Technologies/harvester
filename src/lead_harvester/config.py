@@ -62,6 +62,14 @@ class Settings(BaseSettings):
     dev_auth_enabled: bool = False
     dev_auth_user: str = "local-admin"
 
+    # services/credential_vault_service.py's at-rest encryption key for
+    # vaulted connector/source credentials -- a Fernet key (32 url-safe
+    # base64-encoded bytes). Unset by default; vault_crypto.py raises a
+    # clear VaultNotConfiguredError the moment anything tries to
+    # encrypt/decrypt without it, rather than this failing at import time
+    # for deployments that never touch the vault.
+    vault_encryption_key: str = ""
+
     # WebCrawler settings
     user_agent: str = "LeadBot/1.0"
     request_timeout_seconds: float = 10.0

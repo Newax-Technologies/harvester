@@ -12,7 +12,7 @@ import hashlib
 import secrets
 import uuid
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lead_harvester.database import get_session
@@ -92,6 +92,27 @@ async def issue_service_credential(
 
     if await session.get(Tenant, tenant_id) is None:
         raise TenantNotFoundError(f"No tenant found with id {tenant_id}.")
+
+    # Transaction-scoped advisory lock on `name`, held until this
+    # transaction commits or rolls back -- the read-then-insert below is
+    # otherwise a TOCTOU race: two concurrent issuances for the same name
+    # can both pass this "no active credential" check before either
+    # commits, and one would fail with a raw IntegrityError against
+    # uq_service_credentials_active_name instead of a clean
+    # CredentialNameInUseError. Same pattern as
+    # tenant_config_service.set_tenant_config's lock.
+    # pg_advisory_xact_lock has no single-int4 overload (only bigint, or
+    # two int4s) -- a fixed domain-separation string as the first key
+    # keeps this lock namespace distinct from other hashtext(...)-keyed
+    # locks in this codebase (e.g. tenant_config_service's) that hash two
+    # real values instead of one.
+    await session.execute(
+        select(
+            func.pg_advisory_xact_lock(
+                func.hashtext("service_credential_name"), func.hashtext(name)
+            )
+        )
+    )
 
     existing = (
         await session.scalars(

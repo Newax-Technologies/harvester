@@ -566,6 +566,102 @@ async def set_tenant_config_cmd(args: argparse.Namespace) -> int:
     return 0
 
 
+async def vault_store_credential_cmd(args: argparse.Namespace) -> int:
+    """
+    Encrypt and store a connector/source credential -- write-only by
+    design (docs/delivery/agency-intelligence-implementation-sequence.md
+    Slice 2.1). Prints the new version's fingerprint/metadata, never the
+    value itself.
+    """
+    import uuid
+
+    from .database import get_session
+    from .services.auth_service import TenantNotFoundError
+    from .services.credential_vault_service import credential_metadata, store_credential
+    from .vault_crypto import VaultNotConfiguredError
+
+    try:
+        tenant_id = uuid.UUID(args.tenant_id)
+    except ValueError:
+        print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
+        return 1
+
+    try:
+        async with get_session() as session:
+            credential = await store_credential(
+                session, tenant_id, args.name, args.value, created_by=args.set_by
+            )
+            metadata = credential_metadata(credential)
+    except (TenantNotFoundError, VaultNotConfiguredError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(
+        f"\n[Vault] Stored credential {metadata['name']!r} for tenant {tenant_id} "
+        f"(version {metadata['version']}, fingerprint {metadata['fingerprint']}).\n"
+    )
+    return 0
+
+
+async def vault_revoke_credential_cmd(args: argparse.Namespace) -> int:
+    """Revoke a tenant's active vaulted credential by name -- no replacement is created."""
+    import uuid
+
+    from .database import get_session
+    from .services.credential_vault_service import revoke_credential
+
+    try:
+        tenant_id = uuid.UUID(args.tenant_id)
+    except ValueError:
+        print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
+        return 1
+
+    async with get_session() as session:
+        revoked = await revoke_credential(session, tenant_id, args.name)
+
+    if revoked is None:
+        print(
+            f"Error: no active credential named {args.name!r} for tenant {tenant_id}.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"\n[Vault] Revoked credential {args.name!r} for tenant {tenant_id}.\n")
+    return 0
+
+
+async def vault_show_credential_cmd(args: argparse.Namespace) -> int:
+    """
+    Print a vaulted credential's metadata and fingerprint -- never its
+    value. Compare the printed fingerprint against a known value's
+    fingerprint (vault_crypto.fingerprint_secret) to verify identity
+    without ever decrypting.
+    """
+    import uuid
+
+    from .database import get_session
+    from .services.credential_vault_service import get_credential_fingerprint
+
+    try:
+        tenant_id = uuid.UUID(args.tenant_id)
+    except ValueError:
+        print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
+        return 1
+
+    async with get_session() as session:
+        fingerprint = await get_credential_fingerprint(session, tenant_id, args.name)
+
+    if fingerprint is None:
+        print(
+            f"Error: no active credential named {args.name!r} for tenant {tenant_id}.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"\n[Vault] {args.name} (tenant {tenant_id}): fingerprint={fingerprint}\n")
+    return 0
+
+
 async def purge_expired_records(args: argparse.Namespace) -> int:
     """Delete RawSourceRecord rows past retention that never produced provenance (docs/ROADMAP.md module 11)."""
     from .database import get_session
@@ -1033,6 +1129,38 @@ def build_parser() -> argparse.ArgumentParser:
         "--set-by", required=True, help="Identity recorded as this version's created_by"
     )
 
+    # -- vault-store-credential -----------------------------------------------
+    vault_store = subparsers.add_parser(
+        "vault-store-credential",
+        help="Encrypt and store a connector/source credential (write-only; issues or rotates)",
+    )
+    vault_store.add_argument("--tenant-id", required=True)
+    vault_store.add_argument(
+        "--name",
+        required=True,
+        help="Stable identity for this credential, e.g. google_places_api_key",
+    )
+    vault_store.add_argument("--value", required=True, help="The plaintext secret to encrypt")
+    vault_store.add_argument(
+        "--set-by", required=True, help="Identity recorded as this version's created_by"
+    )
+
+    # -- vault-revoke-credential -----------------------------------------------
+    vault_revoke = subparsers.add_parser(
+        "vault-revoke-credential",
+        help="Revoke a tenant's active vaulted credential by name (no replacement is created)",
+    )
+    vault_revoke.add_argument("--tenant-id", required=True)
+    vault_revoke.add_argument("--name", required=True)
+
+    # -- vault-show-credential -----------------------------------------------
+    vault_show = subparsers.add_parser(
+        "vault-show-credential",
+        help="Print a vaulted credential's fingerprint and metadata -- never its value",
+    )
+    vault_show.add_argument("--tenant-id", required=True)
+    vault_show.add_argument("--name", required=True)
+
     # -- purge-expired-records ----------------------------------------------
     purge = subparsers.add_parser(
         "purge-expired-records",
@@ -1262,6 +1390,9 @@ def main() -> None:
         ),
         "get-tenant-config": lambda: sys.exit(asyncio.run(get_tenant_config_cmd(args))),
         "set-tenant-config": lambda: sys.exit(asyncio.run(set_tenant_config_cmd(args))),
+        "vault-store-credential": lambda: sys.exit(asyncio.run(vault_store_credential_cmd(args))),
+        "vault-revoke-credential": lambda: sys.exit(asyncio.run(vault_revoke_credential_cmd(args))),
+        "vault-show-credential": lambda: sys.exit(asyncio.run(vault_show_credential_cmd(args))),
         "purge-expired-records": lambda: sys.exit(asyncio.run(purge_expired_records(args))),
         "process-outbox": lambda: sys.exit(asyncio.run(process_outbox(args))),
         "export-leads": lambda: sys.exit(asyncio.run(export_leads(args))),
