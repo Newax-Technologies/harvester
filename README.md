@@ -6,6 +6,13 @@ It converts governed provider and client markets into evidence-backed opportunit
 
 > **Product principle:** Define the provider, offering, market, evidence standard, source authority, and output. Let the infrastructure collect, verify, resolve, qualify, assess, and prepare the intelligence while the operator retains control.
 
+## Part of the NEWAX ecosystem
+
+This is one of several connected NEWAX repos. See [`ECOSYSTEM.md`](ECOSYSTEM.md)
+for the full picture. Harvester already follows the right pattern — it
+talks to Communicator only via REST, never direct DB access — which is the
+model every other repo is moving toward via the Module Gateway.
+
 ## Product boundary
 
 Harvester is not merely a scraper, crawler, list generator, CRM clone, autonomous outreach engine, or collection of AI prompts.
