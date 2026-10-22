@@ -13,6 +13,10 @@ for the full picture. Harvester already follows the right pattern — it
 talks to Communicator only via REST, never direct DB access — which is the
 model every other repo is moving toward via the Module Gateway.
 
+> ⚠️ GitHub Dependabot is reporting 4 high-severity vulnerabilities on this
+> repo's default branch as of 2026-10-22. Not yet triaged. See the
+> [Security tab](https://github.com/Newax-Technologies/harvester/security/dependabot).
+
 ## Product boundary
 
 Harvester is not merely a scraper, crawler, list generator, CRM clone, autonomous outreach engine, or collection of AI prompts.
