@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lead_harvester.api.dependencies import User, get_current_user, get_db_session
+from lead_harvester.api.dependencies import (
+    User,
+    get_current_user,
+    get_db_session,
+    require_permission,
+)
 from lead_harvester.models.allocation import LeadReservation, ReservationStatus
 from lead_harvester.models.canonical import CanonicalInstitution
 from lead_harvester.schemas.allocation import (
@@ -21,7 +26,11 @@ from lead_harvester.services.daily_selection_service import (
 router = APIRouter(prefix="/daily-selection", tags=["Daily Selection"])
 
 
-@router.post("", response_model=list[LeadReservationResponse])
+@router.post(
+    "",
+    response_model=list[LeadReservationResponse],
+    dependencies=[Depends(require_permission("daily_selection.trigger"))],
+)
 async def trigger_daily_selection(
     payload: SelectDailyBatchRequest,
     session: AsyncSession = Depends(get_db_session),
@@ -79,7 +88,11 @@ async def list_daily_selection(
     ]
 
 
-@router.post("/{reservation_id}/consume", response_model=LeadReservationResponse)
+@router.post(
+    "/{reservation_id}/consume",
+    response_model=LeadReservationResponse,
+    dependencies=[Depends(require_permission("daily_selection.manage"))],
+)
 async def consume_reservation(
     reservation_id: str = Path(...),
     session: AsyncSession = Depends(get_db_session),
@@ -93,7 +106,11 @@ async def consume_reservation(
     return LeadReservationResponse.model_validate(reservation)
 
 
-@router.post("/{reservation_id}/release", response_model=LeadReservationResponse)
+@router.post(
+    "/{reservation_id}/release",
+    response_model=LeadReservationResponse,
+    dependencies=[Depends(require_permission("daily_selection.manage"))],
+)
 async def release_reservation_early(
     reservation_id: str = Path(...),
     session: AsyncSession = Depends(get_db_session),

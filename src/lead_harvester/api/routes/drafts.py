@@ -5,7 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from lead_harvester.api.dependencies import User, get_current_user, get_db_session, require_roles
+from lead_harvester.api.dependencies import (
+    User,
+    get_current_user,
+    get_db_session,
+    require_permission,
+)
 from lead_harvester.models.outreach import AccountBrief, DraftStatus, OutreachDraft
 from lead_harvester.schemas.outreach import (
     DraftDecisionRequest,
@@ -18,7 +23,10 @@ router = APIRouter(prefix="/drafts", tags=["Drafts"])
 
 
 @router.get("", response_model=list[dict])
-async def list_drafts(session: AsyncSession = Depends(get_db_session)):
+async def list_drafts(
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
     stmt = (
         select(OutreachDraft)
         .options(selectinload(OutreachDraft.brief).selectinload(AccountBrief.institution))
@@ -43,7 +51,11 @@ async def list_drafts(session: AsyncSession = Depends(get_db_session)):
 
 
 @router.get("/{draft_id}", response_model=OutreachDraftSchema)
-async def get_draft(draft_id: UUID = Path(...), session: AsyncSession = Depends(get_db_session)):
+async def get_draft(
+    draft_id: UUID = Path(...),
+    session: AsyncSession = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+):
     draft = await DraftReviewService.get_draft(session, draft_id)
     return OutreachDraftSchema.model_validate(draft)
 
@@ -51,7 +63,7 @@ async def get_draft(draft_id: UUID = Path(...), session: AsyncSession = Depends(
 @router.patch(
     "/{draft_id}",
     response_model=OutreachDraftSchema,
-    dependencies=[Depends(require_roles("reviewer", "admin"))],
+    dependencies=[Depends(require_permission("drafts.edit"))],
 )
 async def edit_draft(
     req: DraftEditRequest,
@@ -66,7 +78,7 @@ async def edit_draft(
 @router.post(
     "/{draft_id}/decision",
     response_model=OutreachDraftSchema,
-    dependencies=[Depends(require_roles("reviewer", "admin"))],
+    dependencies=[Depends(require_permission("drafts.decide"))],
 )
 async def make_draft_decision(
     req: DraftDecisionRequest,

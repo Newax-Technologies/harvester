@@ -3,7 +3,12 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lead_harvester.api.dependencies import User, get_current_user, get_db_session
+from lead_harvester.api.dependencies import (
+    User,
+    get_current_user,
+    get_db_session,
+    require_permission,
+)
 from lead_harvester.api.errors import ResourceNotFoundError
 from lead_harvester.schemas.sectors import CreateSectorRequest, SectorResponse, UpdateSectorRequest
 from lead_harvester.services.sector_service import (
@@ -37,7 +42,12 @@ async def get_sector_route(
     return SectorResponse.model_validate(sector)
 
 
-@router.post("", response_model=SectorResponse, status_code=201)
+@router.post(
+    "",
+    response_model=SectorResponse,
+    status_code=201,
+    dependencies=[Depends(require_permission("sectors.manage"))],
+)
 async def create_sector_route(
     payload: CreateSectorRequest,
     session: AsyncSession = Depends(get_db_session),
@@ -58,7 +68,11 @@ async def create_sector_route(
     return SectorResponse.model_validate(sector)
 
 
-@router.patch("/{sector_id}", response_model=SectorResponse)
+@router.patch(
+    "/{sector_id}",
+    response_model=SectorResponse,
+    dependencies=[Depends(require_permission("sectors.manage"))],
+)
 async def update_sector_route(
     payload: UpdateSectorRequest,
     sector_id: uuid.UUID = Path(...),

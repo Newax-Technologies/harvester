@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
@@ -10,6 +11,7 @@ from lead_harvester.api.dependencies import User, get_current_user, get_db_sessi
 from lead_harvester.config import settings
 from lead_harvester.models.canonical import Base, CanonicalInstitution
 from lead_harvester.models.outreach import AccountBrief, DraftStatus, OutreachDraft
+from lead_harvester.models.tenancy import DEFAULT_TENANT_ID, Tenant, TenantStatus
 
 # We must ensure we're using the test database
 assert "test" in settings.test_database_url.lower(), "Test database name must contain 'test'"
@@ -26,6 +28,19 @@ engine = create_async_engine(settings.test_database_url, echo=False, poolclass=N
 async def async_engine():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Every tenant_id column defaults to DEFAULT_TENANT_ID and carries
+        # an FK to tenants.id -- this row must exist before any test
+        # inserts a CanonicalInstitution/Branch/ContactPoint/
+        # ServiceCredential without an explicit tenant.
+        await conn.execute(
+            Tenant.__table__.insert().values(
+                id=DEFAULT_TENANT_ID,
+                name="Default Tenant",
+                slug="default",
+                status=TenantStatus.ACTIVE,
+                created_at=datetime.now(UTC),
+            )
+        )
     yield engine
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -73,6 +88,16 @@ async def client_b(override_database_dependency):
         return User(id="reviewer_B", username="Bob", role="reviewer")
 
     app.dependency_overrides[get_current_user] = override_user_b
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+
+
+@pytest_asyncio.fixture
+async def client_viewer(override_database_dependency):
+    async def override_user_viewer():
+        return User(id="viewer_A", username="Vic", role="viewer")
+
+    app.dependency_overrides[get_current_user] = override_user_viewer
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 

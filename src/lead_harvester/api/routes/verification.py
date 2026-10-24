@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lead_harvester.api.dependencies import User, get_current_user, get_db_session
+from lead_harvester.api.dependencies import (
+    User,
+    get_current_user,
+    get_db_session,
+    require_permission,
+)
 from lead_harvester.models.verification import FlagStatus, FlagType
 from lead_harvester.schemas.verification import (
     DataQualityFlagResponse,
@@ -33,7 +38,11 @@ async def list_data_quality_flags(
     return [DataQualityFlagResponse.model_validate(f) for f in flags]
 
 
-@router.post("/sweep", response_model=dict)
+@router.post(
+    "/sweep",
+    response_model=dict,
+    dependencies=[Depends(require_permission("verification.manage"))],
+)
 async def trigger_verification_sweep(
     payload: RunSweepRequest,
     session: AsyncSession = Depends(get_db_session),
@@ -53,7 +62,11 @@ async def trigger_verification_sweep(
     return {"flags_created": created_count}
 
 
-@router.post("/flags/{flag_id}/resolve", response_model=DataQualityFlagResponse)
+@router.post(
+    "/flags/{flag_id}/resolve",
+    response_model=DataQualityFlagResponse,
+    dependencies=[Depends(require_permission("verification.manage"))],
+)
 async def resolve_data_quality_flag(
     payload: ResolveFlagRequest,
     flag_id: str = Path(...),
@@ -68,7 +81,11 @@ async def resolve_data_quality_flag(
     return DataQualityFlagResponse.model_validate(flag)
 
 
-@router.post("/flags/{flag_id}/dismiss", response_model=DataQualityFlagResponse)
+@router.post(
+    "/flags/{flag_id}/dismiss",
+    response_model=DataQualityFlagResponse,
+    dependencies=[Depends(require_permission("verification.manage"))],
+)
 async def dismiss_data_quality_flag(
     payload: ResolveFlagRequest,
     flag_id: str = Path(...),
@@ -83,7 +100,11 @@ async def dismiss_data_quality_flag(
     return DataQualityFlagResponse.model_validate(flag)
 
 
-@router.post("/contacts/{contact_point_id}/unreachable", response_model=DataQualityFlagResponse)
+@router.post(
+    "/contacts/{contact_point_id}/unreachable",
+    response_model=DataQualityFlagResponse,
+    dependencies=[Depends(require_permission("verification.manage"))],
+)
 async def mark_contact_unreachable(
     payload: ResolveFlagRequest,
     contact_point_id: str = Path(...),

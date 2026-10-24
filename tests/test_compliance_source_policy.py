@@ -1,8 +1,12 @@
+import pytest
+
 from lead_harvester.compliance.channel_eligibility import is_channel_eligible
 from lead_harvester.compliance.source_policy import (
     SOURCE_POLICIES,
     AuthorizationBasis,
+    RestrictedSourceDisabledError,
     contested_sources,
+    ensure_source_enabled,
     get_source_policy,
 )
 from lead_harvester.models.compliance import SuppressionEntry, SuppressionReason
@@ -79,3 +83,19 @@ def test_channel_ineligible_only_for_the_matching_specific_channel():
     )
     assert is_channel_eligible("email", suppression).eligible is False
     assert is_channel_eligible("linkedin", suppression).eligible is True
+
+
+def test_ensure_source_enabled_blocks_linkedin_when_restricted_sources_disabled():
+    with pytest.raises(RestrictedSourceDisabledError, match="linkedin"):
+        ensure_source_enabled(SourceType.LINKEDIN, restricted_sources_enabled=False)
+
+
+def test_ensure_source_enabled_allows_linkedin_when_restricted_sources_enabled():
+    ensure_source_enabled(SourceType.LINKEDIN, restricted_sources_enabled=True)
+
+
+def test_ensure_source_enabled_never_blocks_non_account_automation_sources():
+    for source_type in SourceType:
+        if source_type == SourceType.LINKEDIN:
+            continue
+        ensure_source_enabled(source_type, restricted_sources_enabled=False)

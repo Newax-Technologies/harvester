@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from pydantic import model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Local development keeps ordinary configuration in .env and credentials in
@@ -10,6 +10,15 @@ load_dotenv(".env.secrets", override=False)
 load_dotenv(".env", override=False)
 
 MIN_LEAD_SYNC_WEBHOOK_SECRET_LENGTH = 32
+
+# Allowlist, not a denylist -- DEV_AUTH_ENABLED and RESTRICTED_SOURCES_ENABLED
+# must only ever be true in an environment explicitly declared safe for
+# them. Blocking only the literal "production" string (the original
+# version of these guards) left every other real deployment -- staging,
+# QA, preview, UAT -- able to set either flag and get unauthenticated
+# admin access or run restricted LinkedIn automation, since none of
+# those spellings are "production".
+_ENVIRONMENTS_ALLOWING_DEV_GUARDS = frozenset({"development", "test"})
 
 
 class Settings(BaseSettings):
@@ -33,6 +42,33 @@ class Settings(BaseSettings):
     job_config: dict = {}
     app_env: str = "development"
     allow_demo_seed: bool = False
+
+    # docs/ROADMAP.md Module 28 (Professional-Network Discovery) is
+    # Restricted: account automation against real LinkedIn accounts
+    # (stealth fingerprinting, CAPTCHA solving, human-emulated timing --
+    # sources/linkedin_stealth.py, sources/account_farm.py,
+    # outreach/automator.py) stays disabled until access, legal, security,
+    # compliance, and operational approval are recorded (see
+    # compliance/source_policy.py's LINKEDIN entry). False by default, and
+    # the validator below refuses to let it be true in production even if
+    # the environment variable is set.
+    restricted_sources_enabled: bool = False
+
+    # api/dependencies.py::get_current_user's local-development bypass --
+    # replaces the previous unconditional os.getenv("DEV_AUTH_ENABLED")
+    # read. False by default; the validator below refuses to let it be
+    # true in production even if the environment variable is set, so a
+    # deployment misconfiguration can't grant every request admin access.
+    dev_auth_enabled: bool = False
+    dev_auth_user: str = "local-admin"
+
+    # services/credential_vault_service.py's at-rest encryption key for
+    # vaulted connector/source credentials -- a Fernet key (32 url-safe
+    # base64-encoded bytes). Unset by default; vault_crypto.py raises a
+    # clear VaultNotConfiguredError the moment anything tries to
+    # encrypt/decrypt without it, rather than this failing at import time
+    # for deployments that never touch the vault.
+    vault_encryption_key: str = ""
 
     # WebCrawler settings
     user_agent: str = "LeadBot/1.0"
@@ -69,6 +105,16 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    @field_validator("app_env", mode="before")
+    @classmethod
+    def _normalize_app_env(cls, value: str) -> str:
+        # "Production"/"PRODUCTION"/"prod "/etc. must not silently evade
+        # the app_env == "production" guards below (RESTRICTED_SOURCES_ENABLED,
+        # DEV_AUTH_ENABLED) -- normalize once here rather than trusting every
+        # comparison site to defend itself (seed.py already had to add its
+        # own .lower() for exactly this reason).
+        return value.strip().lower() if isinstance(value, str) else value
+
     @model_validator(mode="after")
     def _require_strong_webhook_secret_when_enabled(self) -> "Settings":
         if (
@@ -90,6 +136,33 @@ class Settings(BaseSettings):
                 "LEAD_SYNC_WEBHOOK_URL must be set when LEAD_SYNC_ENABLED is true -- "
                 "otherwise emit_institution_upserted() silently no-ops on every call, and "
                 "with no retry/outbox, every event is lost with no indication anything is wrong."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _forbid_restricted_sources_outside_allowed_environments(self) -> "Settings":
+        if (
+            self.restricted_sources_enabled
+            and self.app_env not in _ENVIRONMENTS_ALLOWING_DEV_GUARDS
+        ):
+            raise ValueError(
+                f"RESTRICTED_SOURCES_ENABLED must not be true when APP_ENV={self.app_env!r} -- "
+                "docs/ROADMAP.md Module 28 keeps LinkedIn account automation Restricted "
+                f"everywhere except {sorted(_ENVIRONMENTS_ALLOWING_DEV_GUARDS)}. A staging, QA, "
+                "or preview deployment is not 'production' by name but is still a real, "
+                "reachable environment this flag must not be true in."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _forbid_dev_auth_outside_allowed_environments(self) -> "Settings":
+        if self.dev_auth_enabled and self.app_env not in _ENVIRONMENTS_ALLOWING_DEV_GUARDS:
+            raise ValueError(
+                f"DEV_AUTH_ENABLED must not be true when APP_ENV={self.app_env!r} -- it bypasses "
+                "credential checks entirely and grants every request admin access. It may only "
+                f"be set when APP_ENV is one of {sorted(_ENVIRONMENTS_ALLOWING_DEV_GUARDS)}, not "
+                "merely 'not production' -- staging, QA, and preview deployments are real, "
+                "reachable environments too."
             )
         return self
 

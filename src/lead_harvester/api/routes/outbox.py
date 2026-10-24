@@ -6,6 +6,7 @@ from lead_harvester.api.dependencies import (
     get_current_user,
     get_db_session,
     get_lead_sync_emitter,
+    require_permission,
 )
 from lead_harvester.integrations.lead_sync_emitter import LeadSyncEmitter
 from lead_harvester.models.outbox import OutboxStatus
@@ -30,7 +31,11 @@ async def list_outbox_entries_route(
     return [EventOutboxResponse.model_validate(e) for e in entries]
 
 
-@router.post("/process", response_model=ProcessOutboxResponse)
+@router.post(
+    "/process",
+    response_model=ProcessOutboxResponse,
+    dependencies=[Depends(require_permission("outbox.manage"))],
+)
 async def process_pending_deliveries_route(
     limit: int = Query(50, ge=1, le=500),
     session: AsyncSession = Depends(get_db_session),
@@ -43,7 +48,11 @@ async def process_pending_deliveries_route(
     return ProcessOutboxResponse(processed=processed)
 
 
-@router.post("/{outbox_id}/requeue", response_model=EventOutboxResponse)
+@router.post(
+    "/{outbox_id}/requeue",
+    response_model=EventOutboxResponse,
+    dependencies=[Depends(require_permission("outbox.manage"))],
+)
 async def requeue_dead_letter_route(
     outbox_id: str = Path(...),
     session: AsyncSession = Depends(get_db_session),

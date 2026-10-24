@@ -49,7 +49,7 @@ def _fake_browser():
 
 
 @pytest.mark.asyncio
-async def test_run_attaches_partial_profiles_when_the_loop_aborts(tmp_path):
+async def test_run_attaches_partial_profiles_when_the_loop_aborts(tmp_path, monkeypatch):
     # A CAPTCHA-triggered abort (_check_for_captcha's own intentional
     # RuntimeError), a search-budget exhaustion, or any other browser-level
     # failure after earlier URLs already succeeded previously discarded
@@ -57,6 +57,10 @@ async def test_run_attaches_partial_profiles_when_the_loop_aborts(tmp_path):
     # results` at all, so cli.py's linkedin_run never reached its
     # persistence block and account_farm.py's worker explicitly returned
     # an empty profile list.
+    from lead_harvester.config import settings
+
+    monkeypatch.setattr(settings, "restricted_sources_enabled", True)
+
     _backdate_to_week3(tmp_path, "burner_partial")
     crawler = LinkedInStealthCrawler(
         account_id="burner_partial",

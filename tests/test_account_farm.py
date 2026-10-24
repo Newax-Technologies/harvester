@@ -278,7 +278,9 @@ def test_run_account_worker_preserves_partial_profiles_on_crawler_abort(tmp_path
 
 
 @pytest.mark.asyncio
-async def test_run_does_not_record_breadth_visits_if_persisting_profiles_fails(tmp_path):
+async def test_run_does_not_record_breadth_visits_if_persisting_profiles_fails(
+    tmp_path, monkeypatch
+):
     # _record_farm_visits writes to breadth_log.json -- once a URL is
     # marked visited there, assign_partitions permanently excludes it from
     # every future run, including a rerun meant to recover from a failure.
@@ -286,6 +288,10 @@ async def test_run_does_not_record_breadth_visits_if_persisting_profiles_fails(t
     # harvested profiles never reached RawSourceRecord/research at all, so
     # their URLs must not be marked visited either -- persisting has to
     # happen (and succeed) before recording visits, not after.
+    from lead_harvester.config import settings
+
+    monkeypatch.setattr(settings, "restricted_sources_enabled", True)
+
     farm = AccountFarm(accounts=[])
     farm._persist_profiles = AsyncMock(side_effect=RuntimeError("db unavailable"))
     farm._record_farm_visits = MagicMock()

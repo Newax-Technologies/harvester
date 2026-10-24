@@ -107,6 +107,18 @@ async def linkedin_login(args: argparse.Namespace) -> int:
     Open a real (visible) Camoufox browser, navigate to linkedin.com/login,
     and wait for the user to log in manually. Then saves the session cookies.
     """
+    from .compliance.source_policy import RestrictedSourceDisabledError, ensure_source_enabled
+    from .config import settings
+    from .models.source import SourceType
+
+    try:
+        ensure_source_enabled(
+            SourceType.LINKEDIN, restricted_sources_enabled=settings.restricted_sources_enabled
+        )
+    except RestrictedSourceDisabledError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
     try:
         from camoufox.async_api import AsyncCamoufox
     except ImportError:
@@ -150,10 +162,20 @@ async def linkedin_run(args: argparse.Namespace) -> int:
     """
     import dataclasses
 
+    from .compliance.source_policy import RestrictedSourceDisabledError, ensure_source_enabled
+    from .config import settings
     from .database import get_session
     from .models import RawSourceRecord
     from .models.source import SourceType
     from .sources.linkedin_stealth import LinkedInStealthCrawler
+
+    try:
+        ensure_source_enabled(
+            SourceType.LINKEDIN, restricted_sources_enabled=settings.restricted_sources_enabled
+        )
+    except RestrictedSourceDisabledError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
     account_id = args.account
     proxy = args.proxy or _env("LINKEDIN_PROXY")
@@ -380,6 +402,279 @@ async def suppress_contact(args: argparse.Namespace) -> int:
         normalized = entry.normalized_contact_value
 
     print(f"\n[Compliance] Suppressed {normalized!r} (channel={args.channel or 'all'}).\n")
+    return 0
+
+
+async def issue_service_credential(args: argparse.Namespace) -> int:
+    """
+    Create a new ServiceCredential and print its raw bearer token exactly
+    once (docs/delivery/agency-intelligence-implementation-sequence.md
+    Slice 1.2). The token is unrecoverable after this -- only its SHA-256
+    hash is stored (services/auth_service.py::hash_token). Re-run this
+    command to issue a replacement if it's lost.
+    """
+    import datetime as dt
+    import uuid
+
+    from .database import get_session
+    from .models.auth import ServiceRole
+    from .models.tenancy import DEFAULT_TENANT_ID
+    from .services.auth_service import (
+        CredentialNameInUseError,
+        TenantNotFoundError,
+        TenantScopeIncompleteError,
+    )
+    from .services.auth_service import issue_service_credential as issue
+
+    try:
+        role = ServiceRole(args.role)
+    except ValueError:
+        valid = ", ".join(r.value for r in ServiceRole)
+        print(f"Error: --role must be one of: {valid}", file=sys.stderr)
+        return 1
+
+    if args.tenant_id:
+        try:
+            tenant_id = uuid.UUID(args.tenant_id)
+        except ValueError:
+            print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
+            return 1
+    else:
+        tenant_id = DEFAULT_TENANT_ID
+
+    expires_at = None
+    if args.ttl_days:
+        if args.ttl_days <= 0:
+            print(
+                f"Error: --ttl-days must be a positive integer, got {args.ttl_days}.",
+                file=sys.stderr,
+            )
+            return 1
+        expires_at = dt.datetime.now(dt.UTC) + dt.timedelta(days=args.ttl_days)
+
+    try:
+        async with get_session() as session:
+            credential, raw_token = await issue(
+                session, name=args.name, role=role, tenant_id=tenant_id, expires_at=expires_at
+            )
+            name = credential.name
+    except (TenantScopeIncompleteError, TenantNotFoundError, CredentialNameInUseError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    expiry_note = f", expires {expires_at.isoformat()}" if expires_at else " (no expiry)"
+    print(
+        f"\n[Auth] Issued credential {name!r} (role={role.value}, tenant={tenant_id}{expiry_note})."
+    )
+    print(f"  Token (shown once, store it now): {raw_token}\n")
+    return 0
+
+
+async def revoke_service_credential_cmd(args: argparse.Namespace) -> int:
+    """Revoke a ServiceCredential by name so its token stops authenticating immediately."""
+    from .database import get_session
+    from .services.auth_service import revoke_service_credential
+
+    async with get_session() as session:
+        credential = await revoke_service_credential(session, args.name)
+
+    if credential is None:
+        print(f"Error: no active credential named {args.name!r} found.", file=sys.stderr)
+        return 1
+
+    print(f"\n[Auth] Revoked credential {args.name!r}.\n")
+    return 0
+
+
+def _parse_config_value(raw: str, value_type) -> object:
+    from .config_registry import ConfigValueType
+
+    if value_type == ConfigValueType.BOOL:
+        if raw.lower() not in ("true", "false"):
+            raise ValueError(f"expected 'true' or 'false', got {raw!r}")
+        return raw.lower() == "true"
+    if value_type == ConfigValueType.INT:
+        return int(raw)
+    if value_type == ConfigValueType.STRING_LIST:
+        return [item.strip() for item in raw.split(",") if item.strip()]
+    return raw
+
+
+async def get_tenant_config_cmd(args: argparse.Namespace) -> int:
+    """Print a tenant's active value for a configuration key (or its registry default)."""
+    import uuid
+
+    from .config_registry import UnknownConfigKeyError
+    from .database import get_session
+    from .services.auth_service import TenantNotFoundError
+    from .services.tenant_config_service import get_tenant_config
+
+    try:
+        tenant_id = uuid.UUID(args.tenant_id)
+    except ValueError:
+        print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
+        return 1
+
+    try:
+        async with get_session() as session:
+            value = await get_tenant_config(session, tenant_id, args.key)
+    except (UnknownConfigKeyError, TenantNotFoundError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"{args.key} = {value!r}")
+    return 0
+
+
+async def set_tenant_config_cmd(args: argparse.Namespace) -> int:
+    """
+    Set a tenant's override for a configuration key -- always creates a
+    new version (docs/delivery/agency-intelligence-implementation-sequence.md
+    Slice 1.4); never overwrites the prior value in place.
+    """
+    import uuid
+
+    from .config_registry import ConfigValueTypeError, UnknownConfigKeyError, get_definition
+    from .database import get_session
+    from .services.auth_service import TenantNotFoundError
+    from .services.tenant_config_service import set_tenant_config
+
+    try:
+        tenant_id = uuid.UUID(args.tenant_id)
+    except ValueError:
+        print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
+        return 1
+
+    try:
+        definition = get_definition(args.key)
+        value = _parse_config_value(args.value, definition.value_type)
+    except (UnknownConfigKeyError, ValueError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    try:
+        async with get_session() as session:
+            override = await set_tenant_config(
+                session, tenant_id, args.key, value, created_by=args.set_by
+            )
+            version = override.version
+    except (UnknownConfigKeyError, ConfigValueTypeError, TenantNotFoundError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"\n[Config] {args.key} = {value!r} for tenant {tenant_id} (version {version}).\n")
+    return 0
+
+
+async def vault_store_credential_cmd(args: argparse.Namespace) -> int:
+    """
+    Encrypt and store a connector/source credential -- write-only by
+    design (docs/delivery/agency-intelligence-implementation-sequence.md
+    Slice 2.1). Prints the new version's fingerprint/metadata, never the
+    value itself.
+
+    The value is never accepted as a CLI argument -- argv is visible in
+    shell history and to any other process on the box via `ps` for as
+    long as this command runs. Prompted with echo disabled by default;
+    --value-stdin reads one line from stdin instead, for scripted/piped
+    use (`... | lead-harvester vault-store-credential ... --value-stdin`),
+    which keeps the secret out of argv and shell history the same way.
+    """
+    import getpass
+    import uuid
+
+    from .database import get_session
+    from .services.auth_service import TenantNotFoundError
+    from .services.credential_vault_service import credential_metadata, store_credential
+    from .vault_crypto import VaultNotConfiguredError
+
+    try:
+        tenant_id = uuid.UUID(args.tenant_id)
+    except ValueError:
+        print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
+        return 1
+
+    if args.value_stdin:
+        value = sys.stdin.readline().rstrip("\n")
+    else:
+        value = getpass.getpass("Value (input hidden): ")
+    if not value:
+        print("Error: value must not be empty.", file=sys.stderr)
+        return 1
+
+    try:
+        async with get_session() as session:
+            credential = await store_credential(
+                session, tenant_id, args.name, value, created_by=args.set_by
+            )
+            metadata = credential_metadata(credential)
+    except (TenantNotFoundError, VaultNotConfiguredError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(
+        f"\n[Vault] Stored credential {metadata['name']!r} for tenant {tenant_id} "
+        f"(version {metadata['version']}, fingerprint {metadata['fingerprint']}).\n"
+    )
+    return 0
+
+
+async def vault_revoke_credential_cmd(args: argparse.Namespace) -> int:
+    """Revoke a tenant's active vaulted credential by name -- no replacement is created."""
+    import uuid
+
+    from .database import get_session
+    from .services.credential_vault_service import revoke_credential
+
+    try:
+        tenant_id = uuid.UUID(args.tenant_id)
+    except ValueError:
+        print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
+        return 1
+
+    async with get_session() as session:
+        revoked = await revoke_credential(session, tenant_id, args.name)
+
+    if revoked is None:
+        print(
+            f"Error: no active credential named {args.name!r} for tenant {tenant_id}.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"\n[Vault] Revoked credential {args.name!r} for tenant {tenant_id}.\n")
+    return 0
+
+
+async def vault_show_credential_cmd(args: argparse.Namespace) -> int:
+    """
+    Print a vaulted credential's metadata and fingerprint -- never its
+    value. Compare the printed fingerprint against a known value's
+    fingerprint (vault_crypto.fingerprint_secret) to verify identity
+    without ever decrypting.
+    """
+    import uuid
+
+    from .database import get_session
+    from .services.credential_vault_service import get_credential_fingerprint
+
+    try:
+        tenant_id = uuid.UUID(args.tenant_id)
+    except ValueError:
+        print(f"Error: --tenant-id must be a UUID, got {args.tenant_id!r}.", file=sys.stderr)
+        return 1
+
+    async with get_session() as session:
+        fingerprint = await get_credential_fingerprint(session, tenant_id, args.name)
+
+    if fingerprint is None:
+        print(
+            f"Error: no active credential named {args.name!r} for tenant {tenant_id}.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"\n[Vault] {args.name} (tenant {tenant_id}): fingerprint={fingerprint}\n")
     return 0
 
 
@@ -610,6 +905,9 @@ async def list_signals_cmd(args: argparse.Namespace) -> int:
 async def linkedin_send(args: argparse.Namespace) -> int:
     """
     Send all approved OutreachDraft records (LinkedIn messages or emails).
+    Email drafts still send when LinkedIn automation is policy-disabled --
+    see OutreachAutomator.run()'s gate, which applies only to the LinkedIn
+    (Camoufox browser) batch, not the whole command.
     """
     from .outreach.automator import OutreachAutomator
 
@@ -627,8 +925,8 @@ async def linkedin_send(args: argparse.Namespace) -> int:
 
     mode = "DRY RUN" if args.dry_run else "LIVE"
     print(f"[Outreach] Starting automator ({mode})...")
-    await automator.run()
-    return 0
+    ok = await automator.run()
+    return 0 if ok else 1
 
 
 # ---------------------------------------------------------------------------
@@ -791,6 +1089,100 @@ def build_parser() -> argparse.ArgumentParser:
         "--channel", default=None, help="Limit to one channel (e.g. 'email'); default: all channels"
     )
     suppress.add_argument("--note", default="")
+
+    # -- issue-service-credential --------------------------------------------
+    issue_credential = subparsers.add_parser(
+        "issue-service-credential",
+        help="Create a new API bearer credential and print its token once",
+    )
+    issue_credential.add_argument(
+        "--name", required=True, help="Unique identity for this credential"
+    )
+    issue_credential.add_argument("--role", required=True, choices=["admin", "reviewer", "viewer"])
+    issue_credential.add_argument(
+        "--tenant-id",
+        default="",
+        help=(
+            "Tenant UUID this credential belongs to (default: the default tenant). "
+            "Only the default tenant is currently accepted -- see TenantScopeIncompleteError."
+        ),
+    )
+    issue_credential.add_argument(
+        "--ttl-days",
+        type=int,
+        default=0,
+        help="Expire this credential after N days (default: 0, meaning no expiry)",
+    )
+
+    # -- revoke-service-credential --------------------------------------------
+    revoke_credential = subparsers.add_parser(
+        "revoke-service-credential",
+        help="Revoke a service credential by name so its token stops authenticating",
+    )
+    revoke_credential.add_argument("--name", required=True)
+
+    # -- get-tenant-config ----------------------------------------------------
+    get_config = subparsers.add_parser(
+        "get-tenant-config",
+        help="Print a tenant's active value for a configuration key (or its registry default)",
+    )
+    get_config.add_argument("--tenant-id", required=True)
+    get_config.add_argument("--key", required=True, help="See config_registry.CONFIG_REGISTRY")
+
+    # -- set-tenant-config ------------------------------------------------------
+    set_config = subparsers.add_parser(
+        "set-tenant-config",
+        help="Set a tenant's override for a configuration key (always creates a new version)",
+    )
+    set_config.add_argument("--tenant-id", required=True)
+    set_config.add_argument("--key", required=True, help="See config_registry.CONFIG_REGISTRY")
+    set_config.add_argument(
+        "--value",
+        required=True,
+        help="'true'/'false' for bool keys, an int, or a comma-separated list",
+    )
+    set_config.add_argument(
+        "--set-by", required=True, help="Identity recorded as this version's created_by"
+    )
+
+    # -- vault-store-credential -----------------------------------------------
+    vault_store = subparsers.add_parser(
+        "vault-store-credential",
+        help="Encrypt and store a connector/source credential (write-only; issues or rotates)",
+    )
+    vault_store.add_argument("--tenant-id", required=True)
+    vault_store.add_argument(
+        "--name",
+        required=True,
+        help="Stable identity for this credential, e.g. google_places_api_key",
+    )
+    vault_store.add_argument(
+        "--value-stdin",
+        action="store_true",
+        help=(
+            "Read the secret from stdin instead of an interactive hidden prompt "
+            "(for scripted/piped use). The value is never accepted as a CLI argument."
+        ),
+    )
+    vault_store.add_argument(
+        "--set-by", required=True, help="Identity recorded as this version's created_by"
+    )
+
+    # -- vault-revoke-credential -----------------------------------------------
+    vault_revoke = subparsers.add_parser(
+        "vault-revoke-credential",
+        help="Revoke a tenant's active vaulted credential by name (no replacement is created)",
+    )
+    vault_revoke.add_argument("--tenant-id", required=True)
+    vault_revoke.add_argument("--name", required=True)
+
+    # -- vault-show-credential -----------------------------------------------
+    vault_show = subparsers.add_parser(
+        "vault-show-credential",
+        help="Print a vaulted credential's fingerprint and metadata -- never its value",
+    )
+    vault_show.add_argument("--tenant-id", required=True)
+    vault_show.add_argument("--name", required=True)
 
     # -- purge-expired-records ----------------------------------------------
     purge = subparsers.add_parser(
@@ -1015,6 +1407,15 @@ def main() -> None:
         "select-daily-leads": lambda: sys.exit(asyncio.run(select_daily_leads(args))),
         "verify-data-quality": lambda: sys.exit(asyncio.run(verify_data_quality(args))),
         "suppress-contact": lambda: sys.exit(asyncio.run(suppress_contact(args))),
+        "issue-service-credential": lambda: sys.exit(asyncio.run(issue_service_credential(args))),
+        "revoke-service-credential": lambda: sys.exit(
+            asyncio.run(revoke_service_credential_cmd(args))
+        ),
+        "get-tenant-config": lambda: sys.exit(asyncio.run(get_tenant_config_cmd(args))),
+        "set-tenant-config": lambda: sys.exit(asyncio.run(set_tenant_config_cmd(args))),
+        "vault-store-credential": lambda: sys.exit(asyncio.run(vault_store_credential_cmd(args))),
+        "vault-revoke-credential": lambda: sys.exit(asyncio.run(vault_revoke_credential_cmd(args))),
+        "vault-show-credential": lambda: sys.exit(asyncio.run(vault_show_credential_cmd(args))),
         "purge-expired-records": lambda: sys.exit(asyncio.run(purge_expired_records(args))),
         "process-outbox": lambda: sys.exit(asyncio.run(process_outbox(args))),
         "export-leads": lambda: sys.exit(asyncio.run(export_leads(args))),
@@ -1050,7 +1451,18 @@ def _linkedin_status(args: argparse.Namespace) -> None:
 
 
 async def _linkedin_farm_run(args: argparse.Namespace) -> int:
+    from .compliance.source_policy import RestrictedSourceDisabledError, ensure_source_enabled
+    from .config import settings
+    from .models.source import SourceType
     from .sources.account_farm import AccountFarm
+
+    try:
+        ensure_source_enabled(
+            SourceType.LINKEDIN, restricted_sources_enabled=settings.restricted_sources_enabled
+        )
+    except RestrictedSourceDisabledError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
     accounts = [a.strip() for a in args.accounts.split(",") if a.strip()]
     captcha_key = args.captcha_key or _env("TWOCAPTCHA_API_KEY") or None
